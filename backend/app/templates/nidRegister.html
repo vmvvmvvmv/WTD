@@ -1,0 +1,30 @@
+<!doctype html>
+{% load static %}
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}">
+    <title>로그인</title>
+    <link rel="stylesheet" href="{% static 'css/ui.css' %}">
+</head>
+<body>
+
+<div class="login-container">
+    <h1>회원가입</h1>
+    <form action="#" method="post">
+        <input type="text" name="id" id="id" placeholder="아이디" maxlength="16" required>
+        <input type="password" name="pw" id="pw" placeholder="비밀번호" maxlength="50" required>
+        <input type="password" name="repw" id="repw" placeholder="비밀번호 재입력" maxlength="50" required>
+        <input type="email" name="email" id="email" placeholder="이메일(선택)" maxlength="40">
+        <input type="text" name="nickname" id="nickname" placeholder="별명(선택)" maxlength="16">
+        <button type="submit" id="login">가입</button>
+        <button type="button" id="register" onclick="location.href='../nidLogin/'">돌아가기</button>
+    </form>
+</div>
+<script>
+    const csrfToken = "{{ csrf_token }}";
+</script>
+<script type="text/javascript" src="{% static 'js/register.js' %}"></script>
+</body>
+</html>
