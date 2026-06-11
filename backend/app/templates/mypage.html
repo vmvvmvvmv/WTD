@@ -1,0 +1,33 @@
+<!doctype html>
+{% load static %}
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="shortcut icon" href="{% static 'images/favicon.ico' %}">
+    <link rel="stylesheet" href="{% static 'css/ui.css' %}">
+    <script type="text/javascript" src="{% static 'js/update.js' %}"></script>
+    <title>정보 수정</title>
+</head>
+<body>
+{% if user.is_authenticated %}
+<div class="login-container">
+    <h1>정보 수정</h1>
+    <form action="/api/update/" method="post">
+        <input type="text" name="id" id="id" placeholder="아이디" maxlength="16" value="{{user.user_id}}" required readonly>
+        <input type="email" name="email" id="email" placeholder="이메일" maxlength="40" value="{{user.email}}" required>
+        <input type="text" name="region" id="region" placeholder="거주지" maxlength="40" value="{{region}}">
+        <input type="text" name="diseases" id="diseases" placeholder="질병명" maxlength="40" value="{{diseases}}">
+        {% csrf_token %}
+        <button type="submit" id="edit">수정</button>
+    </form>
+    <div class="link-container">
+        <p><a href="/updatePassword">비밀번호 변경하기</a></p>
+        <p><a href="../">홈으로</a></p>
+    </div>
+</div>
+{% else %}
+<a href="/">메인으로 돌아가기</a>
+{% endif %}
+</body>
+</html>
