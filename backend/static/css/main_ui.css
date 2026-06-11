@@ -1,0 +1,79 @@
+/* Global styles */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 0;
+    padding: 0;
+    color: #333;
+    line-height: 1.6;
+}
+
+/* Header styles */
+h1 {
+    text-align: center;
+    margin: 20px 0;
+    color: #2c3e50;
+    font-size: 2.5em;
+}
+
+h3 {
+    text-align: center;
+    color: #34495e;
+}
+
+/* User information section */
+p {
+    margin: 10px;
+    font-size: 1em;
+}
+
+p a {
+    text-decoration: none;
+    color: #2980b9;
+    font-weight: bold;
+}
+
+p a:hover {
+    color: #3498db;
+    text-decoration: underline;
+}
+
+/* Authentication buttons */
+h2 a {
+    display: inline-block;
+    margin: 20px auto;
+    padding: 10px 20px;
+    background-color: #3498db;
+    color: white;
+    text-decoration: none;
+    font-size: 1.2em;
+    border-radius: 5px;
+    text-align: center;
+    transition: background-color 0.3s ease;
+}
+
+h2 a:hover {
+    background-color: #2980b9;
+}
+
+/* Links and buttons */
+a {
+    text-decoration: none;
+    color: #e74c3c;
+}
+
+a:hover {
+    color: #c0392b;
+}
+
+/* Footer or smaller text sections */
+p {
+    font-size: 1rem;
+    line-height: 1.4;
+    margin: 10px 20px;
+}
+
+p span {
+    font-weight: bold;
+    color: #27ae60;
+}

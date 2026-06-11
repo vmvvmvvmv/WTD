@@ -1,0 +1,57 @@
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*firebase-adminsdk*.json
+*service-account*.json
+google-services.json
+
+# Mobile dependencies and generated output
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/expo-env.d.ts
+mobile/expo*.log
+mobile/npm-debug.*
+mobile/yarn-debug.*
+mobile/yarn-error.*
+mobile/android/.gradle/
+mobile/android/.idea/
+mobile/android/local.properties
+mobile/android/build/
+mobile/android/app/build/
+mobile/android/app/.cxx/
+mobile/android/app/release/
+mobile/android/app/debug/
+*.apk
+*.aab
+
+# Backend local/runtime files
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.log
+backend/db.sqlite3
+backend/*.sqlite3
+backend/media/
+backend/staticfiles/
+backend/build/
+backend/exports/
+backend/.venv/
+backend/venv/
+backend/env/
+backend/table_backup.sql
+backend/db_init.bat
+backend/*.bak
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

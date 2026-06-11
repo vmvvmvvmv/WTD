@@ -1,0 +1,10 @@
+Django==4.2.12
+djangorestframework==3.15.2
+colorama==0.4.6
+psycopg2-binary==2.9.10
+django-cors-headers
+mysqlclient
+requests
+pandas
+scikit-learn
+gunicorn==20.1.0
