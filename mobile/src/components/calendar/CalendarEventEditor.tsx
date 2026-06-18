@@ -897,7 +897,7 @@ export function CalendarEventEditor({
                 source={{ uri: mapPickerSource }}
                 javaScriptEnabled
                 domStorageEnabled
-                androidLayerType="software"
+                androidLayerType="hardware"
                 mixedContentMode="always"
                 originWhitelist={['*']}
                 setSupportMultipleWindows={false}

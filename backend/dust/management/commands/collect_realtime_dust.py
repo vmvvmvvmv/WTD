@@ -58,8 +58,11 @@ class Command(BaseCommand):
         cache.delete("airkorea_realtime_station_values_v2")
         cache.delete("airkorea_realtime_station_values_v3")
         cache.delete("airkorea_realtime_station_values_v4")
+        cache.delete("airkorea_realtime_station_values_v5")
         cache.delete("latest_daily_station_values_v1")
         cache.delete("korea_station_dust_response_v1")
+        cache.delete("korea_station_dust_response_v2")
+        cache.delete("korea_station_dust_response_v3")
 
         self.stdout.write(self.style.SUCCESS(f"Realtime API rows: {len(values)}"))
         self.stdout.write(self.style.SUCCESS(f"Realtime DB rows created: {saved}"))
