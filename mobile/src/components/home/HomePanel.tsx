@@ -359,7 +359,7 @@ export function HomePanel({
             source={{ uri: mapPreviewUrl }}
             javaScriptEnabled
             domStorageEnabled
-            androidLayerType="software"
+            androidLayerType="hardware"
             mixedContentMode="always"
             originWhitelist={['*']}
             setSupportMultipleWindows={false}
