@@ -12,7 +12,7 @@ import type {
 } from '../../types/dust';
 
 const CACHE_DIR = `${FileSystem.documentDirectory ?? ''}dashboard-cache`;
-const CACHE_TTL_MS = 60 * 60 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 
 export type DashboardCacheSnapshot = {
   currentItem: CurrentDustItem | null;
