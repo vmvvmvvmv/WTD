@@ -496,7 +496,7 @@ function AppContent() {
       setWeather(cachedDashboard.weather ?? null);
       setIsLoading(false);
       finishRegionTransition();
-      if (!force) return;
+      if (!force && cachedDashboard.currentItem) return;
     } else {
       setIsLoading(true);
     }
@@ -2123,6 +2123,5 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
 
 

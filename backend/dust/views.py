@@ -277,10 +277,24 @@ def mobile_map(request):
         width: 38px;
       }}
       .picker-gps-marker {{
+        align-items: center;
+        background: #ffffff;
+        border: 3px solid #2f80ed;
+        border-radius: 999px 999px 999px 0;
+        box-shadow: 0 4px 12px rgba(47,128,237,.32);
+        display: flex;
+        height: 34px;
+        justify-content: center;
+        transform: rotate(-45deg);
+        width: 34px;
+      }}
+      .picker-gps-marker::after {{
+        background: #2f80ed;
+        border-radius: 999px;
+        content: '';
         display: block;
-        height: 52px;
-        object-fit: contain;
-        width: 52px;
+        height: 12px;
+        width: 12px;
       }}
       .marker-wrap {{
         align-items: center;
@@ -690,7 +704,7 @@ def mobile_map(request):
             map,
             zIndex: 5000,
             icon: {{
-              content: '<img class="picker-gps-marker" src="/static/img/gps-marker.png" alt="">',
+              content: '<div class="picker-gps-marker"></div>',
               size: new naver.maps.Size(52, 52),
               anchor: new naver.maps.Point(26, 26)
             }}
@@ -752,7 +766,37 @@ def mobile_map(request):
           activeMarkers = [];
         }}
 
-        function renderMarkers() {{
+        let lastMarkerRenderSignature = '';
+        let markerRenderTimer = null;
+
+        function markerRenderSignature() {{
+          const bounds = map.getBounds && map.getBounds();
+          const sw = bounds && bounds.getSW ? bounds.getSW() : null;
+          const ne = bounds && bounds.getNE ? bounds.getNE() : null;
+          const zoom = map.getZoom ? map.getZoom() : '';
+          return [
+            zoom,
+            focusedKey || '',
+            mapMode,
+            sw && typeof sw.lat === 'function' ? sw.lat().toFixed(2) : '',
+            sw && typeof sw.lng === 'function' ? sw.lng().toFixed(2) : '',
+            ne && typeof ne.lat === 'function' ? ne.lat().toFixed(2) : '',
+            ne && typeof ne.lng === 'function' ? ne.lng().toFixed(2) : ''
+          ].join('|');
+        }}
+
+        function scheduleRenderMarkers(force) {{
+          if (markerRenderTimer) clearTimeout(markerRenderTimer);
+          markerRenderTimer = setTimeout(() => {{
+            markerRenderTimer = null;
+            renderMarkers(force);
+          }}, force ? 0 : 80);
+        }}
+
+        function renderMarkers(force) {{
+          const signature = markerRenderSignature();
+          if (!force && signature === lastMarkerRenderSignature) return;
+          lastMarkerRenderSignature = signature;
           clearMarkers();
           if (pickerMode) return;
           const showLabels = map.getZoom() >= 8;
@@ -865,7 +909,7 @@ def mobile_map(request):
           setTimeout(() => {{
             map.setCenter(next);
             map.setZoom(nextZoom, true);
-            renderMarkers();
+            scheduleRenderMarkers(true);
           }}, 900);
         }};
 
@@ -877,7 +921,7 @@ def mobile_map(request):
 
         window.setMapMode = function(nextMode) {{
           mapMode = nextMode === 'weather' ? 'weather' : 'dust';
-          renderMarkers();
+          scheduleRenderMarkers(true);
         }};
 
         if (pickerMode) {{
@@ -954,9 +998,9 @@ def mobile_map(request):
             height: mapElement.clientHeight,
             zoom: map.getZoom ? map.getZoom() : ''
           }});
-          renderMarkers();
+          scheduleRenderMarkers(false);
         }});
-        renderMarkers();
+        scheduleRenderMarkers(true);
         setTimeout(() => {{
           mapDebug('map_render_after_2s', {{
             childCount: mapElement.children.length,
@@ -1666,7 +1710,7 @@ def _fetch_realtime_station_values_for_sido(sido):
     return values, debug
 
 def _load_realtime_station_values(with_debug=False, allow_api=False):
-    cache_key = 'airkorea_realtime_station_values_v4'
+    cache_key = 'airkorea_realtime_station_values_v5'
     cached = cache.get(cache_key)
     if cached:
         if with_debug:
@@ -1721,6 +1765,39 @@ def _parse_airkorea_datetime(value):
             continue
     return None
 
+def _median(values):
+    numbers = sorted(value for value in values if value is not None)
+    if not numbers:
+        return None
+    middle = len(numbers) // 2
+    if len(numbers) % 2:
+        return numbers[middle]
+    return (numbers[middle - 1] + numbers[middle]) / 2
+
+
+def _apply_realtime_spike_guard(values, history_by_key):
+    rules = {
+        "pm10": {"min_value": 120, "min_delta": 70, "ratio": 2.5},
+        "pm25": {"min_value": 70, "min_delta": 35, "ratio": 2.5},
+    }
+    for key, item in values.items():
+        history = history_by_key.get(key) or []
+        if len(history) < 3:
+            continue
+        for field, rule in rules.items():
+            latest = _to_float(item.get(field))
+            previous = [_to_float(row.get(field)) for row in history[1:5]]
+            baseline = _median(previous)
+            if latest is None or baseline is None or baseline <= 0:
+                continue
+            if latest >= rule["min_value"] and latest - baseline >= rule["min_delta"] and latest / baseline >= rule["ratio"]:
+                item[f"raw{field.upper()}"] = latest
+                item[field] = round(baseline, 1)
+                item[f"{field}SpikeAdjusted"] = True
+                item["qualityNote"] = "single_sample_spike_adjusted"
+    return values
+
+
 def _load_latest_realtime_values_from_db(max_age_hours=24):
     cutoff = timezone.now() - timedelta(hours=max_age_hours)
     measurements = (
@@ -1730,9 +1807,15 @@ def _load_latest_realtime_values_from_db(max_age_hours=24):
         .order_by('station_id', '-measured_at')
     )
     values = {}
+    history_by_key = {}
     for measurement in measurements:
         station = measurement.station
         key = f'{station.sido}:{station.name}'
+        history_by_key.setdefault(key, []).append({
+            "pm10": measurement.pm10_value,
+            "pm25": measurement.pm25_value,
+            "measured_at": measurement.measured_at,
+        })
         existing = values.get(key)
         if not existing:
             existing = {
@@ -1768,7 +1851,7 @@ def _load_latest_realtime_values_from_db(max_age_hours=24):
         if existing["o3"] is None and measurement.o3_value is not None:
             existing["o3"] = measurement.o3_value
             existing["o3_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
-    return values
+    return _apply_realtime_spike_guard(values, history_by_key)
 
 def _latest_weather_by_grid_for_locations(station_locations, max_age_hours=24):
     cutoff = timezone.now() - timedelta(hours=max_age_hours)
@@ -2090,7 +2173,7 @@ def korea_station_dust(request):
         return response
 
     try:
-        cache_key = 'korea_station_dust_response_v2'
+        cache_key = 'korea_station_dust_response_v3'
         cached_response = cache.get(cache_key)
         if cached_response is not None:
             return station_response(cached_response)

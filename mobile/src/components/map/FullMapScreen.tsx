@@ -99,7 +99,7 @@ export function FullMapScreen({
         source={{ uri: mapUrl }}
         javaScriptEnabled
         domStorageEnabled
-        androidLayerType="software"
+        androidLayerType="hardware"
         mixedContentMode="always"
         originWhitelist={['*']}
         setSupportMultipleWindows={false}
