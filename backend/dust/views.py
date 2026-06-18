@@ -279,22 +279,22 @@ def mobile_map(request):
       .picker-gps-marker {{
         align-items: center;
         background: #ffffff;
-        border: 3px solid #2f80ed;
+        border: 3px solid #d94b4b;
         border-radius: 999px 999px 999px 0;
-        box-shadow: 0 4px 12px rgba(47,128,237,.32);
+        box-shadow: 0 3px 10px rgba(217,75,75,.32);
         display: flex;
-        height: 34px;
+        height: 28px;
         justify-content: center;
         transform: rotate(-45deg);
-        width: 34px;
+        width: 28px;
       }}
       .picker-gps-marker::after {{
-        background: #2f80ed;
+        background: #d94b4b;
         border-radius: 999px;
         content: '';
         display: block;
-        height: 12px;
-        width: 12px;
+        height: 9px;
+        width: 9px;
       }}
       .marker-wrap {{
         align-items: center;
@@ -705,8 +705,8 @@ def mobile_map(request):
             zIndex: 5000,
             icon: {{
               content: '<div class="picker-gps-marker"></div>',
-              size: new naver.maps.Size(52, 52),
-              anchor: new naver.maps.Point(26, 26)
+              size: new naver.maps.Size(42, 42),
+              anchor: new naver.maps.Point(21, 21)
             }}
           }});
         }}
@@ -1798,6 +1798,40 @@ def _apply_realtime_spike_guard(values, history_by_key):
     return values
 
 
+def _is_single_sample_spike(latest, previous_values, rule):
+    baseline = _median(previous_values)
+    if latest is None or baseline is None or baseline <= 0:
+        return False
+    return latest >= rule["min_value"] and latest - baseline >= rule["min_delta"] and latest / baseline >= rule["ratio"]
+
+
+def _sidos_with_realtime_spikes(values):
+    rules = {
+        "pm10": {"min_value": 120, "min_delta": 70, "ratio": 2.5},
+        "pm25": {"min_value": 70, "min_delta": 35, "ratio": 2.5},
+    }
+    spike_sidos = set()
+    for value in values.values():
+        station = _find_station_for_realtime_value(value)
+        if not station:
+            continue
+        history = list(
+            RealtimeDustMeasurement.objects
+            .filter(station=station)
+            .order_by('-measured_at')
+            .values('pm10_value', 'pm25_value')[:4]
+        )
+        if len(history) < 3:
+            continue
+        checks = {
+            "pm10": [_to_float(row.get('pm10_value')) for row in history],
+            "pm25": [_to_float(row.get('pm25_value')) for row in history],
+        }
+        if any(_is_single_sample_spike(_to_float(value.get(field)), checks[field], rule) for field, rule in rules.items()):
+            spike_sidos.add(station.sido)
+    return sorted(spike_sidos)
+
+
 def _load_latest_realtime_values_from_db(max_age_hours=24):
     cutoff = timezone.now() - timedelta(hours=max_age_hours)
     measurements = (
@@ -2169,7 +2203,7 @@ def current_dust(request):
 def korea_station_dust(request):
     def station_response(data, status=None):
         response = Response(data, status=status)
-        response["Cache-Control"] = "public, max-age=300"
+        response["Cache-Control"] = "public, max-age=30"
         return response
 
     try:
@@ -2253,7 +2287,7 @@ def korea_station_dust(request):
                 "latest_weather_grids": len(latest_weather_by_grid),
             },
         }
-        cache.set(cache_key, response_data, 60)
+        cache.set(cache_key, response_data, 30)
         return station_response(response_data)
     except Exception as e:
         return Response({"error": str(e)}, status=500)

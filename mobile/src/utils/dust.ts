@@ -306,10 +306,15 @@ export function parseStoredNotificationSettings(value: string | null): Notificat
   if (!value) return DEFAULT_NOTIFICATION_SETTINGS;
   try {
     const parsed = JSON.parse(value) as Partial<NotificationSettings>;
+    const isLegacyDisabledDefault = parsed.enabled === false
+      && parsed.calendarReminders !== false
+      && parsed.weatherMorningAlerts !== true
+      && parsed.includeFavorites !== false;
+    if (isLegacyDisabledDefault) return DEFAULT_NOTIFICATION_SETTINGS;
     return {
-      enabled: Boolean(parsed.enabled),
+      enabled: parsed.enabled !== false,
       calendarReminders: parsed.calendarReminders !== false,
-      weatherMorningAlerts: parsed.weatherMorningAlerts === true,
+      weatherMorningAlerts: parsed.weatherMorningAlerts !== false,
       // TODO: 利먭꺼李얘린 吏??퉴吏 ?뚮┝???ы븿?섎뒗 湲곕뒫? ?꾩슂?깆씠 ??쑝硫??쒓굅 ?꾨낫?낅땲??
       includeFavorites: parsed.includeFavorites !== false,
     };

@@ -15,9 +15,9 @@ export const CALENDAR_EVENTS_STORAGE_KEY = 'dust.calendar-events';
 export const CALENDAR_NOTIFICATION_IDS_STORAGE_KEY = 'dust.calendar-notification-ids';
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
-  enabled: false,
+  enabled: true,
   calendarReminders: true,
-  weatherMorningAlerts: false,
+  weatherMorningAlerts: true,
   // TODO: Favorites-included notifications are marked for possible removal.
   includeFavorites: true,
 };
