@@ -29,6 +29,15 @@ def env_bool(name, default=False):
         return default
     return value.strip().lower() in ('1', 'true', 'yes', 'on')
 
+def env_int(name, default=0):
+    value = os.environ.get(name)
+    if value is None:
+        return default
+    try:
+        return int(value.strip())
+    except (TypeError, ValueError):
+        return default
+
 def env_list(name, default=None):
     value = os.environ.get(name)
     if not value:
@@ -133,6 +142,11 @@ DATABASES = {
         'PASSWORD': DB_PASS,
         'HOST': DB_HOST,
         'PORT': DB_PORT,
+        'CONN_MAX_AGE': env_int('DB_CONN_MAX_AGE', 300),
+        'OPTIONS': {
+            'charset': 'utf8mb4',
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
     }
 }
 

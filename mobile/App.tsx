@@ -481,7 +481,7 @@ function AppContent() {
   };
 
   // 홈/챗봇에서 쓰는 현재값, 과거 흐름, 예측 데이터를 한 번에 불러옵니다.
-  const loadDashboard = async () => {
+  const loadDashboard = async (force = false) => {
     if (!selectedRegion) return;
     const region = selectedRegion;
     const cachedDashboard = await loadDashboardCache(region);
@@ -495,6 +495,8 @@ function AppContent() {
       setCurrentNotice(cachedDashboard.currentNotice);
       setWeather(cachedDashboard.weather ?? null);
       setIsLoading(false);
+      finishRegionTransition();
+      if (!force) return;
     } else {
       setIsLoading(true);
     }
@@ -2121,7 +2123,6 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
 
 
 

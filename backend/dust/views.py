@@ -38,6 +38,13 @@ def _public_data_service_key(value):
     return unquote(value or '')
 
 
+def _env_int(name, default):
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
 PUBLIC_DATA_API_KEY = _env_first('PUBLIC_DATA_API_KEY', 'PUBLIC_DATA_SERVICE_KEY', 'DATA_GO_KR_SERVICE_KEY', 'SERVICE_KEY')
 API_KEY = _env_first(
     'DUST_API_KEY',
@@ -80,7 +87,7 @@ AIRKOREA_HEADERS = {
 }
 
 NAVER_LOCAL_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
-AIRKOREA_REQUEST_WORKERS = 8
+AIRKOREA_REQUEST_WORKERS = max(1, _env_int('AIRKOREA_REQUEST_WORKERS', 4))
 ASOS_STATIONS = [
     {"id": "90", "name": "속초", "lat": 38.2509, "lng": 128.5647},
     {"id": "93", "name": "북춘천", "lat": 37.9474, "lng": 127.7544},
