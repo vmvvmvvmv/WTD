@@ -4,6 +4,7 @@ import type { RegionState } from '../types/dust';
 type QueryValue = string | number | boolean | null | undefined;
 
 const baseUrl = API_URL.replace(/\/$/, '');
+const FETCH_TIMEOUT_MS = 15000;
 
 function buildUrl(path: string, params?: Record<string, QueryValue>) {
   const query = new URLSearchParams();
@@ -22,14 +23,32 @@ function withTestTokenHeaders(init?: RequestInit): RequestInit {
 }
 
 async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, init?: RequestInit): Promise<T> {
-  const response = await fetch(buildUrl(path, params), withTestTokenHeaders(init));
-  if (!response.ok) throw new Error(`${path} API ${response.status}`);
-  return response.json();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(buildUrl(path, params), {
+      ...withTestTokenHeaders(init),
+      signal: controller.signal,
+    });
+    if (!response.ok) throw new Error(`${path} API ${response.status}`);
+    return response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function fetchOptionalJson<T>(path: string, params?: Record<string, QueryValue>): Promise<T | null> {
-  const response = await fetch(buildUrl(path, params), withTestTokenHeaders());
-  return response.ok ? response.json() : null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  try {
+    const response = await fetch(buildUrl(path, params), {
+      ...withTestTokenHeaders(),
+      signal: controller.signal,
+    });
+    return response.ok ? response.json() : null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function getCurrentDust(region: RegionState) {
