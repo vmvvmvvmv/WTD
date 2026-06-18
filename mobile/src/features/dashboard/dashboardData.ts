@@ -64,6 +64,21 @@ function forecastAfterCurrentHour(forecastItems: WeatherHourlyItem[], currentIte
   return forecastItems.filter((item) => weatherItemKey(item) > currentKey);
 }
 
+function currentDustHourItem(currentItem: CurrentDustItem | null, todayDateLabel: string): HourlyDustItem | null {
+  if (currentItem?.pm10Value == null) return null;
+  const dataTime = typeof currentItem.dataTime === 'string' ? currentItem.dataTime : '';
+  return {
+    measuredAt: dataTime,
+    date: dataTime.slice(0, 10) || todayDateLabel,
+    hour: dataTime.slice(11, 16) || '현재',
+    pm10Value: currentItem.pm10Value,
+    pm25Value: currentItem.pm25Value,
+    o3Value: currentItem.o3Value,
+    no2Value: currentItem.no2Value,
+    phase: 'stored',
+  };
+}
+
 export function findStationForWeather(stations: StationDustItem[], region: RegionState) {
   return stations.find((station) => (
     station.sido === region.city
@@ -81,8 +96,13 @@ export function buildDashboardHourlyItems(
 ) {
   const storedItems = Array.isArray(hourlyData?.items) ? hourlyData.items as HourlyDustItem[] : [];
   const forecastItems = Array.isArray(hourlyData?.forecastItems) ? hourlyData.forecastItems as HourlyDustItem[] : [];
-  const latestStoredItem = storedItems.length > 0 ? { ...storedItems[storedItems.length - 1], phase: 'stored' } : null;
-  const nextItems = latestStoredItem ? [latestStoredItem, ...forecastItems] : forecastItems;
+  const latestStoredItem = storedItems.length > 0 ? { ...storedItems[storedItems.length - 1], phase: 'stored' as const } : null;
+  const currentHourlyItem = currentDustHourItem(currentItem, todayDateLabel);
+  const preferredStoredItem = currentHourlyItem && (
+    !latestStoredItem
+    || String(currentHourlyItem.measuredAt || '') >= String(latestStoredItem.measuredAt || '')
+  ) ? currentHourlyItem : latestStoredItem;
+  const nextItems = preferredStoredItem ? [preferredStoredItem, ...forecastItems] : forecastItems;
   if (nextItems.length > 0) return nextItems;
 
   if (currentItem?.pm10Value == null) return [];
