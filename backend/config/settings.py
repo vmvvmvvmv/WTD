@@ -49,6 +49,7 @@ SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env_bool('DJANGO_DEBUG', True)
+ENABLE_MOBILE_MAP_LOG = env_bool('ENABLE_MOBILE_MAP_LOG', DEBUG)
 
 if not SECRET_KEY and not DEBUG:
     raise RuntimeError('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG=False')
