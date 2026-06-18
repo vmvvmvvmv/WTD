@@ -12,6 +12,7 @@ import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import time
 from urllib.parse import unquote
+from django.conf import settings
 from django.core.cache import cache
 from django.http import HttpResponse
 from django.utils import timezone
@@ -1988,6 +1989,9 @@ def register_notification_device(request):
 @api_view(['POST'])
 def mobile_map_client_log(request):
     """Print WebView map diagnostics without storing API keys or token values."""
+    if not getattr(settings, "ENABLE_MOBILE_MAP_LOG", settings.DEBUG):
+        return Response({"ok": False, "detail": "mobile map logging is disabled."}, status=404)
+
     body = request.data if isinstance(request.data, dict) else {}
     event = str(body.get("event") or "unknown")[:80]
     details = body.get("details") if isinstance(body.get("details"), dict) else {}
@@ -2073,11 +2077,16 @@ def current_dust(request):
 
 @api_view(['GET'])
 def korea_station_dust(request):
+    def station_response(data, status=None):
+        response = Response(data, status=status)
+        response["Cache-Control"] = "public, max-age=300"
+        return response
+
     try:
         cache_key = 'korea_station_dust_response_v2'
         cached_response = cache.get(cache_key)
         if cached_response is not None:
-            return Response(cached_response)
+            return station_response(cached_response)
 
         station_locations, location_debug = _load_station_locations()
         realtime_values, realtime_debug = _load_realtime_station_values(with_debug=True)
@@ -2155,7 +2164,7 @@ def korea_station_dust(request):
             },
         }
         cache.set(cache_key, response_data, 60)
-        return Response(response_data)
+        return station_response(response_data)
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 

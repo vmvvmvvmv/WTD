@@ -61,6 +61,7 @@ import {
   findStationForWeather,
 } from './src/features/dashboard/dashboardData';
 import { loadDashboardCache, saveDashboardCache } from './src/features/dashboard/dashboardCache';
+import { loadStationCache, saveStationCache } from './src/features/stations/stationCache';
 import {
   loadCalendarNotificationIds,
   loadStoredAppState,
@@ -424,8 +425,14 @@ function AppContent() {
   const loadStations = async () => {
     setIsLoadingStations(true);
     try {
+      const cachedStations = await loadStationCache();
+      if (cachedStations?.length) {
+        setStationItems(cachedStations);
+      }
       const stationData = await getKoreaStations();
-      setStationItems((stationData.items as StationDustItem[] | undefined) ?? []);
+      const nextStations = (stationData.items as StationDustItem[] | undefined) ?? [];
+      setStationItems(nextStations);
+      saveStationCache(nextStations);
     } finally {
       setIsLoadingStations(false);
     }
@@ -1071,9 +1078,18 @@ function AppContent() {
       let stations = mapStations;
       if (stations.length === 0) {
         setLocationMessage('가까운 측정소를 찾는 중입니다.');
+        const cachedStations = await loadStationCache();
+        if (cachedStations?.length) {
+          setStationItems(cachedStations);
+          stations = cachedStations.filter((station) => normalizeLatLng(station.lat, station.lng));
+        }
+      }
+
+      if (stations.length === 0) {
         const stationData = await getKoreaStations();
         const nextStations = (stationData.items ?? []) as StationDustItem[];
         setStationItems(nextStations);
+        saveStationCache(nextStations);
         stations = nextStations.filter((station) => normalizeLatLng(station.lat, station.lng));
       }
 
@@ -2105,9 +2121,6 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
-
-
 
 
 
