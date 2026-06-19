@@ -1,7 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
 
 import requests
 from django.core.management.base import BaseCommand
+from django.db import close_old_connections
 
 from dust.models import AirQualityStation
 from dust.views import (
@@ -15,8 +17,15 @@ from dust.views import (
 )
 
 
-DEFAULT_FORECAST_HOURS = 72
-DEFAULT_WORKERS = 8
+def env_int(name, default):
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 48)
+DEFAULT_WORKERS = env_int("KMA_REQUEST_WORKERS", 2)
 
 
 def _normalize_items(items):
@@ -146,8 +155,15 @@ class Command(BaseCommand):
         self.stdout.write(f"KMA request workers: {worker_count}")
         self.stdout.write(f"Forecast rows per grid: up to {forecast_hours}")
 
+        def collect_grid(grid):
+            close_old_connections()
+            try:
+                return _collect_grid_weather(grid, forecast_hours)
+            finally:
+                close_old_connections()
+
         with ThreadPoolExecutor(max_workers=worker_count) as executor:
-            futures = {executor.submit(_collect_grid_weather, grid, forecast_hours): grid for grid in grid_values}
+            futures = {executor.submit(collect_grid, grid): grid for grid in grid_values}
             for index, future in enumerate(as_completed(futures), start=1):
                 grid = futures[future]
                 try:
