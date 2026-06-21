@@ -28,6 +28,10 @@ def env_int(name, default):
 DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 48)
 DEFAULT_WORKERS = env_int("KMA_REQUEST_WORKERS", 2)
 DEFAULT_USE_STATION_ADDRESS_REGIONS = os.getenv("KMA_USE_STATION_ADDRESS_REGIONS", "true").strip().lower() not in ("0", "false", "no", "off")
+DEFAULT_ULTRA_SHORT_CANDIDATES = env_int("KMA_ULTRA_SHORT_CANDIDATES", 1)
+DISTRICT_SUFFIXES = ("\uad6c", "\uad70")
+CITY_SUFFIX = "\uc2dc"
+TOWN_SUFFIXES = ("\uc74d", "\uba74", "\ub3d9")
 
 
 def _station_address_region_key(station):
@@ -57,6 +61,23 @@ def _representative_stations_by_address_region(stations):
     return representatives
 
 
+def _station_address_region_key(station):
+    parts = str(station.addr or "").split()
+    if not parts:
+        return f"{station.sido}:{station.name}"
+
+    sido = station.sido or parts[0]
+    district = next((part for part in parts if part.endswith(DISTRICT_SUFFIXES)), "")
+    if not district:
+        district = next((part for part in parts[1:] if part.endswith(CITY_SUFFIX)), "")
+    town = next((part for part in parts if part.endswith(TOWN_SUFFIXES)), "")
+    if district:
+        return f"{sido}:{district}"
+    if town:
+        return f"{sido}:{town}"
+    return f"{sido}:{station.name}"
+
+
 def _normalize_items(items):
     if isinstance(items, dict):
         return [items]
@@ -65,65 +86,72 @@ def _normalize_items(items):
     return []
 
 
-def _collect_grid_weather(grid, forecast_hours=DEFAULT_FORECAST_HOURS):
+def _collect_grid_weather(
+    grid,
+    forecast_hours=DEFAULT_FORECAST_HOURS,
+    ultra_short_candidate_limit=DEFAULT_ULTRA_SHORT_CANDIDATES,
+    use_ultra_short=True,
+    use_village_fallback=True,
+):
     attempts = []
     saved_keys = set()
     saved = 0
-    for base_date, base_time, current_time in _kma_ultra_short_base_datetime_candidates():
-        params = {
-            "serviceKey": KMA_API_KEY,
-            "pageNo": "1",
-            "numOfRows": "60",
-            "dataType": "JSON",
-            "base_date": base_date,
-            "base_time": base_time,
-            "nx": grid["nx"],
-            "ny": grid["ny"],
-        }
-        try:
-            response = requests.get(KMA_ULTRA_SHORT_FORECAST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=10)
-            data = response.json()
-        except Exception as exc:
-            attempts.append(f"{base_date}{base_time}: {exc.__class__.__name__}")
-            continue
-
-        header = data.get("response", {}).get("header", {})
-        result_code = header.get("resultCode")
-        if response.status_code >= 400 or result_code not in (None, "00"):
-            attempts.append(f"{base_date}{base_time}: status={response.status_code}, resultCode={result_code}")
-            continue
-
-        items = _normalize_items(data.get("response", {}).get("body", {}).get("items", {}).get("item", []))
-        grouped = {}
-        for item in items:
-            fcst_date = str(item.get("fcstDate") or "")
-            fcst_time = str(item.get("fcstTime") or "")
-            category = str(item.get("category") or "")
-            value = str(item.get("fcstValue") or "")
-            if not fcst_date or not fcst_time or not category:
+    if use_ultra_short:
+        for base_date, base_time, current_time in _kma_ultra_short_base_datetime_candidates(limit=ultra_short_candidate_limit):
+            params = {
+                "serviceKey": KMA_API_KEY,
+                "pageNo": "1",
+                "numOfRows": "60",
+                "dataType": "JSON",
+                "base_date": base_date,
+                "base_time": base_time,
+                "nx": grid["nx"],
+                "ny": grid["ny"],
+            }
+            try:
+                response = requests.get(KMA_ULTRA_SHORT_FORECAST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=10)
+                data = response.json()
+            except Exception as exc:
+                attempts.append(f"{base_date}{base_time}: {exc.__class__.__name__}")
                 continue
-            grouped.setdefault(f"{fcst_date}{fcst_time}", {})[category] = value
 
-        forecast_keys = [
-            key for key in sorted(grouped)
-            if key >= f"{base_date}{current_time}" and grouped.get(key, {}).get("T1H") not in (None, "")
-        ][:forecast_hours]
-        if not forecast_keys:
-            attempts.append(f"{base_date}{base_time}: no usable forecast item")
-            continue
+            header = data.get("response", {}).get("header", {})
+            result_code = header.get("resultCode")
+            if response.status_code >= 400 or result_code not in (None, "00"):
+                attempts.append(f"{base_date}{base_time}: status={response.status_code}, resultCode={result_code}")
+                continue
 
-        for selected_key in forecast_keys:
-            selected = grouped.get(selected_key) or {}
-            if _store_weather_hourly_measurement(grid, selected_key, selected):
-                saved_keys.add(selected_key)
-                saved += 1
+            items = _normalize_items(data.get("response", {}).get("body", {}).get("items", {}).get("item", []))
+            grouped = {}
+            for item in items:
+                fcst_date = str(item.get("fcstDate") or "")
+                fcst_time = str(item.get("fcstTime") or "")
+                category = str(item.get("category") or "")
+                value = str(item.get("fcstValue") or "")
+                if not fcst_date or not fcst_time or not category:
+                    continue
+                grouped.setdefault(f"{fcst_date}{fcst_time}", {})[category] = value
 
-        if saved:
-            break
+            forecast_keys = [
+                key for key in sorted(grouped)
+                if key >= f"{base_date}{current_time}" and grouped.get(key, {}).get("T1H") not in (None, "")
+            ][:forecast_hours]
+            if not forecast_keys:
+                attempts.append(f"{base_date}{base_time}: no usable forecast item")
+                continue
 
-        attempts.append(f"{base_date}{base_time}: store skipped")
+            for selected_key in forecast_keys:
+                selected = grouped.get(selected_key) or {}
+                if _store_weather_hourly_measurement(grid, selected_key, selected):
+                    saved_keys.add(selected_key)
+                    saved += 1
 
-    if saved < forecast_hours:
+            if saved:
+                break
+
+            attempts.append(f"{base_date}{base_time}: store skipped")
+
+    if use_village_fallback and saved < forecast_hours:
         for item in _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=forecast_hours):
             date_text = str(item.get("date") or "").replace("-", "")
             hour_text = str(item.get("hour") or "").replace(":", "")
@@ -160,6 +188,22 @@ class Command(BaseCommand):
         parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Number of concurrent KMA requests.")
         parser.add_argument("--forecast-hours", type=int, default=DEFAULT_FORECAST_HOURS, help="Maximum future hourly weather rows to store per grid.")
         parser.add_argument(
+            "--ultra-short-candidates",
+            type=int,
+            default=DEFAULT_ULTRA_SHORT_CANDIDATES,
+            help="Number of ultra-short KMA base times to try per grid.",
+        )
+        parser.add_argument(
+            "--no-village-fallback",
+            action="store_true",
+            help="Do not call the heavier village forecast API when ultra-short rows are insufficient.",
+        )
+        parser.add_argument(
+            "--skip-ultra-short",
+            action="store_true",
+            help="Skip the ultra-short forecast API and collect only via the village forecast fallback.",
+        )
+        parser.add_argument(
             "--all-station-grids",
             action="store_true",
             help="Collect every active station grid instead of one representative grid per station address region.",
@@ -189,15 +233,27 @@ class Command(BaseCommand):
         skipped_reasons = []
         worker_count = max(1, min(options.get("workers") or DEFAULT_WORKERS, len(grid_values) or 1))
         forecast_hours = max(1, min(options.get("forecast_hours") or DEFAULT_FORECAST_HOURS, DEFAULT_FORECAST_HOURS))
+        ultra_short_candidate_limit = max(1, min(options.get("ultra_short_candidates") or DEFAULT_ULTRA_SHORT_CANDIDATES, 4))
+        use_ultra_short = not options["skip_ultra_short"]
+        use_village_fallback = not options["no_village_fallback"]
         self.stdout.write(f"Weather source stations: {len(stations)}")
         self.stdout.write(f"Weather grids ready: {len(grid_values)}")
         self.stdout.write(f"KMA request workers: {worker_count}")
         self.stdout.write(f"Forecast rows per grid: up to {forecast_hours}")
+        self.stdout.write(f"Ultra-short forecast: {'on' if use_ultra_short else 'off'}")
+        self.stdout.write(f"Ultra-short base candidates: {ultra_short_candidate_limit}")
+        self.stdout.write(f"Village forecast fallback: {'on' if use_village_fallback else 'off'}")
 
         def collect_grid(grid):
             close_old_connections()
             try:
-                return _collect_grid_weather(grid, forecast_hours)
+                return _collect_grid_weather(
+                    grid,
+                    forecast_hours=forecast_hours,
+                    ultra_short_candidate_limit=ultra_short_candidate_limit,
+                    use_ultra_short=use_ultra_short,
+                    use_village_fallback=use_village_fallback,
+                )
             finally:
                 close_old_connections()
 
