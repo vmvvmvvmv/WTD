@@ -588,6 +588,8 @@ export const styles = StyleSheet.create({
   fullMapContainer: { backgroundColor: '#f9faf9', flex: 1 },
   fullMapErrorBanner: { alignItems: 'center', backgroundColor: '#fff7f5', borderColor: '#f0c3bb', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 8, left: 16, paddingHorizontal: 12, paddingVertical: 10, position: 'absolute', right: 16, top: 104, zIndex: 30 },
   fullMapErrorText: { color: '#9d332a', flex: 1, fontSize: 12, fontWeight: '800', lineHeight: 17 },
+  fullMapRetryButton: { backgroundColor: '#c84a4a', borderRadius: 7, paddingHorizontal: 10, paddingVertical: 7 },
+  fullMapRetryText: { color: '#ffffff', fontSize: 12, fontWeight: '900' },
   fullMapWebView: { flex: 1, backgroundColor: '#f9faf9' },
   mapSearchBackInlineButton: { alignItems: 'center', backgroundColor: '#f3f6f8', borderRadius: 999, height: 34, justifyContent: 'center', marginRight: 2, width: 34 },
   mapSearchBar: {

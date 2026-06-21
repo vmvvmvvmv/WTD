@@ -81,6 +81,15 @@ export function getPastDust(params: { region: RegionState; startDate: string; en
   });
 }
 
+export function getOptionalPastDust(params: { region: RegionState; startDate: string; endDate: string }) {
+  return fetchOptionalJson<{ items?: unknown[] }>('/dust/past/', {
+    city: params.region.city,
+    region: params.region.region,
+    startDate: params.startDate,
+    endDate: params.endDate,
+  });
+}
+
 export function getHourlyDust(params: { region: RegionState; date: string }) {
   return fetchOptionalJson<{ items?: unknown[]; forecastItems?: unknown[] }>('/dust/hourly/', {
     city: params.region.city,
