@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+import re
 
 import requests
 from django.core.management.base import BaseCommand
@@ -26,6 +27,34 @@ def env_int(name, default):
 
 DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 48)
 DEFAULT_WORKERS = env_int("KMA_REQUEST_WORKERS", 2)
+DEFAULT_USE_STATION_ADDRESS_REGIONS = os.getenv("KMA_USE_STATION_ADDRESS_REGIONS", "true").strip().lower() not in ("0", "false", "no", "off")
+
+
+def _station_address_region_key(station):
+    parts = str(station.addr or "").split()
+    if not parts:
+        return f"{station.sido}:{station.name}"
+
+    sido = station.sido or parts[0]
+    district = next((part for part in parts if re.search(r"(구|군)$", part)), "")
+    if not district:
+        district = next((part for part in parts[1:] if re.search(r"시$", part)), "")
+    town = next((part for part in parts if re.search(r"(읍|면|동)$", part)), "")
+    if district:
+        return f"{sido}:{district}"
+    if town:
+        return f"{sido}:{town}"
+    return f"{sido}:{station.name}"
+
+
+def _representative_stations_by_address_region(stations):
+    representatives = {}
+    for station in stations:
+        key = _station_address_region_key(station)
+        current = representatives.get(key)
+        if current is None or len(station.addr or "") > len(current.addr or ""):
+            representatives[key] = station
+    return representatives
 
 
 def _normalize_items(items):
@@ -130,14 +159,23 @@ class Command(BaseCommand):
         parser.add_argument("--limit", type=int, default=0, help="Limit the number of weather grids to collect.")
         parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Number of concurrent KMA requests.")
         parser.add_argument("--forecast-hours", type=int, default=DEFAULT_FORECAST_HOURS, help="Maximum future hourly weather rows to store per grid.")
+        parser.add_argument(
+            "--all-station-grids",
+            action="store_true",
+            help="Collect every active station grid instead of one representative grid per station address region.",
+        )
 
     def handle(self, *args, **options):
         if not KMA_API_KEY:
             self.stderr.write(self.style.ERROR("KMA_API_KEY is not configured."))
             return
 
+        stations = list(AirQualityStation.objects.filter(is_active=True).only("sido", "name", "addr", "lat", "lng"))
+        if DEFAULT_USE_STATION_ADDRESS_REGIONS and not options["all_station_grids"]:
+            stations = list(_representative_stations_by_address_region(stations).values())
+
         grids = {}
-        for station in AirQualityStation.objects.filter(is_active=True).only("lat", "lng"):
+        for station in stations:
             grid = _dfs_grid_from_lat_lng(station.lat, station.lng)
             grids[(grid["nx"], grid["ny"])] = grid
 
@@ -151,6 +189,7 @@ class Command(BaseCommand):
         skipped_reasons = []
         worker_count = max(1, min(options.get("workers") or DEFAULT_WORKERS, len(grid_values) or 1))
         forecast_hours = max(1, min(options.get("forecast_hours") or DEFAULT_FORECAST_HOURS, DEFAULT_FORECAST_HOURS))
+        self.stdout.write(f"Weather source stations: {len(stations)}")
         self.stdout.write(f"Weather grids ready: {len(grid_values)}")
         self.stdout.write(f"KMA request workers: {worker_count}")
         self.stdout.write(f"Forecast rows per grid: up to {forecast_hours}")

@@ -35,6 +35,7 @@ type FullMapScreenProps = {
   onBackHome: () => void;
   onClearRecentSearches: () => void;
   onRemoveRecentSearch: (station: StationDustItem) => void;
+  onRetryMap: () => void;
   onToggleFavorite: (station: StationDustItem) => void;
   openStationDetail: (station: StationDustItem) => void;
   searchSuggestions: StationDustItem[];
@@ -75,6 +76,7 @@ export function FullMapScreen({
   onBackHome,
   onClearRecentSearches,
   onRemoveRecentSearch,
+  onRetryMap,
   onToggleFavorite,
   openStationDetail,
   searchSuggestions,
@@ -120,6 +122,9 @@ export function FullMapScreen({
         <View style={styles.fullMapErrorBanner}>
           <Ionicons color="#c84a4a" name="warning-outline" size={18} />
           <Text style={styles.fullMapErrorText}>{mapLoadError}</Text>
+          <Pressable onPress={onRetryMap} style={({ pressed }) => [styles.fullMapRetryButton, pressed && styles.pressedFeedback]}>
+            <Text style={styles.fullMapRetryText}>다시 시도</Text>
+          </Pressable>
         </View>
       )}
       <View style={[styles.mapSearchBar, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
