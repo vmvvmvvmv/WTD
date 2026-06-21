@@ -4,7 +4,6 @@ import * as Location from 'expo-location';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   BackHandler,
   Keyboard,
@@ -38,6 +37,7 @@ import {
   getMidTermWeather,
   getOptionalCurrentDust,
   getOptionalKoreaStations,
+  getOptionalPastDust,
   getPastDust,
   getPastWeather,
   getPrediction,
@@ -446,12 +446,14 @@ function AppContent() {
     try {
       const today = new Date();
       const latestDailyDate = addDays(today, -1);
-      const pastData = await getPastDust({
+      const pastData = await getOptionalPastDust({
         region: activeDataRegion,
         startDate: toCompactDate(addDays(today, -days)),
         endDate: toCompactDate(latestDailyDate),
       });
-      setDataItems((pastData.items as PastDustItem[] | undefined) ?? []);
+      const nextItems = (pastData?.items as PastDustItem[] | undefined) ?? [];
+      setDataItems(nextItems);
+      if (nextItems.length === 0) setError('선택한 지역의 상세 데이터를 아직 불러오지 못했습니다.');
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : '상세 데이터를 불러오지 못했습니다.');
     } finally {
@@ -504,7 +506,7 @@ function AppContent() {
     try {
       const today = new Date();
       const todayCompact = toCompactDate(today);
-      const [predictionRawData, pastData, currentData, hourlyData] = await Promise.all([
+      const [predictionResult, pastResult, currentResult, hourlyResult] = await Promise.allSettled([
         getPrediction(region),
         getPastDust({
           region,
@@ -515,21 +517,39 @@ function AppContent() {
         getHourlyDust({ region, date: todayCompact }),
       ]);
 
-      const predictionData = normalizePredictionResponse(predictionRawData, region.city, region.region);
-      const nextPastItems = (pastData.items as PastDustItem[] | undefined) ?? [];
-      const currentDustItem = (currentData?.item as CurrentDustItem | undefined) ?? null;
-      const nextHourlyItems = buildDashboardHourlyItems(hourlyData, currentDustItem, todayDateLabel);
+      if (
+        predictionResult.status === 'rejected'
+        && pastResult.status === 'rejected'
+        && currentResult.status === 'rejected'
+        && hourlyResult.status === 'rejected'
+      ) {
+        throw predictionResult.reason;
+      }
+
+      const predictionRawData = predictionResult.status === 'fulfilled' ? predictionResult.value : null;
+      const pastData = pastResult.status === 'fulfilled' ? pastResult.value : null;
+      const currentData = currentResult.status === 'fulfilled' ? currentResult.value : null;
+      const hourlyData = hourlyResult.status === 'fulfilled' ? hourlyResult.value : null;
+      const predictionData = predictionRawData
+        ? normalizePredictionResponse(predictionRawData, region.city, region.region)
+        : cachedDashboard?.prediction ?? {};
+      const nextPastItems = (pastData?.items as PastDustItem[] | undefined) ?? cachedDashboard?.pastItems ?? [];
+      const currentDustItem = (currentData?.item as CurrentDustItem | undefined) ?? cachedDashboard?.currentItem ?? null;
+      const nextHourlyItems = hourlyData
+        ? buildDashboardHourlyItems(hourlyData, currentDustItem, todayDateLabel)
+        : cachedDashboard?.hourlyItems ?? buildDashboardHourlyItems(null, currentDustItem, todayDateLabel);
 
       setPrediction(predictionData);
       setPastItems(nextPastItems);
       setHourlyItems(nextHourlyItems);
       setCurrentItem(currentDustItem);
-      setCurrentNotice(currentData?.notice ?? '');
+      const nextCurrentNotice = currentData?.notice ?? cachedDashboard?.currentNotice ?? '';
+      setCurrentNotice(nextCurrentNotice);
       setIsLoading(false);
       finishRegionTransition();
       void saveDashboardCache(region, {
         currentItem: currentDustItem,
-        currentNotice: currentData?.notice ?? '',
+        currentNotice: nextCurrentNotice,
         hourlyItems: nextHourlyItems,
         pastItems: nextPastItems,
         prediction: predictionData,
@@ -563,7 +583,7 @@ function AppContent() {
         setWeather(currentWeatherData);
         void saveDashboardCache(region, {
           currentItem: currentDustItem,
-          currentNotice: currentData?.notice ?? '',
+          currentNotice: nextCurrentNotice,
           hourlyItems: nextHourlyItems,
           pastItems: nextPastItems,
           prediction: predictionData,
@@ -1050,20 +1070,14 @@ function AppContent() {
       const currentPermission = await Location.getForegroundPermissionsAsync();
       const permission = currentPermission.granted ? currentPermission : await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
-        Alert.alert('위치 권한 필요', '모바일 앱은 현재 위치 기준으로 시작해야 합니다. 권한을 허용하지 않아 앱을 종료합니다.', [
-          { text: '확인', onPress: () => BackHandler.exitApp() },
-        ]);
-        setTimeout(() => BackHandler.exitApp(), 600);
+        setLocationMessage('위치 권한이 없어 기본 지역 기준으로 표시합니다.');
         return;
       }
 
       setLocationMessage('현재 위치를 가져오는 중입니다.');
       const hasLocationService = await Location.hasServicesEnabledAsync();
       if (!hasLocationService) {
-        Alert.alert('위치 서비스 꺼짐', '기기의 위치 서비스가 꺼져 있어 현재 위치를 확인할 수 없습니다. 위치 서비스를 켠 뒤 다시 실행해 주세요.', [
-          { text: '확인', onPress: () => BackHandler.exitApp() },
-        ]);
-        setTimeout(() => BackHandler.exitApp(), 800);
+        setLocationMessage('위치 서비스가 꺼져 있어 기본 지역 기준으로 표시합니다.');
         return;
       }
 
@@ -1139,6 +1153,7 @@ function AppContent() {
         if (nextGpsRegion) setGpsRegion(nextGpsRegion);
         if (canUseStoredRegion) setSelectedRegion(nextRegion);
         if (!canUseStoredRegion && nextGpsRegion) setSelectedRegion(nextGpsRegion);
+        if (!canUseStoredRegion && !nextGpsRegion) setSelectedRegion(DEFAULT_REGION_STATE);
         setFavoriteRegions(nextFavorites);
         setMapRecentSearches(storedState.mapRecentSearches);
         setNotificationSettings(storedState.notificationSettings);
@@ -1827,6 +1842,7 @@ function AppContent() {
           onBackHome={() => switchTab('home')}
           onClearRecentSearches={() => setMapRecentSearches([])}
           onRemoveRecentSearch={removeMapRecentSearch}
+          onRetryMap={() => setMapViewKey((key) => key + 1)}
           onToggleFavorite={(station) => {
             const city = station.sido;
             const region = station.city || station.name;
@@ -2123,5 +2139,3 @@ export default function App() {
     </SafeAreaProvider>
   );
 }
-
-
