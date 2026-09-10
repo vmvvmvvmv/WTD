@@ -15,8 +15,8 @@ export function AppCard({ children }: PropsWithChildren) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 18,
+    padding: 16,
   },
 });

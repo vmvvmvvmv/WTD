@@ -108,19 +108,26 @@ export function CalendarPanel({
     () => buildCalendarRiskByEvent(selectedEvents, forecastContext),
     [forecastContext, selectedEvents],
   );
-  const monthRiskByEvent = useMemo(
-    () => buildCalendarRiskByEvent(sortedEvents, forecastContext),
-    [forecastContext, sortedEvents],
-  );
   const weatherRiskByDate = useMemo(() => {
     const next: Record<string, CalendarWeatherRiskIndicator> = {};
     monthCells.forEach((cell) => {
       if (!cell) return;
-      const risk = topWeatherRiskForDate(cell.date, sortedEvents, monthRiskByEvent);
+      const dayEvents = sortedEvents
+        .filter((event) => isDateInEventRange(cell.date, event))
+        .map((event) => ({
+          ...event,
+          date: cell.date,
+          endDate: cell.date,
+          endTime: cell.date === (event.endDate ?? event.date) ? event.endTime : '23:59',
+          id: `${event.id}:${cell.date}`,
+          time: cell.date === event.date ? event.time : '00:00',
+        }));
+      const dayRiskByEvent = buildCalendarRiskByEvent(dayEvents, forecastContext);
+      const risk = topWeatherRiskForDate(cell.date, dayEvents, dayRiskByEvent);
       if (risk) next[cell.date] = risk;
     });
     return next;
-  }, [monthCells, monthRiskByEvent, sortedEvents]);
+  }, [forecastContext, monthCells, sortedEvents]);
   const selectedWeatherRisks = useMemo(
     () => selectedEvents
       .flatMap((event) => weatherRiskIndicators(selectedRiskByEvent[event.id]))
