@@ -1,3 +1,5 @@
+import { bauhausColors } from './bauhaus';
+
 export type AppColors = {
   background: string;
   card: string;
@@ -14,31 +16,31 @@ export type AppColors = {
 };
 
 export const lightColors: AppColors = {
-  background: '#f7fbf9',
-  card: '#ffffff',
-  cardMuted: '#f9faf9',
-  primary: '#2fbf71',
-  primaryStrong: '#279b64',
-  primarySoft: '#e7f6ed',
-  primaryBorder: '#d9eee2',
-  border: '#cfe9da',
-  text: '#141821',
-  textMuted: '#687180',
+  background: bauhausColors.background,
+  card: bauhausColors.white,
+  cardMuted: bauhausColors.muted,
+  primary: bauhausColors.blue,
+  primaryStrong: bauhausColors.blue,
+  primarySoft: bauhausColors.muted,
+  primaryBorder: bauhausColors.foreground,
+  border: bauhausColors.foreground,
+  text: bauhausColors.foreground,
+  textMuted: '#4a4a4a',
   warning: '#c77b24',
   danger: '#c84a4a',
 } as const;
 
 export const darkColors: AppColors = {
-  background: '#0f1318',
-  card: '#171c22',
-  cardMuted: '#20262e',
-  primary: '#54d98c',
-  primaryStrong: '#8de8b2',
-  primarySoft: '#1f3b2b',
-  primaryBorder: '#2d563d',
-  border: '#27303a',
-  text: '#f4f7f5',
-  textMuted: '#c2cad4',
+  background: '#242424',
+  card: '#FFFFFF',
+  cardMuted: '#E0E0E0',
+  primary: '#1040C0',
+  primaryStrong: '#1040C0',
+  primarySoft: '#E0E0E0',
+  primaryBorder: '#121212',
+  border: '#121212',
+  text: '#121212',
+  textMuted: '#4a4a4a',
   warning: '#e4a34a',
   danger: '#f07171',
 } as const;

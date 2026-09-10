@@ -1,3 +1,5 @@
+import { bauhausColors } from '../../theme/bauhaus';
+
 export type OutingIndexInput = {
   pm10?: number | undefined;
   rainMm?: number | undefined;
@@ -121,28 +123,18 @@ export function getOutingGrade(score?: number) {
 }
 
 export function getOutingTone(score?: number) {
-  if (typeof score !== 'number') return '#687180';
-  if (score >= 82) return '#279b64';
-  if (score >= 62) return '#2f80ed';
-  if (score >= 42) return '#c58a19';
-  return '#d94b4b';
+  if (typeof score !== 'number') return '#4a4a4a';
+  if (score >= 62) return bauhausColors.blue;
+  if (score >= 42) return bauhausColors.yellow;
+  return bauhausColors.red;
 }
 
 
 export function getOutingSoftTone(score?: number) {
-  const tone = getOutingTone(score);
-  if (tone === '#279b64') return '#e7f6ed';
-  if (tone === '#2f80ed') return '#eaf3ff';
-  if (tone === '#c58a19') return '#fff4df';
-  if (tone === '#d94b4b') return '#fdecec';
-  return '#eef1f5';
+  return bauhausColors.muted;
 }
 
 export function getOutingBorderTone(score?: number) {
   const tone = getOutingTone(score);
-  if (tone === '#279b64') return '#bfe8cf';
-  if (tone === '#2f80ed') return '#c8ddfb';
-  if (tone === '#c58a19') return '#efd6a8';
-  if (tone === '#d94b4b') return '#f1bbbb';
-  return '#d9dee5';
+  return bauhausColors.foreground;
 }

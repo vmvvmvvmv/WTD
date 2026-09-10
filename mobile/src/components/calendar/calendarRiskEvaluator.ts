@@ -54,6 +54,8 @@ type RiskContext = {
   weatherMidTermItems?: WeatherMidTermItem[];
 };
 
+const EVENT_WEATHER_BUFFER_MS = 60 * 60 * 1000;
+
 const TEXT = {
   adjust: '\uC8FC\uC758',
   bad: '\uACBD\uACE0',
@@ -148,6 +150,13 @@ function isPointInEventRange(pointDateValue: string, pointTime: string, event: C
   return point >= start && point <= end;
 }
 
+function isPointNearEventRange(pointDateValue: string, pointTime: string, event: CalendarEvent) {
+  const point = dateTimeMs(pointDateValue, pointTime);
+  const { end, start } = eventRange(event);
+  if (typeof point !== 'number' || typeof start !== 'number' || typeof end !== 'number') return false;
+  return point >= start - EVENT_WEATHER_BUFFER_MS && point <= end + EVENT_WEATHER_BUFFER_MS;
+}
+
 function pointDistance(pointDateValue: string, pointTime: string, event: CalendarEvent) {
   const point = dateTimeMs(pointDateValue, pointTime);
   const start = dateTimeMs(event.date, event.time);
@@ -179,6 +188,15 @@ function pickWeatherPoint(event: CalendarEvent, points: WeatherPoint[]) {
     });
     return { basis: `${worst.label} \uAE30\uC900`, point: worst };
   }
+  const nearRange = points.filter((item) => isPointNearEventRange(item.date, item.label, event));
+  if (nearRange.length > 0) {
+    const worst = nearRange.reduce((best, item) => {
+      const bestScore = (best.rainMm ?? 0) + ((best.rainProbability ?? 0) / 10) + (best.windSpeed ?? 0) + Math.abs((best.temperature ?? 20) - 20);
+      const itemScore = (item.rainMm ?? 0) + ((item.rainProbability ?? 0) / 10) + (item.windSpeed ?? 0) + Math.abs((item.temperature ?? 20) - 20);
+      return itemScore > bestScore ? item : best;
+    });
+    return { basis: `${worst.label} \uADFC\uCC98 \uAE30\uC900`, point: worst };
+  }
   const sameDate = points.filter((item) => item.date === event.date);
   const nearest = sameDate.reduce<WeatherPoint | null>((best, item) => {
     if (!best) return item;
@@ -187,10 +205,7 @@ function pickWeatherPoint(event: CalendarEvent, points: WeatherPoint[]) {
   return nearest ? { basis: `${nearest.label} \uAE30\uC900`, point: nearest } : { basis: '', point: undefined };
 }
 
-function midTermWeatherForEvent(event: CalendarEvent, items?: WeatherMidTermItem[]): MidTermPoint | null {
-  const item = (items ?? []).find((forecast) => forecast.date === event.date);
-  if (!item) return null;
-  const startHour = Number(String(event.time ?? '').slice(0, 2));
+function midTermPointForItem(item: WeatherMidTermItem, startHour: number): MidTermPoint {
   const usePm = Number.isFinite(startHour) && startHour >= 12;
   const minTemperature = toNumber(item.minTemperature);
   const maxTemperature = toNumber(item.maxTemperature);
@@ -202,6 +217,28 @@ function midTermWeatherForEvent(event: CalendarEvent, items?: WeatherMidTermItem
     temperature,
     weatherLabel: usePm ? item.weatherPm || item.weatherAm : item.weatherAm || item.weatherPm,
   };
+}
+
+function midTermSeverity(point: MidTermPoint) {
+  const rain = point.rainProbability ?? 0;
+  const heatCold = typeof point.temperature === 'number' ? Math.abs(point.temperature - 20) : 0;
+  const labelRisk = isRainyLabel(point.weatherLabel) || isSnowyLabel(point.weatherLabel) || isThunderLabel(point.weatherLabel) ? 30 : 0;
+  return rain + heatCold + labelRisk;
+}
+
+function midTermWeatherForEvent(event: CalendarEvent, items?: WeatherMidTermItem[]): MidTermPoint | null {
+  const start = dateMs(event.date);
+  const end = dateMs(event.endDate ?? event.date);
+  if (typeof start !== 'number' || typeof end !== 'number') return null;
+  const startHour = Number(String(event.time ?? '').slice(0, 2));
+  const candidates = (items ?? [])
+    .filter((forecast) => {
+      const day = dateMs(forecast.date);
+      return typeof day === 'number' && day >= start && day <= end;
+    })
+    .map((item) => midTermPointForItem(item, startHour));
+  if (candidates.length === 0) return null;
+  return candidates.reduce((best, item) => (midTermSeverity(item) > midTermSeverity(best) ? item : best));
 }
 
 function rainyPoint(item: WeatherPoint) {
@@ -225,7 +262,7 @@ function rainSummaryText(probability: number | undefined, timeRange: string) {
 
 function rainSummaryForEvent(event: CalendarEvent, points: WeatherPoint[], midTermWeather: MidTermPoint | null) {
   const rainyPoints = points
-    .filter((item) => isPointInEventRange(item.date, item.label, event) && rainyPoint(item))
+    .filter((item) => isPointNearEventRange(item.date, item.label, event) && rainyPoint(item))
     .sort((a, b) => `${a.date} ${a.label}`.localeCompare(`${b.date} ${b.label}`));
   if (rainyPoints.length > 0) {
     const maxProbability = rainyPoints.reduce<number | undefined>((best, item) => {
