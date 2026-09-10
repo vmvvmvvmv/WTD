@@ -1,4 +1,5 @@
 ﻿import { DEFAULT_CITY, DEFAULT_NOTIFICATION_SETTINGS, DEFAULT_REGION } from '../constants/dust';
+import { bauhausColors } from '../theme/bauhaus';
 import type {
   CurrentDustItem,
   DataMetricKey,
@@ -85,56 +86,44 @@ export function getNo2Label(value?: number) {
 }
 
 export function getPm10Tone(value?: number) {
-  if (typeof value !== 'number') return '#687180';
-  if (value <= 30) return '#279b64';
-  if (value <= 80) return '#2f80ed';
-  if (value <= 150) return '#c47b20';
-  return '#c84a4a';
+  if (typeof value !== 'number') return '#4a4a4a';
+  if (value <= 80) return bauhausColors.blue;
+  if (value <= 150) return bauhausColors.yellow;
+  return bauhausColors.red;
 }
 
 // PM10 ?섏튂???곕씪 移대뱶 諛곌꼍???고븳 ?됱쓣 寃곗젙?⑸땲??
 export function getPm10SoftTone(value?: number) {
-  if (typeof value !== 'number') return '#eef1f5';
-  if (value <= 30) return '#e7f6ed';
-  if (value <= 80) return '#e8f1ff';
-  if (value <= 150) return '#fff4df';
-  return '#fdebea';
+  return bauhausColors.muted;
 }
 
 // PM10 ?섏튂???곕씪 ?뚮몢由ъ슜 ?고븳 ?됱쓣 寃곗젙?⑸땲??
 export function getPm10BorderTone(value?: number) {
-  if (typeof value !== 'number') return '#d9dee5';
-  if (value <= 30) return '#cfe9da';
-  if (value <= 80) return '#c9defd';
-  if (value <= 150) return '#edd4aa';
-  return '#f0c4c2';
+  return bauhausColors.foreground;
 }
 
 // PM2.5 ?섏튂???곕Ⅸ 媛뺤“?됱엯?덈떎.
 export function getPm25Tone(value?: number) {
-  if (typeof value !== 'number') return '#687180';
-  if (value <= 15) return '#279b64';
-  if (value <= 35) return '#2f80ed';
-  if (value <= 75) return '#c47b20';
-  return '#c84a4a';
+  if (typeof value !== 'number') return '#4a4a4a';
+  if (value <= 35) return bauhausColors.blue;
+  if (value <= 75) return bauhausColors.yellow;
+  return bauhausColors.red;
 }
 
 // ?ㅼ〈 ?섏튂???곕Ⅸ 媛뺤“?됱엯?덈떎.
 export function getO3Tone(value?: number) {
-  if (typeof value !== 'number') return '#687180';
-  if (value <= 0.03) return '#279b64';
-  if (value <= 0.09) return '#2f80ed';
-  if (value <= 0.15) return '#c47b20';
-  return '#c84a4a';
+  if (typeof value !== 'number') return '#4a4a4a';
+  if (value <= 0.09) return bauhausColors.blue;
+  if (value <= 0.15) return bauhausColors.yellow;
+  return bauhausColors.red;
 }
 
 // ?댁궛?붿쭏???섏튂???곕Ⅸ 媛뺤“?됱엯?덈떎.
 export function getNo2Tone(value?: number) {
-  if (typeof value !== 'number') return '#687180';
-  if (value <= 0.03) return '#279b64';
-  if (value <= 0.06) return '#2f80ed';
-  if (value <= 0.2) return '#c47b20';
-  return '#c84a4a';
+  if (typeof value !== 'number') return '#4a4a4a';
+  if (value <= 0.06) return bauhausColors.blue;
+  if (value <= 0.2) return bauhausColors.yellow;
+  return bauhausColors.red;
 }
 
 // 怨쇨굅 ?곗씠??item?먯꽌 ?꾩옱 ?좏깮???ㅼ뿼臾쇱쭏??媛믪쓣 爰쇰깄?덈떎.
@@ -331,5 +320,3 @@ export function wait(ms: number) {
     setTimeout(resolve, ms);
   });
 }
-
-

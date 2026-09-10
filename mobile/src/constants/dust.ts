@@ -1,4 +1,4 @@
-import type { DataMetricKey, NotificationSettings, TabKey } from '../types/dust';
+import type { DataMetricKey, NotificationSettings } from '../types/dust';
 
 // Default region used before GPS is available.
 export const DEFAULT_CITY = '\uC11C\uC6B8';
@@ -21,12 +21,6 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   // TODO: Favorites-included notifications are marked for possible removal.
   includeFavorites: true,
 };
-
-export const tabs: Array<{ key: TabKey; label: string }> = [
-  { key: 'home', label: '\uD648' },
-  { key: 'calendar', label: '\uCE98\uB9B0\uB354' },
-  { key: 'account', label: '\uC124\uC815' },
-];
 
 export const dataMetrics: Array<{ key: DataMetricKey; label: string; code: string; unit: string; decimals: number }> = [
   { key: 'pm10', label: '\uBBF8\uC138\uBA3C\uC9C0', code: 'PM10', unit: '\u00B5g/m\u00B3', decimals: 0 },
