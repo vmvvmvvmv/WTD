@@ -1,0 +1,108 @@
+import os
+from unittest.mock import Mock, patch
+
+from django.test import SimpleTestCase
+
+from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
+from dust.services.outfit.response_parser import validate_llm_output
+from dust.services.outfit.rule_engine import build_rule_result
+from dust.services.outfit.service import recommend_outfit
+
+
+def snapshot(**overrides):
+    value = {"feels_min": 3, "feels_max": 3, "feels_avg": 3, "temp_range": 0, "rain_prob_max": 0, "rain_mm_max": 0, "wind_max": 2, "pm10_max": 20, "pm25_max": 10, "data_gaps": []}
+    value.update(overrides)
+    return value
+
+
+def request_payload(mode="rule"):
+    return {"schedule_id": "event-1", "title": "친구와 카페", "start": "2026-10-04T14:00:00+09:00", "end": "2026-10-04T18:00:00+09:00", "activity_type": "outdoor", "lat": 35.1, "lng": 129.0, "city": "부산광역시", "region": "중구", "sensitivity": "normal", "mode": mode}
+
+
+class OutfitAggregationTests(SimpleTestCase):
+    def test_wind_chill_uses_kmh_conversion(self):
+        self.assertLess(wind_chill(3, 3), 3)
+
+    def test_missing_values_are_reported_individually(self):
+        result = aggregate_schedule_window([WeatherPoint(temperature=18)], [])
+        self.assertEqual(result["feels_avg"], 18)
+        self.assertIn("rain", result["data_gaps"])
+        self.assertIn("pm10", result["data_gaps"])
+
+
+class OutfitRuleEngineTests(SimpleTestCase):
+    def test_cold_rain_dust_uses_b8_and_required_items(self):
+        result = build_rule_result(snapshot(rain_prob_max=70, pm10_max=100), activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertEqual(result["outfit"]["band"], "B8")
+        self.assertEqual({(item["type"], item["level"]) for item in result["must_have"]}, {("umbrella", "required"), ("mask", "required"), ("scarf_gloves", "recommended")})
+
+    def test_warm_clear_weather_uses_b2_without_must_have(self):
+        result = build_rule_result(snapshot(feels_min=25, feels_max=25, feels_avg=25), activity_type="outdoor", sensitivity="normal", occasion="unknown")
+        self.assertEqual(result["outfit"]["band"], "B2")
+        self.assertEqual(result["must_have"], [])
+
+    def test_large_temperature_range_adds_layering_tip(self):
+        result = build_rule_result(snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9), activity_type="outdoor", sensitivity="normal", occasion="unknown")
+        self.assertTrue(result["layering_tip"])
+
+    def test_strong_wind_adds_windbreaker(self):
+        result = build_rule_result(snapshot(feels_min=12, feels_max=12, feels_avg=12, wind_max=10), activity_type="outdoor", sensitivity="normal", occasion="unknown")
+        self.assertIn("windbreaker", [item["type"] for item in result["must_have"]])
+
+    def test_indoor_always_has_portable_outer(self):
+        result = build_rule_result(snapshot(feels_avg=30), activity_type="indoor", sensitivity="normal", occasion="unknown")
+        self.assertIn("가벼운 겉옷", result["outfit"]["outer"][0])
+
+    def test_cold_sensitivity_selects_warmer_band(self):
+        normal = build_rule_result(snapshot(feels_min=13, feels_max=13, feels_avg=13), activity_type="outdoor", sensitivity="normal", occasion="unknown")
+        cold = build_rule_result(snapshot(feels_min=13, feels_max=13, feels_avg=13), activity_type="outdoor", sensitivity="cold", occasion="unknown")
+        self.assertEqual(normal["outfit"]["band"], "B5")
+        self.assertEqual(cold["outfit"]["band"], "B6")
+
+
+class OutfitLlmValidationTests(SimpleTestCase):
+    def setUp(self):
+        self.input = {"weather": {"temp_range": 9}, "must_have": [{"type": "umbrella"}]}
+        self.must_have = [{"type": "umbrella", "label": "우산", "level": "required", "reason": ""}]
+
+    def test_valid_output(self):
+        result = validate_llm_output({"summary": "우산을 챙기세요.", "outfit_note": "얇게 겹쳐 입어요.", "layering_tip": "쉽게 벗을 수 있게 입어요.", "reasons": {"umbrella": "비에 대비해요"}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
+        self.assertEqual(result["summary"], "우산을 챙기세요.")
+
+    def test_missing_reason_is_rejected(self):
+        with self.assertRaises(ValueError):
+            validate_llm_output({"summary": "준비하세요.", "outfit_note": "겹쳐 입어요.", "layering_tip": "", "reasons": {}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
+
+    def test_new_number_is_rejected(self):
+        with self.assertRaises(ValueError):
+            validate_llm_output({"summary": "20도로 예상돼요.", "outfit_note": "겹쳐 입어요.", "layering_tip": "", "reasons": {"umbrella": "비에 대비해요"}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
+
+
+class OutfitServiceTests(SimpleTestCase):
+    @patch("dust.services.outfit.service.save_cached_recommendation")
+    @patch("dust.services.outfit.service.get_cached_recommendation", return_value=None)
+    @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9, rain_prob_max=70))
+    @patch("dust.services.outfit.service._llm_allowed", return_value=True)
+    @patch("dust.services.outfit.service.build_llm_client")
+    def test_valid_llm_replaces_copy_only(self, build_client, *_mocks):
+        client = Mock()
+        client.generate.return_value = {"summary": "우산과 자켓을 챙기세요.", "outfit_note": "니트와 청바지를 입어요.", "layering_tip": "쉽게 벗고 입도록 준비하세요.", "reasons": {"umbrella": "비에 대비해요"}}
+        build_client.return_value = client
+        result = recommend_outfit(request_payload("full"), client_key="device")
+        self.assertEqual(result["source"], "llm")
+        self.assertEqual(result["outfit"]["band"], "B5")
+
+    @patch("dust.services.outfit.service.get_cached_recommendation", return_value={"source": "llm", "summary": "cached"})
+    @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot())
+    @patch("dust.services.outfit.service.build_llm_client")
+    def test_cached_result_skips_llm(self, build_client, *_mocks):
+        result = recommend_outfit(request_payload("full"), client_key="device")
+        self.assertTrue(result["cached"])
+        build_client.assert_not_called()
+
+
+class OutfitEndpointTests(SimpleTestCase):
+    @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot(feels_avg=None, feels_min=None, feels_max=None))
+    def test_missing_weather_returns_503(self, _mock_snapshot):
+        response = self.client.post("/outfit/recommend/", data=request_payload(), content_type="application/json", HTTP_X_APP_TEST_TOKEN=os.getenv("APP_TEST_TOKEN", ""))
+        self.assertEqual(response.status_code, 503)

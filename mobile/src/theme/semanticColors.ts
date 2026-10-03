@@ -27,4 +27,12 @@ export const semanticColors = {
     danger: { tone: '#E05263', soft: '#FFF0F2', border: '#F0BBC2' },
     unavailable: { tone: '#718096', soft: '#F1F4F8', border: '#D8E0E9' },
   },
+  outfit: {
+    accent: '#2F6FD7',
+    border: '#D8E7FA',
+    card: '#F2F7FE',
+    required: '#E18B2D',
+    requiredSoft: '#FFF4E5',
+    soft: '#E8F1FE',
+  },
 } as const;

@@ -1,5 +1,5 @@
 import { API_URL, APP_TEST_TOKEN } from '../config/runtime';
-import type { RegionState } from '../types/dust';
+import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity, RegionState } from '../types/dust';
 
 type QueryValue = string | number | boolean | null | undefined;
 
@@ -31,6 +31,8 @@ function withTestTokenHeaders(init?: RequestInit): RequestInit {
 
 async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, init?: RequestInit): Promise<T> {
   const controller = new AbortController();
+  const abortFromParent = () => controller.abort();
+  init?.signal?.addEventListener('abort', abortFromParent);
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
   try {
     const response = await fetch(buildUrl(path, params), {
@@ -41,6 +43,7 @@ async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, i
     return response.json();
   } finally {
     clearTimeout(timeout);
+    init?.signal?.removeEventListener('abort', abortFromParent);
   }
 }
 
@@ -199,6 +202,36 @@ export function registerNotificationDevice(params: {
       expoPushToken: params.expoPushToken,
       region: params.region,
       weatherMorningAlerts: params.weatherMorningAlerts,
+    }),
+  });
+}
+
+export function postOutfitRecommendation(params: {
+  event: CalendarEvent;
+  mode: 'rule' | 'full';
+  sensitivity: OutfitSensitivity;
+  signal?: AbortSignal;
+}) {
+  const start = `${params.event.date}T${params.event.time || '00:00'}:00+09:00`;
+  const end = params.event.endTime
+    ? `${params.event.endDate ?? params.event.date}T${params.event.endTime}:00+09:00`
+    : undefined;
+  return fetchJson<OutfitRecommendation>('/outfit/recommend/', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: params.signal,
+    body: JSON.stringify({
+      schedule_id: params.event.id,
+      title: params.event.title,
+      start,
+      end,
+      activity_type: params.event.activityType,
+      lat: params.event.locationLat,
+      lng: params.event.locationLng,
+      city: params.event.locationCity,
+      region: params.event.locationRegion,
+      sensitivity: params.sensitivity,
+      mode: params.mode,
     }),
   });
 }

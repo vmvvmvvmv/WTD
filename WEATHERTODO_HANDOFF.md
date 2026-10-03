@@ -373,3 +373,17 @@ npx expo export --platform android --output-dir .expo-export-check
 - 부산광역시 동대신동3가 기준 현재 미세먼지, 현재 날씨, 시간별 예보 46개, 전국 측정소 681개, 지도 HTML 응답을 확인했다.
 - Backend 단위 테스트 12건, Mobile TypeScript 검사, Dashboard 캐시 테스트 2건, Android Expo export가 통과했다.
 - 로컬 Django 서버는 `127.0.0.1:8001`에서 실행한다. PC 재시작 후에는 `backend/start_local_backend.bat`를 다시 실행해야 한다.
+
+## 30. 2026-10-04 일정 기반 의상 추천 MVP
+
+- `POST /outfit/recommend/`가 일정 시작·종료 시각과 좌표를 받아 저장된 시간별 날씨·대기질을 직접 집계한다. 제목은 상황 분류에만 사용하며 저장하거나 LLM에 보내지 않는다.
+- 기상청 윈드칠 체감온도, B1~B9 옷차림 band, 체감 성향, 일교차 레이어링, 우산·마스크·바람막이·목도리/장갑 규칙을 각각 분리했다. 누락된 수치는 `data_gaps`에 표시한다.
+- `mode=rule`은 규칙 결과를 즉시 반환하고, `mode=full`은 같은 확정 결과를 유지한 채 LLM이 요약과 코디 문구만 다듬는다. 실패·타임아웃·형식 오류·Key 미설정은 `source=rule`로 처리한다.
+- LLM 연동은 `LLMClient` 인터페이스와 환경변수 `LLM_ENABLED`, `LLM_PROVIDER`, `LLM_MODEL`, `LLM_API_KEY`, `LLM_TIMEOUT_SEC`로 분리했다. 현재 Provider와 Key가 정해지지 않아 규칙 모드로 동작한다.
+- LLM 출력은 글자 수, 필수 준비물 이유, 입력에 없던 숫자 생성 여부를 검증한다. 한 번 재시도하며 같은 조건의 full 결과는 DB에 3시간 캐시한다.
+- `OutfitRecommendationCache` 모델과 `0012` migration을 추가해 로컬 DB에 적용했다. 캐시에는 제목·좌표·사용자 식별 정보를 저장하지 않는다.
+- 홈 `오늘 활동 가이드`에서 일정을 펼치거나 캘린더 Bottom Sheet에서 일정을 선택하면 공통 `OutfitCard`가 표시된다. 설정에서 추천 on/off와 `추위 많이 탐 / 보통 / 더위 많이 탐`을 저장한다.
+- 앱은 rule 응답을 먼저 보여주고 full 응답이 도착하면 문구만 교체한다. 화면 이탈 시 요청을 취소하고 `valid_until`까지 메모리 캐시를 사용한다.
+- Reanimated와 Haptics를 추가했다. 카드 Fade-in, Skeleton pulse, 기온 범위 bar, Chip 순차 등장, 우산 흔들림, 마스크 pulse, 코디 항목 slide, 문구 cross-fade/typewriter와 Reduce Motion 대응을 적용했다.
+- Backend 관련 회귀 테스트 26건, Mobile TypeScript 검사가 통과했다. 실제 DB 기준 rule API는 HTTP 200, B3, 우산 추천으로 응답했다.
+- `TODO(확인 필요)`: 최종 LLM Provider/모델/비용 한도, 여름철 체감온도 공식, 일일 상한 초과 응답 정책, `auto` 활동 판정기, 최종 의상/Lottie 디자인 에셋.
