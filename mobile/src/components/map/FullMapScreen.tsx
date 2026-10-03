@@ -6,6 +6,7 @@ import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 
 import { styles } from '../../styles/appStyles';
+import { AppActionIcon } from '../shared/AppActionIcon';
 import type { RegionState, StationDustItem, WeatherState } from '../../types/dust';
 import { isSameRegion, stationIdentity, uniqueStations } from '../../utils/dust';
 import { StationBottomSheet } from './StationBottomSheet';
@@ -151,7 +152,7 @@ export function FullMapScreen({
           style={styles.mapSearchInput}
         />
         <Pressable accessibilityLabel={"GPS \uAE30\uC900 \uC9C0\uC5ED\uC73C\uB85C \uC774\uB3D9"} onPress={focusGpsMapRegion} style={({ pressed }) => [styles.mapSearchGpsButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color={accentTone} name="locate-outline" size={22} />
+          <AppActionIcon name="location" size={25} />
         </Pressable>
       </View>
       <Pressable
@@ -197,7 +198,7 @@ export function FullMapScreen({
               style={styles.mapSearchOverlayInput}
             />
             <Pressable accessibilityLabel={"GPS \uAE30\uC900 \uC9C0\uC5ED\uC73C\uB85C \uC774\uB3D9"} onPress={focusGpsMapRegion} style={({ pressed }) => [styles.mapSearchOverlayGpsButton, pressed && styles.pressedFeedback]}>
-              <Ionicons color={accentTone} name="locate-outline" size={22} />
+              <AppActionIcon name="location" size={25} />
             </Pressable>
           </View>
           <View style={styles.mapSearchModeRow}>
@@ -219,7 +220,7 @@ export function FullMapScreen({
               overlayItems.map((station, index) => (
                 <View key={stationIdentity(station) + '-' + index + '-overlay'} style={styles.mapSearchOverlayItem}>
                   <Pressable onPressIn={dismissMapSearchKeyboard} onPress={() => focusMapStation(station)} style={({ pressed }) => [styles.mapSearchOverlaySelect, pressed && styles.pressedFeedback]}>
-                    <Ionicons color="#687180" name="location-outline" size={20} />
+                    <AppActionIcon name="location" size={25} />
                     <View style={styles.mapSearchOverlayTextGroup}>
                       <Text style={styles.mapSearchOverlayTitle}>{station.sido} {station.city || station.name}</Text>
                       <Text style={styles.mapSearchOverlayMeta}>{[station.name, station.addr].filter(Boolean).join(' / ')}</Text>

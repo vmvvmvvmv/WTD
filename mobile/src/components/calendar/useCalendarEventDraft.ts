@@ -28,8 +28,9 @@ const DEFAULT_DURATION_MINUTES = 60;
 const DEFAULT_NOTIFICATION_HOURS_BEFORE = 1;
 type EditScope = 'single' | 'series';
 
-function nextWholeHourDateTime(selectedDate: string, todayDate: string) {
+function nextWholeHourDateTime(selectedDate: string) {
   const now = new Date();
+  const todayDate = formatDate(now.getFullYear(), now.getMonth(), now.getDate());
   const start = new Date(now);
   if (now.getMinutes() > 0 || now.getSeconds() > 0 || now.getMilliseconds() > 0) {
     start.setHours(now.getHours() + 1, 0, 0, 0);
@@ -68,8 +69,8 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
   const [title, setTitle] = useState('');
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
-  const [startTime, setStartTime] = useState(() => nextWholeHourDateTime(initialDate, initialDate).time);
-  const [endTime, setEndTime] = useState(() => addMinutesToDateTime(initialDate, nextWholeHourDateTime(initialDate, initialDate).time, DEFAULT_DURATION_MINUTES).time);
+  const [startTime, setStartTime] = useState(() => nextWholeHourDateTime(initialDate).time);
+  const [endTime, setEndTime] = useState(() => addMinutesToDateTime(initialDate, nextWholeHourDateTime(initialDate).time, DEFAULT_DURATION_MINUTES).time);
   const [location, setLocation] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<CalendarLocationCandidate | null>(null);
   const [memo, setMemo] = useState('');
@@ -81,7 +82,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
   const [notificationHoursBefore, setNotificationHoursBefore] = useState<number | null>(DEFAULT_NOTIFICATION_HOURS_BEFORE);
 
   const openEditor = (date: string) => {
-    const defaultStart = nextWholeHourDateTime(date, initialDate);
+    const defaultStart = nextWholeHourDateTime(date);
     const defaultEnd = addMinutesToDateTime(defaultStart.date, defaultStart.time, DEFAULT_DURATION_MINUTES);
     const initialLocation = defaultLocation ?? null;
     setEditingEventId(null);

@@ -2,7 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 
+import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
+import { bauhausColors } from '../../theme/bauhaus';
 import type { StationDustItem, WeatherState } from '../../types/dust';
 import { formatMapValue, getO3Label, getO3Tone, getPm10Label, getPm10Progress, getPm10Tone, getPm25Label, getPm25Tone, toNumber } from '../../utils/dust';
 
@@ -118,12 +120,21 @@ function StationSheetHeader({
 }) {
   return (
     <View style={styles.stationSheetHeader}>
-      <Pressable onPress={() => onOpenDetail(station)} style={({ pressed }) => [styles.stationTitleGroup, pressed && styles.pressedFeedback]}>
-        <Text style={styles.stationEyebrow}>{station.sido ?? '측정소'}</Text>
-        <Text style={styles.stationTitle}>{station.name ?? station.city ?? '측정소'}</Text>
-        {!!station.time && <Text style={styles.stationTime}>{station.time}</Text>}
-        {!!station.addr && <Text style={styles.stationAddress} numberOfLines={1}>{station.addr}</Text>}
-      </Pressable>
+      {DETAIL_DATA_ENABLED ? (
+        <Pressable onPress={() => onOpenDetail(station)} style={({ pressed }) => [styles.stationTitleGroup, pressed && styles.pressedFeedback]}>
+          <Text style={styles.stationEyebrow}>{station.sido ?? '측정소'}</Text>
+          <Text style={styles.stationTitle}>{station.name ?? station.city ?? '측정소'}</Text>
+          {!!station.time && <Text style={styles.stationTime}>{station.time}</Text>}
+          {!!station.addr && <Text style={styles.stationAddress} numberOfLines={1}>{station.addr}</Text>}
+        </Pressable>
+      ) : (
+        <View style={styles.stationTitleGroup}>
+          <Text style={styles.stationEyebrow}>{station.sido ?? '측정소'}</Text>
+          <Text style={styles.stationTitle}>{station.name ?? station.city ?? '측정소'}</Text>
+          {!!station.time && <Text style={styles.stationTime}>{station.time}</Text>}
+          {!!station.addr && <Text style={styles.stationAddress} numberOfLines={1}>{station.addr}</Text>}
+        </View>
+      )}
       <Pressable
         accessibilityLabel={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
         onPress={() => onToggleFavorite(station)}
@@ -213,9 +224,9 @@ function WeatherStationContent({
       {expanded && (
         <View style={styles.stationMetricGrid}>
           <StationMetric label="기온" value={temperature} unit="°C" tone={tone} grade={getTemperatureGrade(temperature)} />
-          <StationMetric label="습도" value={humidity} unit="%" tone="#2f80ed" />
+          <StationMetric label="습도" value={humidity} unit="%" tone={bauhausColors.blue} />
           <StationMetric label="풍속" value={windSpeed} unit="m/s" tone="#687180" />
-          <StationMetric label="강수량" value={rainMm} unit="mm" tone="#2f80ed" />
+          <StationMetric label="강수량" value={rainMm} unit="mm" tone={bauhausColors.blue} />
         </View>
       )}
     </>
@@ -260,10 +271,10 @@ function formatWeatherMeasuredAt(value?: string) {
 
 function getTemperatureTone(value?: number) {
   if (typeof value !== 'number') return '#687180';
-  if (value <= 0) return '#2f80ed';
-  if (value >= 33) return '#d94b4b';
-  if (value >= 27) return '#f3b43f';
-  return '#279b64';
+  if (value <= 0) return bauhausColors.blue;
+  if (value >= 33) return bauhausColors.red;
+  if (value >= 27) return bauhausColors.yellow;
+  return '#5FA777';
 }
 
 function getTemperatureSoftTone(value?: number) {

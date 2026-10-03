@@ -1,25 +1,39 @@
 export const bauhausColors = {
-  background: '#F0F0F0',
-  foreground: '#121212',
-  red: '#D02020',
-  blue: '#1040C0',
-  yellow: '#F0C020',
-  muted: '#E0E0E0',
+  // One UI-inspired weather palette. Keep the legacy export name to avoid
+  // touching every feature component that already imports these shared tokens.
+  background: '#F4F8FC',
+  foreground: '#17202A',
+  red: '#E85C6B',
+  redSoft: '#FFF0EE',
+  blue: '#3D7FEA',
+  blueSoft: '#E8F1FE',
+  yellow: '#FFB95C',
+  muted: '#E7EFF7',
+  border: '#D7E4F2',
+  surface: '#F8FAFD',
   white: '#FFFFFF',
 } as const;
 
 export const bauhausSmallShadow = {
   shadowColor: bauhausColors.foreground,
-  shadowOffset: { width: 4, height: 4 },
-  shadowOpacity: 1,
-  shadowRadius: 0,
-  elevation: 4,
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.08,
+  shadowRadius: 8,
+  elevation: 2,
 } as const;
 
 export const bauhausMediumShadow = {
   shadowColor: bauhausColors.foreground,
-  shadowOffset: { width: 6, height: 6 },
-  shadowOpacity: 1,
-  shadowRadius: 0,
-  elevation: 6,
+  shadowOffset: { width: 0, height: 4 },
+  shadowOpacity: 0.1,
+  shadowRadius: 12,
+  elevation: 4,
+} as const;
+
+export const handDrawnCardShape = {
+  borderRadius: 24,
+} as const;
+
+export const handDrawnControlShape = {
+  borderRadius: 14,
 } as const;

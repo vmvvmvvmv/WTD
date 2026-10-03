@@ -1,18 +1,365 @@
-﻿import { Pressable, Text, View } from 'react-native';
+﻿import { Animated, Easing, Image, Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
-import type { NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
-import { Animated } from 'react-native';
-import type { ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
-import { useEffect, useRef, useState } from 'react';
+import { ScrollView, useWindowDimensions } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
-import type { CalendarEvent, HourlyDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
-import { getO3Label, getO3Tone, getPm10Label, getPm10Tone, getPm25Label, getPm25Tone, toNumber } from '../../utils/dust';
+import type { CalendarEvent, HourlyDustItem, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
+import { toNumber } from '../../utils/dust';
+import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
+import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
+import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
-import { calculateOutingIndex, getOutingGrade, getOutingTone } from '../calendar/outingIndex';
+import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
+
+type HomeCircularGaugeProps = {
+  gaugeSize?: number;
+  label: string;
+  large?: boolean;
+  progress: number;
+  tone: string;
+  unit: string;
+  value: string;
+};
+
+type HomeWeatherMotionKind = WeatherVisualKind | 'wind';
+
+const HOME_METRIC_BACKGROUNDS = {
+  clear: require('../../../assets/home-metric-clear-v3.png'),
+  cloudy: require('../../../assets/home-metric-cloudy-v1.png'),
+  rain: require('../../../assets/home-metric-rain-v1.png'),
+  snow: require('../../../assets/home-metric-snow-v1.png'),
+} as const;
+
+const HOME_METRIC_BACKGROUND_COLORS: Record<WeatherVisualKind, string> = {
+  clear: '#1066D1',
+  cloudy: '#26579C',
+  rain: '#084BAD',
+  snow: '#4484DA',
+};
+
+const HOME_PRECIPITATION_OVERLAYS = {
+  rain: require('../../../assets/home-rain-overlay-v1.png'),
+  snow: require('../../../assets/home-snow-overlay-v1.png'),
+} as const;
+
+const HOME_WIND_CLOUDS = {
+  large: require('../../../assets/home-wind-cloud-large-v1.png'),
+  small: require('../../../assets/home-wind-cloud-small-v1.png'),
+} as const;
+
+const HOME_WIND_STREAK_OVERLAY = require('../../../assets/home-wind-streak-overlay-v2.png');
+
+const HOME_PRECIPITATION_LAYER_HEIGHT = 260;
+
+function getHomeWeatherMotionKind(label?: string | null, windSpeed?: number | string | null): HomeWeatherMotionKind {
+  const weatherKind = getWeatherVisualKind(label ?? undefined);
+  if (weatherKind === 'rain' || weatherKind === 'snow') return weatherKind;
+  const numericWindSpeed = toNumber(windSpeed);
+  if (numericWindSpeed !== undefined && numericWindSpeed >= 8) return 'wind';
+  return weatherKind;
+}
+
+function HomeMotionActionIcon({ delayMs = 0, name, size }: { delayMs?: number; name: AppActionIconName; size: number }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const motion = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delayMs),
+        Animated.timing(progress, {
+          duration: 1700,
+          easing: Easing.inOut(Easing.sin),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(progress, {
+          duration: 1700,
+          easing: Easing.inOut(Easing.sin),
+          toValue: 0,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    motion.start();
+    return () => motion.stop();
+  }, [delayMs, progress]);
+
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        transform: [
+          { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -2.5] }) },
+          { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] }) },
+        ],
+      }}
+    >
+      <AppActionIcon name={name} size={size} />
+    </Animated.View>
+  );
+}
+
+function HomeFallingWeatherOverlay({ kind }: { kind: 'rain' | 'snow' }) {
+  const fall = useRef(new Animated.Value(0)).current;
+  const sway = useRef(new Animated.Value(-1)).current;
+
+  useEffect(() => {
+    fall.setValue(0);
+    sway.setValue(-1);
+    const fallAnimation = Animated.loop(
+      Animated.timing(fall, {
+        duration: kind === 'rain' ? 850 : 5600,
+        easing: Easing.linear,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    );
+    const swayAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(sway, {
+          duration: 2600,
+          easing: Easing.inOut(Easing.ease),
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+        Animated.timing(sway, {
+          duration: 2600,
+          easing: Easing.inOut(Easing.ease),
+          toValue: -1,
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    fallAnimation.start();
+    if (kind === 'snow') swayAnimation.start();
+    return () => {
+      fallAnimation.stop();
+      swayAnimation.stop();
+    };
+  }, [fall, kind, sway]);
+
+  const fallDistance = fall.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, HOME_PRECIPITATION_LAYER_HEIGHT],
+  });
+  const swayDistance = sway.interpolate({ inputRange: [-1, 1], outputRange: [-9, 9] });
+
+  return (
+    <>
+      {[0, 1].map((layerIndex) => (
+        <Animated.Image
+          key={layerIndex}
+          resizeMode="cover"
+          source={HOME_PRECIPITATION_OVERLAYS[kind]}
+          style={[
+            styles.homeFallingWeatherLayer,
+            {
+              opacity: kind === 'rain' ? 0.44 : 0.4,
+              transform: [
+                { translateX: kind === 'snow' ? swayDistance : 0 },
+                { translateY: Animated.add(fallDistance, layerIndex === 0 ? -HOME_PRECIPITATION_LAYER_HEIGHT : 0) },
+              ],
+            },
+          ]}
+        />
+      ))}
+    </>
+  );
+}
+
+function HomeWindCloud({
+  delayMs,
+  duration,
+  height,
+  opacity,
+  source,
+  top,
+  width,
+}: {
+  delayMs: number;
+  duration: number;
+  height: number;
+  opacity: number;
+  source: number;
+  top: number;
+  width: number;
+}) {
+  const progress = useRef(new Animated.Value(0)).current;
+  const { width: screenWidth } = useWindowDimensions();
+
+  useEffect(() => {
+    progress.setValue(0);
+    const animation = Animated.sequence([
+      Animated.delay(delayMs),
+      Animated.loop(
+        Animated.timing(progress, {
+          duration,
+          easing: Easing.linear,
+          toValue: 1,
+          useNativeDriver: true,
+        }),
+      ),
+    ]);
+    animation.start();
+    return () => animation.stop();
+  }, [delayMs, duration, progress]);
+
+  return (
+    <Animated.Image
+      resizeMode="contain"
+      source={source}
+      style={[
+        styles.homeWindCloud,
+        {
+          height,
+          opacity,
+          top,
+          width,
+          transform: [{
+            translateX: progress.interpolate({
+              inputRange: [0, 1],
+              outputRange: [screenWidth + 20, -width - 20],
+            }),
+          }],
+        },
+      ]}
+    />
+  );
+}
+
+function HomeWindStreaks() {
+  const progress = useRef(new Animated.Value(0)).current;
+  const { width: screenWidth } = useWindowDimensions();
+
+  useEffect(() => {
+    progress.setValue(0);
+    const animation = Animated.loop(
+      Animated.timing(progress, {
+        duration: 1400,
+        easing: Easing.linear,
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+    );
+    animation.start();
+    return () => animation.stop();
+  }, [progress]);
+
+  const travel = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -screenWidth],
+  });
+
+  return (
+    <>
+      {[0, 1].map((layerIndex) => (
+        <Animated.Image
+          key={layerIndex}
+          resizeMode="cover"
+          source={HOME_WIND_STREAK_OVERLAY}
+          style={[
+            styles.homeWindStreakLayer,
+            {
+              width: screenWidth,
+              transform: [{ translateX: Animated.add(travel, layerIndex * screenWidth) }],
+            },
+          ]}
+        />
+      ))}
+    </>
+  );
+}
+
+function HomeWindOverlay() {
+  return (
+    <>
+      <HomeWindStreaks />
+      <HomeWindCloud delayMs={0} duration={5600} height={116} opacity={0.42} source={HOME_WIND_CLOUDS.large} top={-18} width={206} />
+      <HomeWindCloud delayMs={1700} duration={6900} height={92} opacity={0.3} source={HOME_WIND_CLOUDS.small} top={78} width={174} />
+      <HomeWindCloud delayMs={3500} duration={6200} height={74} opacity={0.24} source={HOME_WIND_CLOUDS.large} top={42} width={132} />
+    </>
+  );
+}
+
+function HomeCircularGauge({ gaugeSize, label, large = false, progress, tone, unit, value }: HomeCircularGaugeProps) {
+  const size = gaugeSize ?? (large ? 132 : 62);
+  const stroke = large ? 10 : 6;
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const arc = circumference * 0.78;
+  const safeProgress = Math.max(0.04, Math.min(1, progress));
+  return (
+    <View style={styles.homeCircularGauge}>
+      <View style={[styles.homeCircularGaugeCircle, large && styles.homeCircularGaugeCircleLarge, { height: size, width: size }]}>
+        <Svg height={size} width={size} viewBox={`0 0 ${size} ${size}`}>
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            fill="none"
+            r={radius}
+            stroke="rgba(255,255,255,0.34)"
+            strokeDasharray={`${arc} ${circumference}`}
+            strokeLinecap="round"
+            strokeWidth={stroke}
+            transform={`rotate(130 ${size / 2} ${size / 2})`}
+          />
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            fill="none"
+            r={radius}
+            stroke="#ffffff"
+            strokeDasharray={`${arc * safeProgress} ${circumference}`}
+            strokeLinecap="round"
+            strokeWidth={stroke}
+            transform={`rotate(130 ${size / 2} ${size / 2})`}
+          />
+        </Svg>
+        <View style={styles.homeCircularGaugeCenter}>
+          <Text style={[styles.homeCircularGaugeLabel, large && styles.homeCircularGaugeLabelLarge]}>{label}</Text>
+          <Text style={[styles.homeCircularGaugeValue, large && styles.homeCircularGaugeValueLarge]}>{value}</Text>
+          <Text style={[styles.homeCircularGaugeUnit, large && styles.homeCircularGaugeUnitLarge]}>{unit}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function HomeInfoGaugeSlide({ comparison, gaugeSize, label, progress, slideHeight, status, title, tone, unit, value, width }: {
+  comparison: string;
+  gaugeSize: number;
+  label: string;
+  progress: number;
+  slideHeight: number;
+  status: string;
+  title: string;
+  tone: string;
+  unit: string;
+  value: string;
+  width: number;
+}) {
+  return (
+    <View style={[styles.homeInfoSlide, styles.homeSplitGaugeSlide, { height: slideHeight, width }]}>
+      <View style={[styles.homeSplitGaugeVisual, { width: gaugeSize + 4 }]}>
+        <HomeCircularGauge gaugeSize={gaugeSize} large label={label} progress={progress} tone={tone} unit={unit} value={value} />
+      </View>
+      <View style={styles.homeSplitGaugeInfo}>
+        <Text numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>
+        <View style={styles.homeSplitGaugeStatusRow}>
+          <View style={[styles.homeSplitGaugeStatusDot, { backgroundColor: tone }]} />
+          <Text style={styles.homeSplitGaugeStatus}>{status}</Text>
+        </View>
+        <Text numberOfLines={2} style={styles.homeInfoSlideComparison}>{comparison}</Text>
+      </View>
+    </View>
+  );
+}
+
 
 
 // 홈 탭의 현재 미세먼지 상태, 주요 오염물질 카드, 최근/예측 흐름을 보여줍니다.
@@ -28,13 +375,14 @@ export function HomePanel({
   onOpenDetail,
   onOpenMap,
   mapPreviewUrl,
-  mapPreviewLabel,
   hourlyItems,
+  pastItems,
   weatherHourlyItems,
   weatherMidTermItems,
   prediction,
   todayDateLabel,
   weather,
+  yesterdayWeather,
 }: {
   currentPm10?: number;
   currentPm25?: number;
@@ -47,193 +395,74 @@ export function HomePanel({
   onOpenDetail: () => void;
   onOpenMap: () => void;
   mapPreviewUrl: string;
-  mapPreviewLabel: string;
   hourlyItems: HourlyDustItem[];
+  pastItems: PastDustItem[];
   weatherHourlyItems: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
   prediction: PredictionResponse | null;
   todayDateLabel: string;
   weather?: WeatherState | null;
+  yesterdayWeather?: WeatherState | null;
 }) {
-  const [activeGaugeIndex, setActiveGaugeIndex] = useState(0);
-  const [gaugeCarouselWidth, setGaugeCarouselWidth] = useState(0);
-  const gaugeItemWidth = 130;
-  const gaugeScrollX = useRef(new Animated.Value(gaugeItemWidth)).current;
-  const gaugeScrollRef = useRef<ScrollView | null>(null);
-  const outingIndex = calculateOutingIndex({
-    pm10: currentPm10,
-    rainMm: weather?.rainMm,
-    temperature: weather?.temperature,
-    weatherLabel: weather?.label,
-    windSpeed: weather?.windSpeed,
-  });
-  const getTemperatureGrade = (value?: number) => {
-    if (typeof value !== 'number') return '확인 중';
-    if (value >= 33) return '폭염';
-    if (value >= 28) return '더움';
-    if (value <= -5) return '한파';
-    if (value <= 5) return '추움';
-    return '적정';
-  };
-  const getTemperatureTone = (value?: number) => {
-    if (typeof value !== 'number') return '#687180';
-    if (value >= 30) return '#d94b4b';
-    if (value <= 5) return '#2f80ed';
-    return '#279b64';
-  };
-  const getWindGrade = (value?: number) => {
-    if (typeof value !== 'number') return '확인 중';
-    if (value >= 9) return '강풍';
-    if (value >= 5) return '바람';
-    return '잔잔';
-  };
-  const getWindTone = (value?: number) => {
-    if (typeof value !== 'number') return '#687180';
-    if (value >= 9) return '#d94b4b';
-    if (value >= 5) return '#c58a19';
-    return '#2f80ed';
-  };
-  const getWindDirectionLabel = (value?: number) => {
-    if (typeof value !== 'number') return '';
-    const directions = ['북풍', '북동풍', '동풍', '남동풍', '남풍', '남서풍', '서풍', '북서풍'];
-    const normalized = ((value % 360) + 360) % 360;
-    return directions[Math.round(normalized / 45) % directions.length];
-  };
-  const getHumidityGrade = (value?: number) => {
-    if (typeof value !== 'number') return '확인 중';
-    if (value >= 80) return '습함';
-    if (value <= 35) return '건조';
-    return '보통';
-  };
-  const getHumidityTone = (value?: number) => {
-    if (typeof value !== 'number') return '#687180';
-    if (value >= 80) return '#2f80ed';
-    if (value <= 35) return '#c58a19';
-    return '#279b64';
-  };
-  const getRainGrade = (value?: number) => {
-    if (typeof value !== 'number') return '확인 중';
-    if (value >= 10) return '강수';
-    if (value > 0) return '비';
-    return '없음';
-  };
-  const getRainTone = (value?: number) => {
-    if (typeof value !== 'number') return '#687180';
-    if (value >= 10) return '#2f80ed';
-    if (value > 0) return '#4f8fd9';
-    return '#279b64';
-  };
-  const metricGaugeItems = [
-    { code: '외출', decimals: 0, grade: getOutingGrade(outingIndex), index: 0, label: '외출 지수', max: 100, tone: getOutingTone(outingIndex), unit: '점', value: outingIndex },
-    { code: 'PM10', decimals: 0, grade: getPm10Label(currentPm10), index: 1, label: '미세먼지', max: 150, tone: getPm10Tone(currentPm10), unit: 'µg/m³', value: currentPm10 },
-    { code: 'PM2.5', decimals: 0, grade: getPm25Label(currentPm25), index: 2, label: '초미세먼지', max: 75, tone: getPm25Tone(currentPm25), unit: 'µg/m³', value: currentPm25 },
-    { code: 'O3', decimals: 3, grade: getO3Label(currentO3), index: 3, label: '오존', max: 0.15, tone: getO3Tone(currentO3), unit: 'ppm', value: currentO3 },
-    { code: 'TEMP', decimals: 0, grade: getTemperatureGrade(weather?.temperature), index: 4, label: '기온', max: 40, tone: getTemperatureTone(weather?.temperature), unit: '°C', value: weather?.temperature },
-    { code: 'WIND', decimals: 1, grade: getWindGrade(weather?.windSpeed), index: 5, label: '풍속', max: 12, tone: getWindTone(weather?.windSpeed), unit: [getWindDirectionLabel(weather?.windDirection), 'm/s'].filter(Boolean).join(' · '), value: weather?.windSpeed },
-    { code: 'HUM', decimals: 0, grade: getHumidityGrade(weather?.humidity), index: 6, label: '습도', max: 100, tone: getHumidityTone(weather?.humidity), unit: '%', value: weather?.humidity },
-    { code: 'RAIN', decimals: 1, grade: getRainGrade(weather?.rainMm), index: 7, label: '강수', max: 20, tone: getRainTone(weather?.rainMm), unit: 'mm', value: weather?.rainMm },
-  ];
-  const loopedGaugeItems = [...metricGaugeItems, ...metricGaugeItems, ...metricGaugeItems];
-  const loopStartIndex = metricGaugeItems.length;
-  const activeGaugeCode = metricGaugeItems[activeGaugeIndex]?.code;
-  const activeGaugeBasis = activeGaugeIndex === 0
-    ? '공기+날씨'
-    : ['TEMP', 'WIND', 'HUM', 'RAIN'].includes(activeGaugeCode)
-      ? '현재 날씨'
-      : '가까운 측정소';
-  const gaugeSidePadding = Math.max(0, (gaugeCarouselWidth - gaugeItemWidth) / 2);
-  const selectGaugeIndex = (nextIndex: number) => {
-    gaugeScrollRef.current?.scrollTo({ x: (loopStartIndex + nextIndex) * gaugeItemWidth, animated: true });
-    setActiveGaugeIndex(nextIndex);
-  };
-  const handleGaugeMomentumEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const rawIndex = Math.round(event.nativeEvent.contentOffset.x / gaugeItemWidth);
-    const normalizedIndex = ((rawIndex % metricGaugeItems.length) + metricGaugeItems.length) % metricGaugeItems.length;
-    setActiveGaugeIndex(normalizedIndex);
-    if (rawIndex < loopStartIndex || rawIndex >= loopStartIndex + metricGaugeItems.length) {
-      requestAnimationFrame(() => {
-        gaugeScrollRef.current?.scrollTo({ x: (loopStartIndex + normalizedIndex) * gaugeItemWidth, animated: false });
-      });
-    }
-  };
+  const { fontScale, width: windowWidth } = useWindowDimensions();
+  const infoCarouselRef = useRef<ScrollView>(null);
+  const [activeInfoSlide, setActiveInfoSlide] = useState(0);
+  const [carouselIndex, setCarouselIndex] = useState(1);
+  const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
+  const infoSlideWidth = windowWidth;
+  const infoSlideHeight = Math.max(146, Math.ceil(146 * fontScale));
+  const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
   useEffect(() => {
-    if (!gaugeCarouselWidth) return;
-    requestAnimationFrame(() => {
-      gaugeScrollRef.current?.scrollTo({ x: loopStartIndex * gaugeItemWidth, animated: false });
+    setMapPreviewFailed(false);
+  }, [mapPreviewUrl]);
+  const infoSlides = useMemo(() => buildHomeMetricSlides({
+    currentO3,
+    currentPm10,
+    currentPm25,
+    gaugeSize: infoGaugeSize,
+    pastItems,
+    todayDateLabel,
+    weather,
+    yesterdayWeather,
+  }), [currentO3, currentPm10, currentPm25, infoGaugeSize, pastItems, todayDateLabel, weather, yesterdayWeather]);
+  const infoSlideCount = infoSlides.length;
+  const carouselSlides = [infoSlides[infoSlideCount - 1], ...infoSlides, infoSlides[0]];
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCarouselIndex((current) => current + 1);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    infoCarouselRef.current?.scrollTo({ animated: carouselIndex !== 1, x: carouselIndex * infoSlideWidth });
+  }, [carouselIndex, infoSlideWidth]);
+  const now = new Date();
+  const hourlyForecastItems = weatherHourlyItems
+    .map((item, index) => {
+      const itemDate = item.date || item.measuredAt?.slice(0, 10) || '';
+      const itemTime = item.hour?.slice(0, 5) || item.measuredAt?.slice(11, 16) || '--:--';
+      const isCurrent = itemDate === todayDateLabel && Number(itemTime.slice(0, 2)) === now.getHours();
+      return {
+        isCurrent,
+        key: `${itemDate || item.measuredAt || 'hour'}-${item.hour || index}`,
+        label: item.label || '날씨 확인 중',
+        rainProbability: toNumber(item.rain_probability),
+        temperature: toNumber(item.temperature),
+        timeLabel: isCurrent
+          ? '지금'
+          : itemDate === todayDateLabel
+            ? itemTime
+            : itemDate
+              ? `${itemDate.slice(5).replace('-', '/')} ${itemTime}`
+              : itemTime,
+      };
     });
-  }, [gaugeCarouselWidth, loopStartIndex]);
-  const renderMetricGauge = (item: (typeof metricGaugeItems)[number], index: number) => {
-    const size = 168;
-    const stroke = 13;
-    const radius = (size - stroke) / 2;
-    const circumference = 2 * Math.PI * radius;
-    const arc = circumference * 0.78;
-    const progress = typeof item.value === 'number' ? Math.max(0.04, Math.min(item.value / item.max, 1)) : 0.04;
-    const dash = arc * progress;
-    const valueText = typeof item.value === 'number' ? item.value.toFixed(item.decimals) : '-';
-
-    const inputRange = [(index - 1) * gaugeItemWidth, index * gaugeItemWidth, (index + 1) * gaugeItemWidth];
-    const gaugeMotion = {
-      opacity: gaugeScrollX.interpolate({ inputRange, outputRange: [0.9, 1, 0.9], extrapolate: 'clamp' }),
-      zIndex: gaugeScrollX.interpolate({ inputRange, outputRange: [1, 5, 1], extrapolate: 'clamp' }),
-      elevation: gaugeScrollX.interpolate({ inputRange, outputRange: [2, 8, 2], extrapolate: 'clamp' }),
-      transform: [
-        { translateY: gaugeScrollX.interpolate({ inputRange, outputRange: [52, 0, 52], extrapolate: 'clamp' }) },
-        { scale: gaugeScrollX.interpolate({ inputRange, outputRange: [0.56, 1, 0.56], extrapolate: 'clamp' }) },
-      ],
-    };
-
-    return (
-      <Animated.View
-        key={`${item.code}-${index}`}
-        style={[styles.metricGaugePage, { width: gaugeItemWidth }, gaugeMotion]}
-      >
-        <Pressable
-          accessibilityLabel={`${item.label} 중앙으로 보기`}
-          onPress={() => selectGaugeIndex(item.index)}
-        >
-          <View style={[styles.statusGaugeDisk, { shadowColor: item.tone }]}>
-            <View style={styles.statusGaugeWrap}>
-              <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-                <Circle
-                  cx={size / 2}
-                  cy={size / 2}
-                  fill="none"
-                  r={radius}
-                  stroke="#e8edf2"
-                  strokeDasharray={`${arc} ${circumference}`}
-                  strokeLinecap="round"
-                  strokeWidth={stroke}
-                  transform={`rotate(130 ${size / 2} ${size / 2})`}
-                />
-                <Circle
-                  cx={size / 2}
-                  cy={size / 2}
-                  fill="none"
-                  r={radius}
-                  stroke={item.tone}
-                  strokeDasharray={`${dash} ${circumference}`}
-                  strokeLinecap="round"
-                  strokeWidth={stroke}
-                  transform={`rotate(130 ${size / 2} ${size / 2})`}
-                />
-              </Svg>
-              <View style={styles.statusGaugeCenter}>
-                <Text style={styles.statusGaugeLabel}>{item.label}</Text>
-                <Text style={styles.statusGaugeValue}>{valueText}</Text>
-                <Text style={styles.statusGaugeUnit}>{item.unit}</Text>
-                <Text style={[styles.statusGaugeGrade, { color: item.tone }]}>{item.grade}</Text>
-              </View>
-            </View>
-          </View>
-        </Pressable>
-      </Animated.View>
-    );
-  };
-  const todayCalendarEvents = (calendarEvents ?? [])
+  const bannerForecastItems = hourlyForecastItems;
+  const hasHourlyForecast = bannerForecastItems.length > 0;
+  const todayCalendarEvents = useMemo(() => (calendarEvents ?? [])
     .filter((event) => isDateInEventRange(todayDateLabel, event))
-    .sort((a, b) => a.time.localeCompare(b.time));
-  const activityGuideRiskByEvent = buildCalendarRiskByEvent(todayCalendarEvents, {
+    .sort((a, b) => a.time.localeCompare(b.time)), [calendarEvents, todayDateLabel]);
+  const activityGuideRiskByEvent = useMemo(() => buildCalendarRiskByEvent(todayCalendarEvents, {
     currentPm10,
     eventLocationForecasts,
     hourlyItems,
@@ -242,99 +471,184 @@ export function HomePanel({
     weather,
     weatherHourlyItems,
     weatherMidTermItems,
-  });
-  const activityGuideRows = todayCalendarEvents.map((event) => {
-    const risk = activityGuideRiskByEvent[event.id];
-    const locationName = [event.locationCity, event.locationRegion].filter(Boolean).join(' ') || event.location;
-    return {
-      badge: event.time,
-      desc: risk.desc,
-      icon: risk.icon,
-      locationLabel: locationName
-        ? `선택 장소 : ${locationName} 기준`
-        : '',
-      tone: risk.tone,
-      title: event.title,
-    };
-  });
-  const activityGuideSummary = todayCalendarEvents.length > 0
-    ? `캘린더 일정 ${todayCalendarEvents.length}개를 공기와 날씨 기준으로 판단해요.`
-    : '캘린더에 오늘 일정을 추가하면 공기와 날씨 기준으로 판단해요.';
+  }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, todayCalendarEvents, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
+  const weatherVisualKind = getWeatherVisualKind(weather?.label);
+  const weatherMotionKind = getHomeWeatherMotionKind(weather?.label, weather?.windSpeed);
+  const weatherBackgroundKind = weatherMotionKind === 'wind' ? 'cloudy' : weatherVisualKind;
+  const activityGuideRows = useMemo(
+    () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent),
+    [activityGuideRiskByEvent, todayCalendarEvents],
+  );
   return (
     <View>
-      <View style={[styles.statusCard, { borderColor: accentTone }]}>
-        <View
-          onLayout={(event) => setGaugeCarouselWidth(event.nativeEvent.layout.width)}
-          style={styles.metricGaugeCarousel}
-        >
-          <Animated.ScrollView
-            ref={gaugeScrollRef}
-            contentContainerStyle={{ paddingHorizontal: gaugeSidePadding }}
-            decelerationRate="fast"
-            horizontal
-            onMomentumScrollEnd={handleGaugeMomentumEnd}
-            onScroll={Animated.event(
-              [{ nativeEvent: { contentOffset: { x: gaugeScrollX } } }],
-              { useNativeDriver: true },
-            )}
-            scrollEventThrottle={16}
-            showsHorizontalScrollIndicator={false}
-            snapToInterval={gaugeItemWidth}
-          >
-            {loopedGaugeItems.map((item, index) => renderMetricGauge(item, index))}
-          </Animated.ScrollView>
-        </View>
-        <View style={styles.statusGaugeMetaRow}>
-          <Text style={styles.statusGaugeMetaPill}>{metricGaugeItems[activeGaugeIndex].code} 기준</Text>
-          <Text style={styles.statusGaugeMetaPill}>{activeGaugeBasis}</Text>
+      <View style={styles.homeHeroBanner}>
+        <View style={styles.homeHeroBannerImage}>
+          <View style={styles.homeHeroBannerBottom}>
+            <View style={[styles.homeGaugeFeature, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[weatherBackgroundKind] }]}>
+              <Image
+                resizeMode="cover"
+                source={HOME_METRIC_BACKGROUNDS[weatherBackgroundKind]}
+                style={styles.homeGaugeFeatureImage}
+              />
+              {(weatherMotionKind === 'rain' || weatherMotionKind === 'snow') && (
+                <HomeFallingWeatherOverlay kind={weatherMotionKind} />
+              )}
+              {weatherMotionKind === 'wind' && <HomeWindOverlay />}
+            <View style={[styles.homeInfoCarouselViewport, { height: infoSlideHeight }]}>
+              <ScrollView
+                ref={infoCarouselRef}
+                contentOffset={{ x: infoSlideWidth, y: 0 }}
+                horizontal
+                pagingEnabled
+                style={[styles.homeInfoCarousel, { height: infoSlideHeight }]}
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(event) => {
+                  const next = Math.round(event.nativeEvent.contentOffset.x / infoSlideWidth);
+                  if (next === 0) {
+                    infoCarouselRef.current?.scrollTo({ animated: false, x: infoSlideCount * infoSlideWidth });
+                    setCarouselIndex(infoSlideCount);
+                    setActiveInfoSlide(infoSlideCount - 1);
+                    return;
+                  }
+                  if (next === infoSlideCount + 1) {
+                    infoCarouselRef.current?.scrollTo({ animated: false, x: infoSlideWidth });
+                    setCarouselIndex(1);
+                    setActiveInfoSlide(0);
+                    return;
+                  }
+                  setCarouselIndex(next);
+                  setActiveInfoSlide(next - 1);
+                }}
+              >
+                {carouselSlides.map((slide, index) => (
+                  <HomeInfoGaugeSlide key={`${slide.label}-${index}`} {...slide} slideHeight={infoSlideHeight} width={infoSlideWidth} />
+                ))}
+              </ScrollView>
+              <View pointerEvents="none" style={styles.homeInfoCarouselDots}>
+                {Array.from({ length: infoSlideCount }, (_, index) => (
+                  <View key={`info-dot-${index}`} style={[styles.homeInfoCarouselDot, index === activeInfoSlide && { backgroundColor: '#FFFFFF', width: 15 }]} />
+                ))}
+              </View>
+            </View>
+            </View>
+            <View style={styles.homeHeroBannerForecastSection}>
+              {hasHourlyForecast ? (
+                <ScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.homeHeroBannerForecastContent}
+                  style={styles.homeHeroBannerForecastScroll}
+                >
+                  {bannerForecastItems.map((item) => (
+                    <View
+                      key={item.key}
+                      style={[styles.homeHeroBannerForecastItem, item.isCurrent && styles.homeHeroBannerForecastItemCurrent]}
+                    >
+                      <Text style={[styles.homeHeroBannerForecastTime, item.isCurrent && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
+                      <Ionicons color="#6A7FA8" name={getWeatherIcon(item.label)} size={21} />
+                      <Text style={styles.homeHeroBannerForecastTemp}>
+                        {item.temperature === undefined ? '-' : `${Math.round(item.temperature)}°`}
+                      </Text>
+                      <Text style={styles.homeHeroBannerForecastRain}>
+                        {item.rainProbability === undefined ? '강수 -' : `강수 ${Math.round(item.rainProbability)}%`}
+                      </Text>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : (
+                <View style={styles.homeHeroBannerForecastEmpty}>
+                  <Ionicons color="#7890AE" name="time-outline" size={18} />
+                  <Text style={styles.homeHeroBannerForecastEmptyText}>시간별 예보를 준비 중이에요</Text>
+                </View>
+              )}
+            </View>
+          </View>
         </View>
       </View>
 
-      <View style={[styles.activityGuideCard, { shadowColor: accentTone }]}>
+      <View
+        style={[
+          styles.activityGuideCard,
+          activityGuideRows.length === 0 && styles.activityGuideCardEmpty,
+          { shadowColor: accentTone },
+        ]}
+      >
         <View style={styles.activityGuideHeader}>
           <View style={styles.activityGuideHeaderTitleGroup}>
             <Text style={styles.activityGuideTitle}>오늘 활동 가이드</Text>
-            <Text style={styles.activityGuideSummary}>{activityGuideSummary}</Text>
           </View>
-          <Pressable
-            accessibilityLabel="캘린더 열기"
-            onPress={onOpenCalendar}
-            style={({ pressed }) => [
-              styles.activityGuideEditButton,
-              pressed && styles.pressedFeedback,
-            ]}
-          >
-            <Ionicons color={accentTone} name="calendar-outline" size={18} />
-          </Pressable>
+          {activityGuideRows.length > 0 && (
+            <Pressable
+              accessibilityLabel="캘린더 열기"
+              onPress={onOpenCalendar}
+              style={({ pressed }) => [
+                styles.activityGuideEditButton,
+                pressed && styles.pressedFeedback,
+              ]}
+            >
+              <HomeMotionActionIcon name="schedule" size={25} />
+            </Pressable>
+          )}
         </View>
-        <View style={styles.activityGuideList}>
+        <View style={[styles.activityGuideList, activityGuideRows.length === 0 && styles.activityGuideListEmpty]}>
           {activityGuideRows.length === 0 && (
             <View style={styles.activityGuideEmptyBox}>
               <Text style={styles.activityGuideRowTitle}>오늘 등록된 일정이 없어요</Text>
-              <Text style={styles.activityGuideRowDesc}>캘린더에 일정을 추가하면 시간대별 미세먼지와 날씨 기준으로 활동 가이드를 보여줘요.</Text>
             </View>
           )}
-          {activityGuideRows.map((item, index) => (
-            <View key={`${item.title}-${item.badge}-${index}`} style={styles.activityGuideRow}>
-              <View style={[styles.activityGuideIconBox, { backgroundColor: `${item.tone}1a` }]}>
-                <Ionicons color={item.tone} name={item.icon} size={18} />
+          {activityGuideRows.map((item) => (
+            <Pressable
+              accessibilityLabel={`${item.title} 일정 열기`}
+              key={item.id}
+              onPress={onOpenCalendar}
+              style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
+            >
+              <View style={[styles.activityGuideIconBox, { backgroundColor: '#E8F1FE' }]}>
+                <AppActionIcon
+                  name={item.activityType === 'indoor' ? 'activityIndoor' : item.activityType === 'transit' ? 'activityTransit' : 'activityOutdoor'}
+                  size={34}
+                />
               </View>
               <View style={styles.activityGuideTextGroup}>
-                <Text style={styles.activityGuideRowTitle}>{item.title}</Text>
-                {!!item.locationLabel && <Text style={styles.activityGuideRowLocation}>{item.locationLabel}</Text>}
-                <Text style={styles.activityGuideRowDesc}>{item.desc}</Text>
+                <View style={styles.activityGuideTitleRow}>
+                  <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{item.title}</Text>
+                  <View
+                    style={[
+                      styles.activityGuideRiskBadge,
+                      { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone },
+                    ]}
+                  >
+                    <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
+                    <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
+                  </View>
+                </View>
+                <View style={styles.activityGuideMetaRow}>
+                  <Text style={styles.activityGuideTimeText}>{item.timeLabel}</Text>
+                  {!!item.locationLabel && (
+                    <>
+                      <View style={styles.activityGuideMetaDivider} />
+                      <Text numberOfLines={1} style={styles.activityGuideRowLocation}>{item.locationLabel}</Text>
+                    </>
+                  )}
+                </View>
+                <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{item.advice}</Text>
               </View>
-              <Text style={[styles.activityGuideBadge, { color: item.tone, backgroundColor: `${item.tone}18` }]}>{item.badge}</Text>
-            </View>
+              <Ionicons color="#8CA0BA" name="chevron-forward" size={17} style={styles.activityGuideRowChevron} />
+            </Pressable>
           ))}
         </View>
         <Pressable
           accessibilityLabel={"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}
           onPress={onOpenCalendar}
-          style={({ pressed }) => [styles.activityGuideAddScheduleButton, { borderColor: accentTone, backgroundColor: accentSoftTone }, pressed && styles.pressedFeedback]}
+          style={({ pressed }) => [
+            styles.activityGuideAddScheduleButton,
+            activityGuideRows.length === 0 && styles.activityGuideAddScheduleButtonEmpty,
+            pressed && styles.pressedFeedback,
+          ]}
         >
-          <View style={[styles.activityGuideAddScheduleIcon, { backgroundColor: accentTone }]}>
-            <Ionicons color="#ffffff" name="add" size={17} />
+          <View style={styles.activityGuideAddScheduleIcon}>
+            <AppActionIcon name="schedule" size={27} />
           </View>
           <Text style={[styles.activityGuideAddScheduleText, { color: accentTone }]}>{"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}</Text>
           <Ionicons color={accentTone} name="chevron-forward" size={16} />
@@ -348,44 +662,51 @@ export function HomePanel({
         <View style={styles.homeMapPreviewHeader}>
           <View style={styles.homeMapPreviewTitleGroup}>
             <Text style={styles.homeMapPreviewTitle}>{"\uC804\uAD6D \uB0A0\uC528 \uC9C0\uB3C4"}</Text>
-            <Text style={styles.homeMapPreviewSubtitle}>{mapPreviewLabel}{" \uAE30\uC900\uC73C\uB85C \uBA3C\uC800 \uBCF4\uC5EC\uC918\uC694."}</Text>
           </View>
           <View style={[styles.homeMapPreviewIconButton, { backgroundColor: accentSoftTone }]}>
-            <Ionicons color={accentTone} name="map-outline" size={19} />
+            <HomeMotionActionIcon delayMs={420} name="map" size={29} />
           </View>
         </View>
         <View style={styles.homeMapPreviewFrame} pointerEvents="none">
-          <WebView
-            source={{ uri: mapPreviewUrl }}
-            javaScriptEnabled
-            domStorageEnabled
-            androidLayerType="hardware"
-            mixedContentMode="always"
-            originWhitelist={['*']}
-            setSupportMultipleWindows={false}
-            thirdPartyCookiesEnabled
-            scrollEnabled={false}
-            showsHorizontalScrollIndicator={false}
-            showsVerticalScrollIndicator={false}
-            style={styles.homeMapPreviewWebView}
-          />
+          {mapPreviewFailed || !mapPreviewUrl ? (
+            <View style={styles.homeMapPreviewFallback}>
+              <AppActionIcon name="map" size={37} />
+              <Text style={styles.homeMapPreviewFallbackText}>지도를 불러올 수 없어요</Text>
+            </View>
+          ) : (
+            <WebView
+              source={{ uri: mapPreviewUrl }}
+              javaScriptEnabled
+              domStorageEnabled
+              androidLayerType="hardware"
+              mixedContentMode="always"
+              onError={() => setMapPreviewFailed(true)}
+              onHttpError={() => setMapPreviewFailed(true)}
+              originWhitelist={['*']}
+              setSupportMultipleWindows={false}
+              thirdPartyCookiesEnabled
+              scrollEnabled={false}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              style={styles.homeMapPreviewWebView}
+            />
+          )}
         </View>
         <View style={styles.homeMapPreviewFooter}>
           <Text style={[styles.homeMapPreviewLink, { color: accentTone }]}>{"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}</Text>
           <Ionicons color={accentTone} name="chevron-forward" size={17} />
         </View>
       </Pressable>
+      {DETAIL_DATA_ENABLED && (
       <Pressable
-        accessibilityLabel={'\uBBF8\uC138\uBA3C\uC9C0\uC640 \uB0A0\uC528 \uD750\uB984 \uBCF4\uAE30'}
+        accessibilityLabel="상세 데이터 보기"
         onPress={onOpenDetail}
-        style={({ pressed }) => [styles.detailFlowButton, { shadowColor: accentTone }, pressed && styles.pressedFeedback]}
+        style={({ pressed }) => [styles.homeDetailDataButton, pressed && styles.pressedFeedback]}
       >
-        <View style={styles.detailFlowButtonTextGroup}>
-          <Text style={[styles.detailFlowButtonText, { color: accentTone }]}>{"\uBBF8\uC138\uBA3C\uC9C0\u00B7\uB0A0\uC528 \uD750\uB984 \uBCF4\uAE30"}</Text>
-          <Text style={styles.detailFlowButtonHint}>{"\uC2DC\uAC04\uBCC4 \uBCC0\uD654\uC640 \uACFC\uAC70 \uAE30\uB85D\uC744 \uD655\uC778\uD574\uC694."}</Text>
-        </View>
-        <Text style={[styles.detailFlowButtonArrow, { color: accentTone }]}>{"\u203A"}</Text>
+        <Text style={[styles.homeDetailDataButtonText, { color: accentTone }]}>상세 데이터 보기</Text>
+        <Ionicons color={accentTone} name="chevron-forward" size={18} />
       </Pressable>
+      )}
     </View>
   );
 }

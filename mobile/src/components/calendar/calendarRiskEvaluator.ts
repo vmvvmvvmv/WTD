@@ -1,6 +1,7 @@
 import type { CalendarEvent, HourlyDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
-import { calculateOutingIndex, isRainyWeather, isThunderWeather } from './outingIndex';
+import { calculateOutingIndex, isRainyWeather, isThunderWeather } from '../../features/outing/outingIndex';
+import { semanticColors } from '../../theme/semanticColors';
 
 export type CalendarRiskLevel = 'good' | 'watch' | 'adjust' | 'bad' | 'unknown';
 
@@ -303,11 +304,11 @@ function activityIcon(event: CalendarEvent): CalendarRiskResult['icon'] {
 }
 
 function levelMeta(level: CalendarRiskLevel) {
-  if (level === 'good') return { badge: TEXT.good, tone: '#279b64' };
-  if (level === 'watch') return { badge: TEXT.watch, tone: '#2f80ed' };
-  if (level === 'adjust') return { badge: TEXT.adjust, tone: '#c58a19' };
-  if (level === 'bad') return { badge: TEXT.bad, tone: '#d94b4b' };
-  return { badge: TEXT.unknown, tone: '#687180' };
+  if (level === 'good') return { badge: TEXT.good, tone: semanticColors.outing.fit.tone };
+  if (level === 'watch') return { badge: TEXT.watch, tone: semanticColors.outing.info.tone };
+  if (level === 'adjust') return { badge: TEXT.adjust, tone: semanticColors.outing.caution.tone };
+  if (level === 'bad') return { badge: TEXT.bad, tone: semanticColors.outing.unfit.tone };
+  return { badge: TEXT.unknown, tone: semanticColors.outing.unavailable.tone };
 }
 
 function isRainyLabel(label?: string) {
@@ -335,7 +336,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
       desc: '\uC9C0\uB09C \uC77C\uC815\uC774\uB77C \uC608\uCE21\uACFC \uD3C9\uAC00\uB294 \uD45C\uC2DC\uD558\uC9C0 \uC54A\uC544\uC694.',
       icon: activityIcon(event),
       level: 'unknown',
-      tone: '#687180',
+      tone: semanticColors.outing.unavailable.tone,
     };
   }
 

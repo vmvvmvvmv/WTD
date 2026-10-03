@@ -1,0 +1,362 @@
+# WeatherToDo 작업 인수인계
+
+작성일: 2026-09-19
+
+이 문서는 새 Codex 채팅에서 WeatherToDo 프로젝트 작업을 이어가기 위한 인수인계 문서다.
+
+## 1. 프로젝트 위치
+
+- 저장소: `C:\Users\goodd\Documents\GitHub\WTD`
+- 모바일 앱: `C:\Users\goodd\Documents\GitHub\WTD\mobile`
+- 백엔드: `C:\Users\goodd\Documents\GitHub\WTD\backend`
+- 모바일 기술: React Native + Expo SDK 54 + TypeScript
+- 백엔드 기술: Django
+- 운영 API: `https://wtd-api.vmv-lab.com`
+- 운영 서버: AWS Lightsail
+
+## 2. 모바일 앱 실행 방법
+
+### 의존성 설치
+
+PowerShell에서 실행한다.
+
+```powershell
+cd C:\Users\goodd\Documents\GitHub\WTD\mobile
+npm ci
+```
+
+`mobile/.env`가 필요하다. 최소한 다음 환경변수를 준비한다.
+
+```env
+EXPO_PUBLIC_API_URL=https://wtd-api.vmv-lab.com
+EXPO_PUBLIC_APP_TEST_TOKEN=개발용_앱_토큰
+EXPO_PUBLIC_NAVER_MAP_CLIENT_ID=네이버_지도_클라이언트_ID
+```
+
+Android 개발 빌드 또는 `expo prebuild`를 실행하려면 `mobile/google-services.json`도 필요하다. 이 파일은 Git에 올리지 않으며 Firebase 콘솔에서 내려받는다.
+
+### 코드 검사
+
+```powershell
+cd C:\Users\goodd\Documents\GitHub\WTD\mobile
+npm run typecheck
+npm run doctor
+```
+
+현재 TypeScript 검사는 통과한다. `expo-doctor`의 남은 경고는 `android/ios` 네이티브 폴더와 `app.config.js` 설정을 함께 사용하는 Prebuild 관련 경고다. 의존성 중복 문제는 해결된 상태다.
+
+### Metro 실행
+
+```powershell
+cd C:\Users\goodd\Documents\GitHub\WTD\mobile
+npx expo start --dev-client --localhost --clear --port 8081
+```
+
+휴대폰 USB 연결을 사용할 때는 별도 PowerShell에서 다음을 먼저 실행한다.
+
+```powershell
+adb devices
+adb reverse --remove-all
+adb reverse tcp:8081 tcp:8081
+```
+
+`adb devices` 결과가 `device`여야 한다. `unauthorized`이면 휴대폰에서 USB 디버깅 RSA 인증을 허용한다.
+
+### Android 실행
+
+```powershell
+cd C:\Users\goodd\Documents\GitHub\WTD\mobile
+npm run android
+```
+
+이미 설치된 개발 빌드에 Metro만 연결하려면 `npx expo start --dev-client ...`를 사용한다. 처음 네이티브 빌드를 하는 PC에서는 Android Studio, Android SDK, JDK, ADB가 설치되어 있어야 한다.
+
+Metro 연결이 계속 실패하면 임시로 터널을 사용할 수 있다.
+
+```powershell
+npx expo start --dev-client --tunnel --clear
+```
+
+### Android 로그 확인
+
+```powershell
+adb logcat -c
+adb logcat -v time "*:S" ReactNativeJS:V Expo:V ExpoModulesCore:V AndroidRuntime:E
+```
+
+`This developer build encountered an error`가 나타날 때는 먼저 Metro 터미널의 최초 오류를 확인한다. 백엔드가 꺼진 경우에는 보통 Dev Launcher 자체가 죽기보다 API Network Error 또는 데이터 로딩 실패로 나타난다.
+
+## 3. 백엔드 로컬 실행
+
+모바일 `.env`가 운영 API를 가리키면 로컬 Django를 실행하지 않아도 앱 UI를 확인할 수 있다.
+
+백엔드까지 로컬에서 실행해야 할 때:
+
+```powershell
+cd C:\Users\goodd\Documents\GitHub\WTD\backend
+py -3 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py runserver 0.0.0.0:8001
+```
+
+로컬 백엔드 사용 시에는 `backend/.env`, MySQL, 공공데이터·기상청·네이버·Gemini API 키가 필요하다.
+
+## 4. 최근 작업 내역
+
+### 2026-09-11: 모바일 구조 정리
+
+- `App.tsx`를 Provider와 앱 본문을 조립하는 진입점으로 축소
+- `src/app/AppProviders.tsx`로 Safe Area Provider 분리
+- `src/app/AppContent.tsx`에서 탭 상태·API 상태·화면 조건부 렌더링 관리
+- `src/navigation/routes.ts`에서 탭 key·label·icon 통합
+- `src/navigation/AppTabBar.tsx`로 하단 탭 UI 분리
+- 사용하지 않는 React Navigation 패키지 제거
+- Expo 관련 버전 정리
+
+현재는 기능 안정성을 위해 React Navigation으로 완전히 전환하지 않고 `activeTab` 상태 기반으로 탭을 전환한다. API 호출과 지역·지도·캘린더·알림 상태는 아직 `AppContent.tsx`에 많이 남아 있다.
+
+### 2026-09-13: 홈 UI 재구성
+
+- 외출지수·기온·습도·풍속·강수량·PM10·PM2.5·O3를 각각 독립 배너로 분리
+- 배너 왼쪽 원형 게이지, 오른쪽 수치·상태·설명 구조 적용
+- 복제 슬라이드와 위치 보정으로 무한 스와이프 구현
+- 홈 상단 빈 공간과 영역 간격 조정
+- 오늘 활동 가이드와 전국 날씨 지도 미리보기 배치 조정
+- 날씨 상태에 따라 맑음·흐림·비·눈 배경 이미지 적용
+
+### 2026-09-14: 단기예보 UI
+
+- 홈 예보 영역에서 중기예보를 제외하고 `weatherHourlyItems`만 사용
+- 예보 카드를 가로 스크롤로 표시
+- 카드에 날짜·시간, 날씨 아이콘, 기온, 강수확률 표시
+- 당일 포함 모든 카드를 `MM/DD HH:mm` 형식으로 표시
+
+## 5. 주요 수정 파일
+
+- `mobile/src/app/AppContent.tsx`: 날씨 배경, 탭 상태, 화면 조립
+- `mobile/src/app/AppProviders.tsx`: 전역 Provider
+- `mobile/src/navigation/routes.ts`: 탭 라우트 메타데이터
+- `mobile/src/navigation/AppTabBar.tsx`: 하단 탭 UI
+- `mobile/src/components/home/HomePanel.tsx`: 홈 배너·게이지·단기예보
+- `mobile/src/components/MetricGauge.tsx`: SVG 원형 게이지
+- `mobile/src/components/calendar/CalendarMonthGrid.tsx`: 파란 월 이동 화살표
+- `mobile/src/components/calendar/CalendarPanel.tsx`: 2D 일정 추가 버튼
+- `mobile/src/components/map/FullMapScreen.tsx`: 2D 현재 위치 버튼
+- `mobile/src/components/settings/RegionPanel.tsx`: 설정 화면 UI
+- `mobile/src/components/calendar/calendarRiskEvaluator.ts`: 캘린더 위험도 색상
+- `mobile/src/components/data/WeatherDataPanel.tsx`: 날씨 차트 색상
+- `mobile/src/components/map/StationBottomSheet.tsx`: 지도 상세 수치 색상
+- `mobile/src/styles/appStyles.ts`: 화면 레이아웃·간격·배경 스타일
+- `mobile/src/theme/bauhaus.ts`, `mobile/src/theme/colors.ts`: 공통 색상·그림자·모서리 토큰
+- `mobile/app.json`: 스플래시·아이콘 배경색
+
+## 6. 검증 결과
+
+다음 명령은 통과했다.
+
+```powershell
+cd C:\Users\goodd\Documents\GitHub\WTD\mobile
+npm run typecheck
+git diff --check
+npx expo export --platform android --output-dir .expo-export-check
+```
+
+임시 export 폴더는 검증 후 삭제한다.
+
+## 7. 다음 채팅에서 먼저 할 일
+
+1. 이 문서와 `mobile/src/components/home/HomePanel.tsx`를 먼저 읽는다.
+2. 실제 기기에서 Metro를 실행하고 홈·캘린더·지도·설정 화면을 확인한다.
+3. `npm run typecheck`를 다시 실행한다.
+4. UI 수정 전에는 기존 API 데이터·외출지수·알림 로직을 유지하는지 확인한다.
+5. `AppContent.tsx`를 더 정리할 때는 API 호출을 custom hook으로 옮기는 작업부터 진행한다.
+6. 새 작업을 마치면 이 인수인계 문서와 Notion 작업 기록을 함께 갱신한다.
+
+## 8. Notion 작업 기록
+
+[WeatherToDo 모바일 개발 작업 기록](https://app.notion.com/p/3d7f7b32dbea81d1bc2ecd79b32798ac?pvs=204)
+
+새 채팅 첫 메시지에 다음 문장을 붙여 넣으면 된다.
+
+> `C:\Users\goodd\Documents\GitHub\WTD\WEATHERTODO_HANDOFF.md`를 먼저 읽고, 현재 작업 상태와 다음 작업을 파악한 뒤 이어서 진행해줘. 기존 로직은 유지하고, 변경 전 관련 파일과 테스트 상태를 먼저 확인해줘.
+
+
+## 9. 2026-09-19 구조 정리
+
+- 실제 저장소는 `Documents/GitHub/WTD`이다. `Documents/AI-Dust_Moblie6`는 앱 소스가 없는 별도 폴더다.
+- `mobile/App.tsx` → `src/app/AppProviders.tsx` / `AppContent.tsx` → `components`의 탭별 화면 순서로 조립된다.
+- `navigation`: 탭 메타데이터와 하단 UI, `api`: HTTP 호출, `features`: 기능별 데이터 처리와 캐시, `storage`: 로컬 저장, `notifications`: 기기 알림, `theme/styles`: 시각적 스타일, `types/utils`: 공통 타입과 계산을 담당한다.
+- `backend/config`는 Django 설정·라우팅, `backend/dust`는 대기·날씨·예측·알림·지도 기능, `dust/management/commands`는 수집·예측·알림 배치, `dust/ml`는 예측 모델 코드를 포함한다. `app/api/analyze`는 별도 Django 앱이다.
+- `src/features/calendar/useCalendarLocationForecasts.ts`로 일정 장소별 API 조회와 상태·effect를 분리했다. 장소 중복 제거, 개별 장소 실패 처리, 이전 요청 결과 무시, 저장 상태 로드 이후 조회 조건을 유지한다.
+- `src/features/weather/weatherData.ts`로 시간별/측정소 날씨 변환과 공통 예보 조회를 분리했다. 기존 요청 순서·기간과 반환 데이터를 유지한다.
+- 기존 미커밋 UI·백엔드 변경은 보존한다. 이번 변경은 API 주소, 외출지수, 위험도 기준, 알림 설정을 변경하지 않는다.
+
+### 후속 정리 후보
+
+1. `AppContent.tsx`의 대시보드·상세 데이터 조회를 순차적으로 훅으로 분리하고, 빠른 지역 전환 시 이전 응답이 새 지역 상태를 덮어쓰지 않는지 검증한다.
+2. 지도 검색 3곳의 필터링 중복과 검색/키보드 상태를 별도 기능 모듈로 정리한다.
+3. `HomePanel.tsx`의 배너 자동 순환은 실제 기기에서 자동 넘김·수동 스와이프·화면 크기 변경을 함께 검증한 뒤 분리한다.
+4. `screens`의 기존 화면과 현재 `components` 화면 간 참조 관계를 확인한 뒤 사용하지 않는 코드를 정리한다. 이름만 보고 삭제하지 않는다.
+
+### 이번 구조 정리 검증
+
+- 변경 전/후 TypeScript 검사 통과.
+- git diff --check 통과.
+- Android Expo export 성공 (974 modules).
+- 실제 기기 UI·GPS·푸시 알림 동작과 백엔드 실행은 이번 작업에서 검증하지 않았다.
+- Notion 작업 기록은 이번 작업에서 갱신하지 않았다.
+
+## 10. 2026-09-19 UI 색상·테두리 정리
+
+- 홈·상세 데이터·브리핑·캘린더·지도 화면에 남아 있던 2px 검정 테두리를 1px 회청색 구분선으로 통일했다.
+- 장식용 형광 초록·노랑을 파란 포인트와 연한 파란 배경으로 정리했다.
+- GPS·오류 UI는 채도가 낮은 붉은 배경과 얇은 경계선을 사용한다.
+- 미세먼지 등급, 외출 위험도, 경고처럼 상태를 전달하는 색상은 유지했다.
+- `bauhausColors`에 `border`, `surface`, `blueSoft`, `redSoft` 토큰을 추가하고 공통 테마 경계색을 연결했다.
+- TypeScript 검사, `git diff --check`, Android Expo export(974 modules)가 통과했다.
+- 실제 기기에서는 홈·상세 데이터·브리핑·캘린더·지도·설정 화면의 대비와 눌림 상태를 확인한다.
+
+## 11. 2026-09-19 내부 동작 2D PNG 아이콘
+
+- 하단 홈·캘린더·설정 탭은 작은 크기에서 가장 잘 읽히는 기본 Ionicons로 복원했다.
+- 앱 내부의 지역 검색, 현재 위치, 일정 추가, 지도, 알림, 즐겨찾기에 동작별 2D PNG 그래픽을 적용했다.
+- 공통 렌더러 `mobile/src/components/shared/AppActionIcon.tsx`에서 아이콘 자산과 크기를 관리한다.
+- ImageGen 원본을 256×256 투명 PNG로 최적화해 `mobile/assets/icons/action-*.png`에 저장했다.
+- 방향 화살표, 닫기, 삭제, 저장 확인, 날씨 상태처럼 작은 크기에서 단순 도형이 더 명확한 표시는 Ionicons를 유지한다.
+- TypeScript 검사, `git diff --check`, Android Expo export(981 modules)가 통과했다.
+
+## 12. 2026-09-19 설명 문구 정리와 어제 대비
+
+- 제목 아래 소개 문장, 카드의 반복 안내, 빈 상태의 긴 사용법처럼 행동에 필요하지 않은 설명을 제거했다.
+- 오류·로딩·권한·데이터 없음·일정 위험도처럼 사용자가 판단하거나 다음 행동을 정하는 데 필요한 문구는 유지했다.
+- 홈 게이지의 일반 설명은 `어제보다 3° 높아요`, `어제와 같아요`, `어제 비교 데이터 없음` 형식의 비교 문구로 교체했다.
+- 기온·습도·풍속·강수량은 어제 같은 시간대의 저장 기상 관측값과 비교한다.
+- PM10·PM2.5·O3는 어제 일평균 관측값과 비교하며, 외출지수는 이 어제 값들로 다시 계산해 비교한다.
+- TypeScript 검사, `git diff --check`, Android Expo export(981 modules)가 통과했다.
+
+## 13. 2026-09-20 화면 전환 애니메이션
+
+- 공통 `ScreenTransition`을 추가해 홈·설정·캘린더·지도·상세 화면 내용이 나타날 때 페이드와 아래쪽 10px 이동 복귀 효과를 적용했다.
+- 페이드는 180ms, 위치 이동은 220ms이며 `useNativeDriver`를 사용한다.
+- 하단 탭 바와 날씨 배경은 고정해 화면 이동 때 흔들리지 않도록 했다.
+- 상세 데이터의 미세먼지·날씨 모드 전환에도 같은 효과를 적용했다.
+- 전환값은 `useLayoutEffect`에서 초기화해 모드 전환 때 한 프레임 깜빡임을 줄였다.
+- TypeScript 검사, `git diff --check`, Android Expo export(981 modules)가 통과했다.
+
+
+
+## 14. 2026-09-20 모던 UI 정리
+
+- 홈·설정 카드를 흰색으로 통일하고 카드 간격 및 내부 여백을 늘렸다.
+- 제목·수치·보조 문구의 글자 굵기를 800/600/500 중심으로 나눴다.
+- 공통 그림자와 경계색을 연하게 조정하고 입력·빈 상태의 배경색을 통일했다.
+- 캘린더 날짜 셀의 세로 경계선을 제거하고 월 제목을 확대했다.
+- 하단 기본 아이콘을 21로 키우고 활성 탭은 고정 파란색으로 표시한다.
+- 홈 게이지의 활성 페이지 표시를 긴 점으로 바꿨다. 기존 게이지 폭과 스와이프 계산은 유지한다.
+- 수정 파일: mobile/src/styles/appStyles.ts, mobile/src/theme/bauhaus.ts, mobile/src/navigation/AppTabBar.tsx, mobile/src/components/home/HomePanel.tsx.
+- TypeScript 검사, git diff --check, Android Expo export(981 modules) 통과.
+- 실제 기기 시각 검증은 미실시. 홈·캘린더·설정의 여백과 글자 확대 상태를 확인해야 한다.
+- 수정 직전 파일 백업: C:/Users/goodd/Documents/AI-Dust_Moblie6/ui-before-20260920.
+
+
+## 15. 2026-09-20 박스 중첩 줄이기
+
+- 사용자 디자인 선호: 박스 안에 박스를 반복하는 구성을 피한다.
+- 홈의 주요 날씨 패널은 유지하고 시간별 예보의 개별 배경 박스를 제거했다.
+- 활동 가이드와 지도는 외곽 카드·그림자를 제거하고 여백으로 구분한다. 지도 자체의 둥근 마스킹은 유지한다.
+- 일정 추가와 현재 위치는 배경 없는 아이콘·텍스트 동작으로 변경했다.
+- 설정 섹션과 즐겨찾기는 카드 대신 구분선·리스트로 표시한다. 선택된 지역의 기존 점·텍스트 표시는 유지한다.
+- 실제 기기 시각 검증은 미실시.
+
+## 16. 스크린샷 기반 홈 UI 정리
+
+- 풍경 위에 본문이 겹치던 문제를 개선: 지역 헤더에는 배경을 남기고, 게이지·예보·일정·지도를 하나의 흰 콘텐츠 면으로 연결.
+- 내부 카드 중첩 없이 여백과 구분선으로 구분. 하단 활성 탭의 큰 배경 박스 제거.
+- 일정 섹션의 중복 버튼 제거, 동작 문구 단축, 제목 크기 통일.
+- 게이지 페이지 폭을 실제 onLayout 너비로 측정하고 페이지 점을 고정 높이 뷰포트 밖으로 이동. 예보 날짜·시간은 두 줄로 표시.
+- 실기기 시각 검증은 별도 필요.
+
+## 17. 2026-09-20 모던 UI 실험 원복
+
+- 사용자 요청으로 섹션 평면화, 흰 콘텐츠 면, 글꼴 굵기 재조정, 하단 탭 단순화 등 모던 UI 실험을 시작 전 상태로 되돌렸다.
+- 2D 내부 아이콘, 불필요한 설명 제거, 어제 대비 문구, 화면 전환 애니메이션은 유지한다.
+- 복원 기준: C:/Users/goodd/Documents/AI-Dust_Moblie6/ui-before-20260920.
+
+## 18. 2026-09-20 날씨 앱 레퍼런스 기반 홈 개선
+
+- 홈 대표 게이지 자동 순환을 중단해 외출지수가 처음 상태로 유지되며, 사용자가 직접 넘길 때만 지표가 바뀐다.
+- 시간별 예보의 첫 항목은 `지금`, 같은 날짜는 시간만, 날짜가 바뀌는 지점은 날짜와 시간을 두 줄로 표시한다.
+- 일정이 없을 때 안내와 일정 추가를 한 행으로 합치고 중복 캘린더 동작을 제거했다.
+- 일정·지도는 개별 외곽 카드 대신 하나의 연한 콘텐츠 면과 구분선으로 묶었다. 지도 미리보기 높이는 148로 축소했다.
+- 하단 활성 탭의 큰 배경을 제거하고 상단의 짧은 파란 표시선으로 교체했다.
+
+## 19. 2026-09-20 날씨 앱 레퍼런스 UI 변경 원복
+
+- 일정·지도 통합 면과 하단 탭 표시선이 기존 UI와 어울리지 않고 캘린더 동작의 가시성을 낮춰 사용자 요청으로 원복했다.
+- 캘린더 헤더 아이콘과 `일정 추가하러 가기` 버튼, 기존 활동 가이드 카드, 기존 지도 미리보기, 기존 하단 탭 스타일을 복원했다.
+- 복원 기준: C:/Users/goodd/Documents/AI-Dust_Moblie6/ui-before-20260920.
+
+## 20. 2026-09-20 기능 유지형 홈 스타일 정리
+
+- HomePanel, AppContent, AppTabBar의 동작·이벤트 코드는 변경하지 않고 appStyles.ts의 홈 관련 스타일만 조정했다.
+- 게이지, 캘린더 아이콘, 일정 추가, 지도 이동, 하단 탭 동작을 모두 유지한다.
+- 세 주요 영역의 표면·모서리·경계선·그림자를 통일하고 내부 예보·빈 일정 박스의 배경과 테두리를 제거했다.
+- 지도 높이와 하단 탭 선택 배경을 줄여 시각적 무게를 낮췄다.
+
+## 21. 2026-09-20 단기 예보 제목 복원
+
+- 시간별 예보 카드와 데이터 로직은 유지한 상태에서 홈 날씨 카드에 `단기 예보` 제목을 다시 표시했다.
+- 날짜·현재 시간 헤더와 로딩 안내 문구는 복원하지 않았다.
+- 캘린더·일정·지도·게이지 동작에는 변경이 없다.
+
+## 22. 2026-09-21 홈 연파란색·활동 PNG 아이콘
+
+- 홈 게이지의 `좋음`, `주의` 등 상태 글자를 27px로 확대했다.
+- 홈 지역명은 즐겨찾기가 있으면 기존 즐겨찾기 선택을 열고, 즐겨찾기가 없으면 지역 검색을 연다.
+- 홈 날씨·활동 가이드·지도 카드에 매우 연한 파란 표면색과 파란 경계선을 적용했다.
+- 오늘 활동 가이드의 시간 배지와 아이콘 배경을 파란 계열로 통일했다.
+- 실내·실외·이동 활동용 2D PNG 아이콘을 생성해 `mobile/assets/icons/activity-*.png`에 추가하고 홈 일정에 연결했다.
+
+## 23. 2026-09-21 게이지 비교 문구·활동 아이콘 정리
+
+- `어제보다 OO 높아요/낮아요` 비교 문구를 게이지 오른쪽 정보 영역의 아래쪽에 고정해 제목·상태와 시각적으로 분리했다.
+- 실내·실외·이동 활동 PNG 3종을 기존 일정·지도 아이콘과 어울리는 둥근 파란색 2D 스타일로 다시 제작했다.
+- 기존 활동 분류, 캘린더 이동, 지역 선택 등 동작 로직은 변경하지 않았다.
+
+## 24. 2026-09-21 예보 제목·게이지 비교 위치·아이콘 현대화
+
+- 시간별 단기 예보 목록은 유지하고 `단기 예보` 제목 텍스트만 제거했다.
+- `어제보다 OO 높아요/낮아요` 문구를 원형 게이지가 있는 왼쪽 칸 하단으로 이동했다.
+- 앱 내부 PNG 아이콘 9종을 파랑·남색 중심의 현대적인 듀오톤 스타일로 통일했다.
+- 활동 아이콘은 어린이형 캐릭터 대신 성인 보행자, 현대식 건물, 시내버스 이미지로 교체했다.
+- 하단 내비게이션 아이콘과 기존 화면 이동·일정·지역 기능은 유지했다.
+
+## 25. 2026-09-21 앱 내부 PNG 아이콘 확대
+
+- `AppActionIcon`이 표시하는 앱 내부 PNG 아이콘 9종의 시각 크기를 약 18% 확대했다.
+- 버튼과 행의 배치는 유지하고 이미지에만 확대 변환을 적용해 기존 터치 영역과 정렬이 달라지지 않도록 했다.
+- 하단 내비게이션 기본 아이콘에는 적용하지 않았다.
+
+## 26. 2026-09-21 시간별 예보 목록 표시 복구
+
+- 시간별 날씨 데이터가 로딩 중이거나 일시적으로 비어 있어도 예보 영역이 사라지지 않도록 최소 높이를 지정했다.
+- 데이터가 없을 때는 5개의 빈 예보 항목을 표시하고, 데이터가 들어오면 실제 시간·날씨·기온·강수 정보로 자동 교체한다.
+- `단기 예보` 제목은 제거된 상태를 유지한다.
+
+## 27. 2026-09-21 어제 비교 문구·상세 데이터 진입 복구
+
+- `어제보다 OO 높아요/낮아요` 문구를 `좋음·주의` 상태가 있는 오른쪽 칸의 하단에 다시 배치했다.
+- 상태 글자와 비교 문구 사이를 넓게 띄워 비교 정보가 카드 아래쪽에 보이도록 했다.
+- 홈 지도 카드 아래에 `상세 데이터 보기` 버튼을 복원했다.
+- 버튼은 현재 선택 지역의 미세먼지 상세 데이터 화면을 열며 기존 기간·차트 초기화 동작을 사용한다.
+
+## 28. 2026-09-22 데이터 로딩·예외 처리 구조 정리
+
+- 대시보드 캐시는 미세먼지 현재값뿐 아니라 실제 시간별 날씨 예보가 있을 때만 완성된 캐시로 간주한다. 예보가 비어 있으면 재진입 시 다시 조회한다.
+- 미세먼지 중간 저장과 날씨 완료 후 저장이 서로 덮어쓰던 흐름을 정리해 조회 결과별로 한 번만 캐시를 저장한다.
+- 모바일 API의 선택적 조회는 404만 데이터 없음으로 처리하고, 서버 오류는 예외로 전달한다. 날씨·중기 예보 실패는 로그로 남기며, 중기 예보 실패가 시간별 예보를 막지 않게 했다.
+- `AppContent.tsx`의 대시보드 데이터 요청과 날씨 측정소 선택을 `features/dashboard/dashboardService.ts`로 추출했다.
+- 백엔드 `/dust/current/`의 응답 선택을 `dust/current_dust_service.py`로 옮기고 실행 불가능한 과거 fallback 분기를 제거했다. 서버 내부 오류 메시지는 응답에 노출하지 않고 로그에 남긴다.
+- 모바일 캐시 회귀 테스트 2개와 백엔드 서비스 단위 테스트 4개 통과(0 측정값 포함). Django 런타임이 설치되지 않은 현재 환경에서는 Django 엔드포인트 테스트 실행이 필요하다.
