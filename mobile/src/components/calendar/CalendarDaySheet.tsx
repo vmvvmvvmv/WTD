@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
+import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import type { CalendarEvent } from '../../types/dust';
 import { eventDateLabel, eventRangeLength, formatDateDisplay, formatSelectedDateTitle } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
@@ -11,7 +12,6 @@ import { useCalendarDaySheetDrag } from './useCalendarDaySheetDrag';
 const TEXT = {
   adjust: '주의',
   day: '일',
-  emptyDesc: '활동 일정을 추가하면 공기와 날씨 기준으로 같이 평가해요.',
   emptyTitle: '일정이 없습니다.',
   good: '좋음',
   indoor: '실내',
@@ -38,10 +38,10 @@ type Props = {
   weatherLabel?: string;
 };
 
-function eventIcon(event: CalendarEvent): keyof typeof Ionicons.glyphMap {
-  if (event.activityType === 'indoor') return 'home-outline';
-  if (event.activityType === 'transit') return 'bus-outline';
-  return 'walk-outline';
+function eventImage(event: CalendarEvent): AppActionIconName {
+  if (event.activityType === 'indoor') return 'activityIndoor';
+  if (event.activityType === 'transit') return 'activityTransit';
+  return 'activityOutdoor';
 }
 
 function activityLabel(event: CalendarEvent) {
@@ -155,7 +155,6 @@ export function CalendarDaySheet({
             <View style={[styles.calendarSelectionEmptyBar, { backgroundColor: accentTone }]} />
             <View style={styles.calendarEventBody}>
               <Text style={styles.calendarSelectionEmptyTitle}>{TEXT.emptyTitle}</Text>
-              <Text style={styles.calendarEventMeta}>{TEXT.emptyDesc}</Text>
             </View>
           </View>
         ) : events.map((event) => {
@@ -164,7 +163,7 @@ export function CalendarDaySheet({
           return (
             <View key={event.id} style={styles.calendarEventRow}>
               <View style={[styles.calendarEventIcon, { backgroundColor: `${tone}14` }]}>
-                <Ionicons color={tone} name={risk?.icon ?? eventIcon(event)} size={18} />
+                <AppActionIcon name={eventImage(event)} size={32} />
               </View>
               <View style={styles.calendarEventBody}>
                 <Text style={styles.calendarEventTitle}>{event.title}</Text>
@@ -185,14 +184,14 @@ export function CalendarDaySheet({
                 onPress={() => onEditEvent?.(event)}
                 style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
               >
-                <Ionicons color="#687180" name="create-outline" size={17} />
+                <AppActionIcon name="edit" size={24} />
               </Pressable>
               <Pressable
                 accessibilityLabel={`${event.title} 일정 삭제`}
                 onPress={() => onRemoveEvent(event.id)}
                 style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
               >
-                <Ionicons color="#8a94a3" name="trash-outline" size={17} />
+                <AppActionIcon name="delete" size={24} />
               </Pressable>
             </View>
           );

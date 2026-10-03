@@ -1,24 +1,53 @@
 @echo off
 setlocal
 
-cd /d C:\Users\goodd\Documents\GitHub\Dust-health-AI\backend
+cd /d "%~dp0"
+set "PYTHON_EXE=%WTD_PYTHON%"
+if not defined PYTHON_EXE if exist "%~dp0venv\Scripts\python.exe" set "PYTHON_EXE=%~dp0venv\Scripts\python.exe"
+if not defined PYTHON_EXE if exist "%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe" set "PYTHON_EXE=%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe"
+if not defined PYTHON_EXE set "PYTHON_EXE=python"
 
-echo ================================================== >> collect_hourly.log
-echo [%date% %time%] hourly collection start >> collect_hourly.log
+set "LOG_FILE=%~dp0collect_hourly.log"
+set "CURRENT_STEP=python_check"
 
-echo [%date% %time%] collect_realtime_dust start >> collect_hourly.log
-python manage.py collect_realtime_dust >> collect_hourly.log 2>&1
+echo ================================================== >> "%LOG_FILE%"
+echo [%date% %time%] hourly collection start >> "%LOG_FILE%"
 
-echo [%date% %time%] collect_realtime_weather start >> collect_hourly.log
-python manage.py collect_realtime_weather --workers 8 --forecast-hours 72 >> collect_hourly.log 2>&1
+"%PYTHON_EXE%" --version >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
 
-echo [%date% %time%] generate_hourly_dust_predictions start >> collect_hourly.log
-python manage.py generate_hourly_dust_predictions >> collect_hourly.log 2>&1
+set "CURRENT_STEP=collect_realtime_dust"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py collect_realtime_dust >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
 
-echo [%date% %time%] hourly collection done >> collect_hourly.log
-echo. >> collect_hourly.log
+set "CURRENT_STEP=collect_realtime_weather"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py collect_realtime_weather --workers 8 --forecast-hours 72 >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
 
-echo [%date% %time%] collect_midterm_weather start >> collect_hourly.log
-venv\Scripts\python.exe manage.py collect_midterm_weather >> collect_hourly.log 2>&1
+set "CURRENT_STEP=generate_hourly_dust_predictions"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py generate_hourly_dust_predictions >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
 
-endlocal
+set "CURRENT_STEP=collect_midterm_weather"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py collect_midterm_weather >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
+
+set "CURRENT_STEP=check_data_freshness"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py check_data_freshness --max-dust-age-hours 3 --max-weather-age-hours 6 >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
+
+echo [%date% %time%] hourly collection success >> "%LOG_FILE%"
+echo. >> "%LOG_FILE%"
+exit /b 0
+
+:failed
+set "EXIT_CODE=%ERRORLEVEL%"
+echo [%date% %time%] hourly collection FAILED at %CURRENT_STEP% with exit code %EXIT_CODE% >> "%LOG_FILE%"
+echo. >> "%LOG_FILE%"
+echo Collection failed at %CURRENT_STEP%. Check "%LOG_FILE%".
+exit /b %EXIT_CODE%

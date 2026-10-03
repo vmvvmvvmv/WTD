@@ -6,6 +6,7 @@ import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 
 import { searchNaverPlaces } from '../../api/dustEndpoints';
+import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/dust';
 import {
@@ -49,6 +50,29 @@ const activityOptions: Array<{ icon: keyof typeof Ionicons.glyphMap; label: stri
   { icon: 'bus-outline', label: '이동', value: 'transit' },
 ];
 
+const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon: AppActionIconName; title: string }> = {
+  auto: {
+    desc: '일정 이름을 바탕으로 실내·실외·이동 유형을 자동으로 판단해요.',
+    icon: 'schedule',
+    title: '자동 활동 가이드',
+  },
+  indoor: {
+    desc: '실내 일정은 환기 시간과 바깥 공기 상태를 함께 확인해요.',
+    icon: 'activityIndoor',
+    title: '실내 활동 가이드',
+  },
+  outdoor: {
+    desc: '실외 일정은 미세먼지, 강수와 체감 기온을 우선 확인해요.',
+    icon: 'activityOutdoor',
+    title: '실외 활동 가이드',
+  },
+  transit: {
+    desc: '이동 일정은 출발 시간의 날씨와 대기 상태를 확인해요.',
+    icon: 'activityTransit',
+    title: '이동 활동 가이드',
+  },
+};
+
 const notificationLeadOptions: Array<{ label: string; value: number | null }> = [
   { label: '\uC5C6\uC74C', value: null },
   { label: '1\uC2DC\uAC04 \uC804', value: 1 },
@@ -79,7 +103,6 @@ type Props = {
   onChangeRepeatEndDate: (value: string) => void;
   onChangeRepeatMode: (value: CalendarRepeatMode) => void;
   onChangeRepeatWeekdays: (value: number[]) => void;
-  onChangeSensitive: (value: boolean) => void;
   onChangeStartDate: (value: string) => void;
   onChangeStartTime: (value: string) => void;
   onChangeTitle: (value: string) => void;
@@ -90,7 +113,6 @@ type Props = {
   repeatWeekdays: number[];
   notificationHoursBefore?: number | null;
   selectedLocation?: CalendarLocationCandidate | null;
-  sensitive: boolean;
   startDate: string;
   startTime: string;
   title: string;
@@ -533,7 +555,6 @@ export function CalendarEventEditor({
   onChangeRepeatEndDate,
   onChangeRepeatMode,
   onChangeRepeatWeekdays,
-  onChangeSensitive,
   onChangeStartDate,
   onChangeStartTime,
   onChangeTitle,
@@ -544,7 +565,6 @@ export function CalendarEventEditor({
   repeatWeekdays,
   notificationHoursBefore,
   selectedLocation,
-  sensitive,
   startDate,
   startTime,
   title,
@@ -782,9 +802,18 @@ export function CalendarEventEditor({
                 onChangeActivityInput={onChangeActivityInput}
               />
             </View>
+            <View style={styles.calendarDefaultGuide}>
+              <View style={styles.calendarDefaultGuideIcon}>
+                <AppActionIcon name={defaultActivityGuides[activityInput].icon} size={31} />
+              </View>
+              <View style={styles.calendarDefaultGuideTextGroup}>
+                <Text style={styles.calendarDefaultGuideTitle}>{defaultActivityGuides[activityInput].title}</Text>
+                <Text style={styles.calendarDefaultGuideDesc}>{defaultActivityGuides[activityInput].desc}</Text>
+              </View>
+            </View>
             <View style={styles.calendarSheetDivider} />
             <View style={styles.calendarSheetRow}>
-              <Ionicons color="#8a94a3" name="notifications-outline" size={20} />
+              <AppActionIcon name="notification" size={24} />
               <NotificationLeadSelector
                 accentSoftTone={accentSoftTone}
                 accentTone={accentTone}
@@ -794,7 +823,7 @@ export function CalendarEventEditor({
             </View>
             <View style={styles.calendarSheetDivider} />
             <View style={styles.calendarSheetRow}>
-              <Ionicons color="#8a94a3" name="location-outline" size={20} />
+              <AppActionIcon name="location" size={24} />
               {!!mapPickerSource && (
                 <Pressable
                   accessibilityLabel="지도에서 장소 선택"
@@ -805,19 +834,11 @@ export function CalendarEventEditor({
                   }}
                   style={({ pressed }) => [styles.calendarSheetRowAction, pressed && styles.pressedFeedback]}
                 >
-                  <Text style={styles.calendarSheetRowText}>지도에서 선택(기본값 : 현재 위치)</Text>
-                  <Ionicons color={accentTone} name="map-outline" size={20} />
+                  <Text style={styles.calendarSheetRowText}>지도에서 장소 선택</Text>
+                  <AppActionIcon name="map" size={25} />
                 </Pressable>
               )}
             </View>
-            <View style={styles.calendarSheetDivider} />
-            <Pressable onPress={() => onChangeSensitive(!sensitive)} style={({ pressed }) => [styles.calendarSheetRow, pressed && styles.pressedFeedback]}>
-              <Ionicons color="#8a94a3" name="fitness-outline" size={20} />
-              <Text style={styles.calendarSheetRowText}>아이/어르신 함께</Text>
-              <View style={[styles.calendarEditorSwitch, sensitive && { backgroundColor: accentTone }]}>
-                <View style={[styles.calendarEditorSwitchThumb, sensitive && styles.calendarEditorSwitchThumbActive]} />
-              </View>
-            </Pressable>
             <View style={styles.calendarSheetDivider} />
             <View style={[styles.calendarSheetRow, styles.calendarMemoRow]}>
               <Ionicons color="#8a94a3" name="document-text-outline" size={20} />
@@ -859,7 +880,7 @@ export function CalendarEventEditor({
             </View>
             <View style={styles.calendarMapPickerSearchWrap}>
               <View style={styles.calendarMapPickerSearchBar}>
-                <Ionicons color="#8a94a3" name="search-outline" size={18} />
+                <AppActionIcon name="search" size={23} />
                 <TextInput
                   onChangeText={(text) => {
                     setMapPickerSearchText(text);

@@ -37,7 +37,7 @@ export function BriefingPanel({
     ? messages
     : [{
       role: 'bot' as const,
-      text: '궁금한 걸 편하게 물어보세요. 오늘 공기와 날씨, 내일 예측, 최근 변화, 앱 사용법까지 답해드릴게요.',
+      text: '무엇이 궁금한가요?',
     }];
 
   const quickQuestions = [

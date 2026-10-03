@@ -1,5 +1,6 @@
 import type { WeatherState } from '../types/dust';
-import { calculateOutingIndex, getOutingBorderTone, getOutingSoftTone, getOutingTone } from '../components/calendar/outingIndex';
+import { calculateOutingIndex } from '../features/outing/outingIndex';
+import { lightColors } from './colors';
 
 export type AppAccentTheme = {
   borderTone: string;
@@ -18,9 +19,9 @@ export function buildOutingAccentTheme({ pm10, weather }: { pm10?: number; weath
   });
 
   return {
-    borderTone: getOutingBorderTone(score),
+    borderTone: lightColors.primaryBorder,
     score,
-    softTone: getOutingSoftTone(score),
-    tone: getOutingTone(score),
+    softTone: lightColors.primarySoft,
+    tone: lightColors.primary,
   };
 }

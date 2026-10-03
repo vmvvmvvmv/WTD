@@ -1,4 +1,5 @@
 import requests
+import logging
 import pandas as pd
 from datetime import datetime, timedelta
 from prophet import Prophet
@@ -18,11 +19,18 @@ from django.http import HttpResponse
 from django.utils import timezone
 from dotenv import load_dotenv
 from .notification_registry import notification_device_response, upsert_notification_device
+from .current_dust_service import (
+    has_usable_realtime_values as _has_usable_realtime_values,
+    select_current_dust,
+    station_realtime_to_current_item as _station_realtime_to_current_item,
+)
 from .models import AirQualityStation, DustChatLog, DustMeasurement, HourlyDustPrediction, NotificationDevice, RealtimeDustMeasurement, WeatherHourlyMeasurement, WeatherMidTermForecast
 from .midterm_weather import MIDTERM_REGIONS, current_midterm_announce_candidates, midterm_region_from_lat_lng
 from .ml.hourly_pm10 import build_ml_hourly_pm10_forecast
+from .map_presentation import build_map_css_variables, build_map_ui_config
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 def _env_first(*names):
     for name in names:
@@ -215,12 +223,15 @@ def mobile_map(request):
     initial_lat_js = "null" if initial_lat is None else str(initial_lat)
     initial_lng_js = "null" if initial_lng is None else str(initial_lng)
     app_test_token_js = json.dumps(request.GET.get("app_test_token", ""))
+    map_ui_js = json.dumps(build_map_ui_config(), ensure_ascii=False)
+    map_css_variables = build_map_css_variables()
     html = f"""<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <style>
+      :root {{ {map_css_variables} }}
       html, body {{
         width: 100%;
         height: 100%;
@@ -230,7 +241,7 @@ def mobile_map(request):
         padding: 0;
       }}
       body {{
-        background: #f4f6f5;
+        background: #f4f8fc;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         inset: 0;
         position: fixed;
@@ -259,29 +270,29 @@ def mobile_map(request):
       }}
       .marker {{
         align-items: center;
-        background: #2fbf71;
-        border: 2px solid #fff;
+        background: var(--air-good);
+        border: 2px solid #ffffff;
         border-radius: 999px;
-        box-shadow: 0 2px 8px rgba(47,191,113,.42);
+        box-shadow: 0 3px 10px rgba(40,86,140,.28);
         color: #fff;
         display: flex;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         font-size: 12px;
         font-weight: 800;
-        height: 38px;
+        height: 36px;
         justify-content: center;
         line-height: 1;
         overflow: hidden;
         padding: 0;
         text-align: center;
-        width: 38px;
+        width: 36px;
       }}
       .picker-gps-marker {{
         align-items: center;
         background: #ffffff;
-        border: 3px solid #d94b4b;
+        border: 3px solid #e85c6b;
         border-radius: 999px 999px 999px 0;
-        box-shadow: 0 3px 10px rgba(217,75,75,.32);
+        box-shadow: 0 3px 10px rgba(232,92,107,.28);
         display: flex;
         height: 28px;
         justify-content: center;
@@ -289,7 +300,7 @@ def mobile_map(request):
         width: 28px;
       }}
       .picker-gps-marker::after {{
-        background: #d94b4b;
+        background: #e85c6b;
         border-radius: 999px;
         content: '';
         display: block;
@@ -304,41 +315,76 @@ def mobile_map(request):
         transform: translateX(-1px);
       }}
       .marker-label {{
-        background: rgba(255,255,255,.94);
-        border: 1px solid rgba(213,222,216,.9);
-        border-radius: 999px;
-        box-shadow: 0 2px 8px rgba(20,24,33,.12);
-        color: #141821;
+        background: rgba(255,255,255,.96);
+        border: 1px solid #d7e4f2;
+        border-radius: 12px;
+        box-shadow: 0 3px 12px rgba(48,84,120,.14);
+        color: #17202a;
         font-size: 12px;
         font-weight: 900;
         line-height: 1;
         max-width: 86px;
         overflow: hidden;
-        padding: 7px 10px;
+        padding: 6px 9px;
         text-overflow: ellipsis;
         white-space: nowrap;
       }}
       .marker-label.selected {{
-        border-color: rgba(20,24,33,.58);
+        border-color: #3d7fea;
         border-width: 2px;
-        box-shadow: 0 3px 12px rgba(20,24,33,.18);
+        box-shadow: 0 4px 14px rgba(48,84,120,.2);
       }}
-      .marker.moderate {{ background: #2f80ed; box-shadow: 0 2px 8px rgba(47,128,237,.42); }}
-      .marker.bad {{ background: #c47b20; box-shadow: 0 2px 8px rgba(196,123,32,.42); }}
-      .marker.verybad {{ background: #c84a4a; box-shadow: 0 2px 8px rgba(200,74,74,.42); }}
-      .marker.unknown {{ background: #8f98a6; box-shadow: 0 2px 8px rgba(104,113,128,.34); }}
-      .marker.weather-cold {{ background: #2f80ed; box-shadow: 0 2px 8px rgba(47,128,237,.42); }}
-      .marker.weather-cool {{ background: #42a5f5; box-shadow: 0 2px 8px rgba(66,165,245,.38); }}
-      .marker.weather-mild {{ background: #2fbf71; box-shadow: 0 2px 8px rgba(47,191,113,.42); }}
-      .marker.weather-warm {{ background: #f3b43f; box-shadow: 0 2px 8px rgba(243,180,63,.42); }}
-      .marker.weather-hot {{ background: #d94b4b; box-shadow: 0 2px 8px rgba(217,75,75,.42); }}
+      .marker.good {{ background: var(--air-good); }}
+      .marker.moderate {{ background: var(--air-moderate); }}
+      .marker.bad {{ background: var(--air-bad); }}
+      .marker.verybad {{ background: var(--air-very-bad); }}
+      .marker.unknown {{
+        background: var(--unavailable);
+        box-shadow: 0 2px 7px rgba(71,85,105,.2);
+        color: transparent;
+        font-size: 0;
+        height: 18px;
+        width: 18px;
+      }}
+      .marker.weather-cold {{ background: var(--weather-cold); }}
+      .marker.weather-cool {{ background: var(--weather-cool); }}
+      .marker.weather-mild {{ background: var(--weather-mild); }}
+      .marker.weather-warm {{ background: var(--weather-warm); }}
+      .marker.weather-hot {{ background: var(--weather-hot); }}
       .marker.selected {{
-        border-color: rgba(20,24,33,.58);
+        border-color: #ffffff;
         border-width: 3px;
-        box-shadow: 0 3px 12px rgba(20,24,33,.22);
+        box-shadow: 0 4px 16px rgba(31,65,115,.34);
+        transform: scale(1.16);
       }}
+      .marker.unknown.selected {{ height: 24px; width: 24px; }}
+      .map-legend {{
+        align-items: center;
+        backdrop-filter: blur(8px);
+        background: rgba(255,255,255,.94);
+        border: 1px solid #d7e4f2;
+        border-radius: 12px;
+        bottom: 10px;
+        box-shadow: 0 3px 12px rgba(48,84,120,.14);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px 9px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+        padding: 7px 9px;
+        pointer-events: none;
+        position: fixed;
+        z-index: 20;
+      }}
+      .map-legend.hidden {{ display: none; }}
+      .legend-item {{ align-items: center; color: #475569; display: flex; font-size: 9px; font-weight: 800; gap: 4px; white-space: nowrap; }}
+      .legend-dot {{ border: 1px solid rgba(255,255,255,.9); border-radius: 999px; box-shadow: 0 1px 3px rgba(31,65,115,.16); height: 9px; width: 9px; }}
       .info {{
-        color: #141821;
+        background: #ffffff;
+        border: 1px solid #d7e4f2;
+        border-radius: 16px;
+        box-shadow: 0 5px 18px rgba(48,84,120,.16);
+        color: #17202a;
         font-size: 13px;
         line-height: 1.45;
         min-width: 190px;
@@ -355,9 +401,9 @@ def mobile_map(request):
         grid-template-columns: 1fr 1fr;
       }}
       .info .metric {{
-        background: #f4f6f5;
-        border: 1px solid #d9eee2;
-        border-radius: 8px;
+        background: #f4f8fc;
+        border: 1px solid #e5edf5;
+        border-radius: 10px;
         padding: 7px;
       }}
       .info .label {{
@@ -367,7 +413,7 @@ def mobile_map(request):
         font-weight: 700;
       }}
       .info .value {{
-        color: #141821;
+        color: #17202a;
         display: block;
         font-size: 14px;
         font-weight: 900;
@@ -382,6 +428,7 @@ def mobile_map(request):
   </head>
   <body>
     <div id="map"></div>
+    <div id="map-legend" class="map-legend" aria-label="지도 색상 범례"></div>
     <script>
       const mapElement = document.getElementById('map');
       let mapMode = '{initial_mode}';
@@ -392,6 +439,8 @@ def mobile_map(request):
       const initialLng = {initial_lng_js};
       const initialZoom = {initial_zoom};
       const appTestToken = {app_test_token_js};
+      const mapUi = {map_ui_js};
+      const mapLegend = document.getElementById('map-legend');
 
       function mapDebug(event, details) {{
         const payload = {{
@@ -526,9 +575,10 @@ def mobile_map(request):
         if (isMissingValue(pm10)) return 'unknown';
         const value = Number(pm10);
         if (!Number.isFinite(value)) return 'unknown';
-        if (value <= 30) return '';
-        if (value <= 80) return 'moderate';
-        if (value <= 150) return 'bad';
+        const thresholds = mapUi.dust.thresholds;
+        if (value <= thresholds[0]) return 'good';
+        if (value <= thresholds[1]) return 'moderate';
+        if (value <= thresholds[2]) return 'bad';
         return 'verybad';
       }}
 
@@ -553,9 +603,9 @@ def mobile_map(request):
 
       function markerValue(station) {{
         const sourceValue = stationMetricValue(station);
-        if (isMissingValue(sourceValue)) return '?';
+        if (isMissingValue(sourceValue)) return '';
         const value = Number(sourceValue);
-        if (!Number.isFinite(value)) return '?';
+        if (!Number.isFinite(value)) return '';
         if (value > 999) return '999';
         return String(Math.round(value));
       }}
@@ -579,6 +629,19 @@ def mobile_map(request):
 
       function markerLabel(station) {{
         return station.city || station.name || station.sido || '';
+      }}
+
+      function updateLegend() {{
+        if (!mapLegend) return;
+        if (pickerMode) {{
+          mapLegend.classList.add('hidden');
+          return;
+        }}
+        mapLegend.classList.remove('hidden');
+        const entries = mapMode === 'weather' ? mapUi.weather.legend : mapUi.dust.legend;
+        mapLegend.innerHTML = entries.map((item) => (
+          '<span class="legend-item"><span class="legend-dot" style="background:' + item.color + '"></span>' + safeHtml(item.label) + '</span>'
+        )).join('');
       }}
 
       function markerLimitByZoom(zoom) {{
@@ -660,6 +723,7 @@ def mobile_map(request):
       }}
 
       function renderMap(stations) {{
+        updateLegend();
         const ensuredSize = ensureMapElementSize();
         mapDebug('map_render_start', {{
           stationCount: Array.isArray(stations) ? stations.length : 0,
@@ -921,6 +985,7 @@ def mobile_map(request):
 
         window.setMapMode = function(nextMode) {{
           mapMode = nextMode === 'weather' ? 'weather' : 'dust';
+          updateLegend();
           scheduleRenderMarkers(true);
         }};
 
@@ -2022,29 +2087,8 @@ def _load_latest_daily_station_values():
     cache.set(cache_key, values, 60 * 10)
     return values
 
-def _has_usable_realtime_values(item):
-    return any(_first_valid_value(item.get(key)) for key in ('pm10', 'pm25', 'o3', 'no2'))
-
 def _has_usable_station_item(item):
     return any(_first_valid_value(item.get(key)) for key in ('pm10Value', 'pm25Value', 'o3Value', 'no2Value'))
-
-def _station_realtime_to_current_item(item, city, region, station_name, source):
-    return {
-        "cityName": region,
-        "dataTime": item.get("time") or item.get("dataTime") or "",
-        "pm10Time": item.get("pm10_time") or item.get("pm10Time"),
-        "pm25Time": item.get("pm25_time") or item.get("pm25Time"),
-        "o3Time": item.get("o3_time") or item.get("o3Time"),
-        "no2Time": item.get("no2_time") or item.get("no2Time"),
-        "pm10Value": item.get("pm10") or item.get("pm10Value"),
-        "pm25Value": item.get("pm25") or item.get("pm25Value"),
-        "o3Value": item.get("o3") or item.get("o3Value"),
-        "no2Value": item.get("no2") or item.get("no2Value"),
-        "stationName": item.get("name") or item.get("stationName") or station_name,
-        "city": city,
-        "region": region,
-        "source": source,
-    }
 
 def _find_current_realtime_value(city, region, station_name, realtime_values):
     lookup_station = _station_lookup_name(station_name)
@@ -2134,70 +2178,17 @@ def current_dust(request):
     city = request.GET.get('city') or '서울'
     region = request.GET.get('region') or '송파구'
     station_name = _resolve_station_name(city, region)
-    if not request.GET.get('city'):
-        city = '서울'
-    if not request.GET.get('region'):
-        region = '송파구'
-    station_name = _resolve_station_name(city, region)
 
     try:
-        realtime_values, realtime_debug = _load_realtime_station_values(with_debug=True)
+        realtime_values, _ = _load_realtime_station_values(with_debug=True)
         latest_daily_values = _load_latest_daily_station_values()
         current = _find_current_realtime_value(city, region, station_name, realtime_values)
-
-        if current and _has_usable_realtime_values(current):
-            return Response({
-                "item": _station_realtime_to_current_item(current, city, region, station_name, "realtime_current"),
-                "basis": "realtime_current",
-            })
-
-        city = request.GET.get('city') or '서울'
-        region = request.GET.get('region') or '송파구'
-        station_name = _resolve_station_name(city, region)
         latest_daily = latest_daily_values.get(f'{city}:{_station_lookup_name(station_name)}')
-        if latest_daily and _has_usable_realtime_values(latest_daily):
-            return Response({
-                "item": _station_realtime_to_current_item(latest_daily, city, region, station_name, "stored_daily_latest"),
-                "basis": "past_latest",
-                "notice": "저장된 최신 일평균 값을 표시합니다.",
-            })
-
-        return Response({
-            "item": None,
-            "basis": "none",
-            "error": "No stored current or recent dust values.",
-        }, status=404)
-
-        recent_items, recent_error = _fetch_recent_station_realtime_items(station_name)
-        recent_candidates = [item for item in recent_items if _has_usable_station_item(item)]
-        recent_candidates.sort(key=lambda item: item.get("dataTime") or "", reverse=True)
-        recent_item = recent_candidates[0] if recent_candidates else None
-        if recent_item:
-            return Response({
-                "item": _station_realtime_to_current_item(recent_item, city, region, station_name, "realtime_recent"),
-                "basis": "realtime_recent",
-            })
-
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=7)
-        past_items, past_error = _fetch_past_dust_items_by_station(station_name, start_date, end_date)
-        past_candidates = [item for item in past_items if _has_usable_station_item(item)]
-        past_candidates.sort(key=lambda item: item.get("msurDt") or "")
-        latest_past = past_candidates[-1] if past_candidates else None
-        if latest_past:
-            return Response({
-                "item": _past_item_to_current_item(latest_past, city, region, station_name),
-                "basis": "past_latest",
-                "notice": "현재 시간대 측정값과 직전 시간 측정값이 없어 최신 일평균 값을 표시합니다.",
-            })
-
-        return Response({
-            "item": None,
-            "basis": "none",
-            "error": recent_error or past_error or "No current or recent dust values.",
-        }, status=404)
-    except Exception as exc:
-        return Response({"error": str(exc)}, status=500)
+        payload, status_code = select_current_dust(city, region, station_name, current, latest_daily)
+        return Response(payload, status=status_code)
+    except Exception:
+        logger.exception('Failed to load current dust for %s %s', city, region)
+        return Response({"error": "현재 미세먼지 데이터를 불러오지 못했습니다."}, status=500)
 
 @api_view(['GET'])
 def korea_station_dust(request):

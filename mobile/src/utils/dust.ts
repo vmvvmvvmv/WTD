@@ -1,5 +1,5 @@
 ﻿import { DEFAULT_CITY, DEFAULT_NOTIFICATION_SETTINGS, DEFAULT_REGION } from '../constants/dust';
-import { bauhausColors } from '../theme/bauhaus';
+import { getAirQualityMeta } from '../features/airQuality/airQualityGrade';
 import type {
   CurrentDustItem,
   DataMetricKey,
@@ -53,78 +53,17 @@ export function normalizePredictionResponse(raw: unknown, city = DEFAULT_CITY, r
 }
 
 // PM10 ?섏튂瑜??쒓뎅 ?湲곗쭏 ?깃툒 ?띿뒪?몃줈 蹂?섑빀?덈떎.
-export function getPm10Label(value?: number) {
-  if (typeof value !== 'number') return '\uB300\uAE30 \uC911';
-  if (value <= 30) return '\uC88B\uC74C';
-  if (value <= 80) return '\uBCF4\uD1B5';
-  if (value <= 150) return '\uB098\uC068';
-  return '\uB9E4\uC6B0 \uB098\uC068';
-}
+export function getPm10Label(value?: number) { return getAirQualityMeta('pm10', value).label; }
+export function getPm25Label(value?: number) { return getAirQualityMeta('pm25', value).label; }
+export function getO3Label(value?: number) { return getAirQualityMeta('o3', value).label; }
+export function getNo2Label(value?: number) { return getAirQualityMeta('no2', value).label; }
 
-export function getPm25Label(value?: number) {
-  if (typeof value !== 'number') return '\uB300\uAE30 \uC911';
-  if (value <= 15) return '\uC88B\uC74C';
-  if (value <= 35) return '\uBCF4\uD1B5';
-  if (value <= 75) return '\uB098\uC068';
-  return '\uB9E4\uC6B0 \uB098\uC068';
-}
-
-export function getO3Label(value?: number) {
-  if (typeof value !== 'number') return '\uB300\uAE30 \uC911';
-  if (value <= 0.03) return '\uC88B\uC74C';
-  if (value <= 0.09) return '\uBCF4\uD1B5';
-  if (value <= 0.15) return '\uB098\uC068';
-  return '\uB9E4\uC6B0 \uB098\uC068';
-}
-
-export function getNo2Label(value?: number) {
-  if (typeof value !== 'number') return '\uB300\uAE30 \uC911';
-  if (value <= 0.03) return '\uC88B\uC74C';
-  if (value <= 0.06) return '\uBCF4\uD1B5';
-  if (value <= 0.2) return '\uB098\uC068';
-  return '\uB9E4\uC6B0 \uB098\uC068';
-}
-
-export function getPm10Tone(value?: number) {
-  if (typeof value !== 'number') return '#4a4a4a';
-  if (value <= 80) return bauhausColors.blue;
-  if (value <= 150) return bauhausColors.yellow;
-  return bauhausColors.red;
-}
-
-// PM10 ?섏튂???곕씪 移대뱶 諛곌꼍???고븳 ?됱쓣 寃곗젙?⑸땲??
-export function getPm10SoftTone(value?: number) {
-  return bauhausColors.muted;
-}
-
-// PM10 ?섏튂???곕씪 ?뚮몢由ъ슜 ?고븳 ?됱쓣 寃곗젙?⑸땲??
-export function getPm10BorderTone(value?: number) {
-  return bauhausColors.foreground;
-}
-
-// PM2.5 ?섏튂???곕Ⅸ 媛뺤“?됱엯?덈떎.
-export function getPm25Tone(value?: number) {
-  if (typeof value !== 'number') return '#4a4a4a';
-  if (value <= 35) return bauhausColors.blue;
-  if (value <= 75) return bauhausColors.yellow;
-  return bauhausColors.red;
-}
-
-// ?ㅼ〈 ?섏튂???곕Ⅸ 媛뺤“?됱엯?덈떎.
-export function getO3Tone(value?: number) {
-  if (typeof value !== 'number') return '#4a4a4a';
-  if (value <= 0.09) return bauhausColors.blue;
-  if (value <= 0.15) return bauhausColors.yellow;
-  return bauhausColors.red;
-}
-
-// ?댁궛?붿쭏???섏튂???곕Ⅸ 媛뺤“?됱엯?덈떎.
-export function getNo2Tone(value?: number) {
-  if (typeof value !== 'number') return '#4a4a4a';
-  if (value <= 0.06) return bauhausColors.blue;
-  if (value <= 0.2) return bauhausColors.yellow;
-  return bauhausColors.red;
-}
+export function getPm10Tone(value?: number) { return getAirQualityMeta('pm10', value).tone; }
+export function getPm10SoftTone(value?: number) { return getAirQualityMeta('pm10', value).soft; }
+export function getPm10BorderTone(value?: number) { return getAirQualityMeta('pm10', value).border; }
+export function getPm25Tone(value?: number) { return getAirQualityMeta('pm25', value).tone; }
+export function getO3Tone(value?: number) { return getAirQualityMeta('o3', value).tone; }
+export function getNo2Tone(value?: number) { return getAirQualityMeta('no2', value).tone; }
 
 // 怨쇨굅 ?곗씠??item?먯꽌 ?꾩옱 ?좏깮???ㅼ뿼臾쇱쭏??媛믪쓣 爰쇰깄?덈떎.
 export function getMetricValue(item: PastDustItem, metric: DataMetricKey) {
@@ -162,9 +101,37 @@ export function normalizeSearchText(value: string) {
 }
 
 // ?꾩옱 ?곗씠?곌? ?ㅼ떆媛꾩씤吏 怨쇨굅 fallback?몄???留욊쾶 湲곗? ?쒓컖 臾멸뎄瑜?留뚮벊?덈떎.
-export function formatCurrentBasis(item?: CurrentDustItem | null) {
-  if (!item?.dataTime) return '\uD604\uC7AC \uB370\uC774\uD130\uB97C \uBD88\uB7EC\uC624\uB294 \uC911';
-  return item.source === 'past_latest' ? item.dataTime : item.dataTime + ' \uAE30\uC900';
+function parseMeasurementTime(value: string) {
+  const compact = value.trim().match(/^(\d{4})(\d{2})(\d{2})(?:[ T]?(\d{2}):?(\d{2}))?/);
+  const separated = value.trim().match(/^(\d{4})[-./](\d{1,2})[-./](\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
+  const match = separated ?? compact;
+  if (!match) return null;
+  const [, year, month, day, hour = '0', minute = '0'] = match;
+  const date = new Date(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function measurementAgeLabel(measuredAt: Date, now: Date) {
+  const elapsedMinutes = Math.floor((now.getTime() - measuredAt.getTime()) / 60000);
+  if (elapsedMinutes < 0) return '';
+  if (elapsedMinutes < 1) return '방금 전';
+  if (elapsedMinutes < 60) return `${elapsedMinutes}분 전`;
+  if (elapsedMinutes < 48 * 60) return `${Math.floor(elapsedMinutes / 60)}시간 전`;
+  return `${Math.floor(elapsedMinutes / (24 * 60))}일 전`;
+}
+
+// 측정 시각과 데이터 경과 시간을 함께 보여줘 오래된 fallback 데이터를 최신값으로 오인하지 않게 합니다.
+export function formatCurrentBasis(item?: CurrentDustItem | null, now = new Date()) {
+  if (!item?.dataTime) return '현재 데이터를 불러오는 중';
+  const measuredAt = parseMeasurementTime(item.dataTime);
+  if (!measuredAt) return `${item.dataTime} 기준`;
+  const timestamp = [
+    measuredAt.getFullYear(),
+    String(measuredAt.getMonth() + 1).padStart(2, '0'),
+    String(measuredAt.getDate()).padStart(2, '0'),
+  ].join('-') + ` ${String(measuredAt.getHours()).padStart(2, '0')}:${String(measuredAt.getMinutes()).padStart(2, '0')}`;
+  const age = measurementAgeLabel(measuredAt, now);
+  return age ? `${timestamp} 기준 · ${age}` : `${timestamp} 기준`;
 }
 
 export function formatValue(value: number | undefined, decimals: number) {
