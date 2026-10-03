@@ -13,6 +13,10 @@ if errorlevel 1 goto :failed
 schtasks /Create /TN "%MORNING_TASK%" /TR "\"%MORNING_SCRIPT%\"" /SC DAILY /ST 07:00 /F
 if errorlevel 1 goto :failed
 
+REM Keep local data collection running on laptops and catch up after sleep.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew; Set-ScheduledTask -TaskName '%HOURLY_TASK%' -Settings $settings | Out-Null; Set-ScheduledTask -TaskName '%MORNING_TASK%' -Settings $settings | Out-Null"
+if errorlevel 1 goto :failed
+
 echo Scheduled tasks were created.
 echo - %HOURLY_TASK%: every hour
 echo - %MORNING_TASK%: every day at 07:00
