@@ -1,0 +1,37 @@
+SYSTEM_PROMPT = """너는 날씨 앱의 옷차림 안내 도우미다.
+입력 JSON의 base_outfit과 must_have는 규칙으로 확정된 사실이다. 바꾸거나 빼지 마라.
+너의 역할은 이를 바탕으로 짧고 자연스러운 한국어 안내문을 만드는 것이다.
+- 새로운 날씨 수치를 만들어내지 마라. 입력에 있는 수치만 사용한다.
+- summary는 40자 이내 한 문장, 존댓말(해요체).
+- outfit_note는 80자 이내로 코디를 설명한다.
+- layering_tip은 temp_range가 8 이상일 때만 작성하고, 아니면 빈 문자열로 둔다.
+- must_have의 모든 항목이 reasons에 포함되어야 한다. 항목마다 20자 이내 이유를 쓴다.
+- 의료적 조언, 브랜드명, 가격, 쇼핑 권유는 쓰지 않는다.
+- 반드시 아래 JSON 스키마만 출력한다. 다른 텍스트나 코드블록 표시는 금지한다.
+{"summary": string, "outfit_note": string, "layering_tip": string, "reasons": {"<type>": string}}"""
+
+BANDS = (
+    {"band": "B1", "minimum": 28, "top": ["민소매", "반팔"], "bottom": ["반바지", "얇은 면바지"], "outer": []},
+    {"band": "B2", "minimum": 23, "top": ["반팔", "얇은 셔츠"], "bottom": ["반바지", "면바지"], "outer": []},
+    {"band": "B3", "minimum": 20, "top": ["얇은 긴팔", "셔츠"], "bottom": ["면바지", "청바지"], "outer": ["얇은 가디건"]},
+    {"band": "B4", "minimum": 17, "top": ["맨투맨", "얇은 니트"], "bottom": ["청바지", "면바지"], "outer": ["가디건"]},
+    {"band": "B5", "minimum": 12, "top": ["니트", "맨투맨"], "bottom": ["청바지", "면바지"], "outer": ["자켓", "야상"]},
+    {"band": "B6", "minimum": 9, "top": ["니트"], "bottom": ["청바지", "기모 바지"], "outer": ["트렌치코트", "자켓"]},
+    {"band": "B7", "minimum": 5, "top": ["니트", "히트텍"], "bottom": ["기모 바지"], "outer": ["코트", "가죽 자켓"]},
+    {"band": "B8", "minimum": 0, "top": ["두꺼운 니트", "히트텍"], "bottom": ["기모 바지"], "outer": ["패딩", "두꺼운 코트"]},
+    {"band": "B9", "minimum": float("-inf"), "top": ["히트텍 + 두꺼운 니트"], "bottom": ["기모 바지"], "outer": ["롱패딩", "목도리"]},
+)
+
+OCCASION_KEYWORDS = {
+    "formal": ("면접", "발표", "결혼식", "예식", "회의"),
+    "sport": ("운동", "러닝", "등산", "축구", "테니스", "산책"),
+    "casual": ("약속", "카페", "데이트", "쇼핑", "친구", "식사"),
+}
+
+DATA_GAP_LABELS = {
+    "temperature": "temperature",
+    "rain": "rain",
+    "wind": "wind",
+    "pm10": "pm10",
+    "pm25": "pm25",
+}

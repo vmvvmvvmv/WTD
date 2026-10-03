@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
-import type { CalendarEvent, HourlyDustItem, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
+import type { CalendarEvent, HourlyDustItem, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
 import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
@@ -15,6 +15,7 @@ import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../cale
 import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
+import { OutfitCardContainer } from '../outfit/OutfitCard';
 
 type HomeCircularGaugeProps = {
   gaugeSize?: number;
@@ -374,6 +375,8 @@ export function HomePanel({
   onOpenCalendar,
   onOpenDetail,
   onOpenMap,
+  outfitEnabled,
+  outfitSensitivity,
   mapPreviewUrl,
   hourlyItems,
   pastItems,
@@ -394,6 +397,8 @@ export function HomePanel({
   onOpenCalendar?: () => void;
   onOpenDetail: () => void;
   onOpenMap: () => void;
+  outfitEnabled: boolean;
+  outfitSensitivity: OutfitSensitivity;
   mapPreviewUrl: string;
   hourlyItems: HourlyDustItem[];
   pastItems: PastDustItem[];
@@ -409,6 +414,7 @@ export function HomePanel({
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
   const [carouselIndex, setCarouselIndex] = useState(1);
   const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
+  const [selectedOutfitEventId, setSelectedOutfitEventId] = useState<string | null>(null);
   const infoSlideWidth = windowWidth;
   const infoSlideHeight = Math.max(146, Math.ceil(146 * fontScale));
   const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
@@ -597,46 +603,42 @@ export function HomePanel({
               <Text style={styles.activityGuideRowTitle}>오늘 등록된 일정이 없어요</Text>
             </View>
           )}
-          {activityGuideRows.map((item) => (
-            <Pressable
-              accessibilityLabel={`${item.title} 일정 열기`}
-              key={item.id}
-              onPress={onOpenCalendar}
-              style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
-            >
-              <View style={[styles.activityGuideIconBox, { backgroundColor: '#E8F1FE' }]}>
-                <AppActionIcon
-                  name={item.activityType === 'indoor' ? 'activityIndoor' : item.activityType === 'transit' ? 'activityTransit' : 'activityOutdoor'}
-                  size={34}
-                />
-              </View>
-              <View style={styles.activityGuideTextGroup}>
-                <View style={styles.activityGuideTitleRow}>
-                  <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{item.title}</Text>
-                  <View
-                    style={[
-                      styles.activityGuideRiskBadge,
-                      { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone },
-                    ]}
-                  >
-                    <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
-                    <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
+          {activityGuideRows.map((item) => {
+            const event = todayCalendarEvents.find((candidate) => candidate.id === item.id);
+            const selected = selectedOutfitEventId === item.id;
+            return (
+              <View key={item.id} style={styles.activityGuideItemGroup}>
+                <Pressable
+                  accessibilityLabel={`${item.title} 옷차림 추천 ${selected ? '닫기' : '열기'}`}
+                  onPress={() => setSelectedOutfitEventId((current) => current === item.id ? null : item.id)}
+                  style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
+                >
+                  <View style={[styles.activityGuideIconBox, { backgroundColor: '#E8F1FE' }]}>
+                    <AppActionIcon
+                      name={item.activityType === 'indoor' ? 'activityIndoor' : item.activityType === 'transit' ? 'activityTransit' : 'activityOutdoor'}
+                      size={34}
+                    />
                   </View>
-                </View>
-                <View style={styles.activityGuideMetaRow}>
-                  <Text style={styles.activityGuideTimeText}>{item.timeLabel}</Text>
-                  {!!item.locationLabel && (
-                    <>
-                      <View style={styles.activityGuideMetaDivider} />
-                      <Text numberOfLines={1} style={styles.activityGuideRowLocation}>{item.locationLabel}</Text>
-                    </>
-                  )}
-                </View>
-                <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{item.advice}</Text>
+                  <View style={styles.activityGuideTextGroup}>
+                    <View style={styles.activityGuideTitleRow}>
+                      <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{item.title}</Text>
+                      <View style={[styles.activityGuideRiskBadge, { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone }]}>
+                        <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
+                        <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.activityGuideMetaRow}>
+                      <Text style={styles.activityGuideTimeText}>{item.timeLabel}</Text>
+                      {!!item.locationLabel && <><View style={styles.activityGuideMetaDivider} /><Text numberOfLines={1} style={styles.activityGuideRowLocation}>{item.locationLabel}</Text></>}
+                    </View>
+                    <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{item.advice}</Text>
+                  </View>
+                  <Ionicons color="#8CA0BA" name={selected ? 'chevron-up' : 'chevron-down'} size={17} style={styles.activityGuideRowChevron} />
+                </Pressable>
+                {selected && event && <View style={styles.activityGuideOutfit}><OutfitCardContainer enabled={outfitEnabled} event={event} sensitivity={outfitSensitivity} /></View>}
               </View>
-              <Ionicons color="#8CA0BA" name="chevron-forward" size={17} style={styles.activityGuideRowChevron} />
-            </Pressable>
-          ))}
+            );
+          })}
         </View>
         <Pressable
           accessibilityLabel={"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}

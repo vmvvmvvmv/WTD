@@ -174,4 +174,43 @@ export type NotificationSettings = {
   includeFavorites: boolean;
 };
 
+export type OutfitSensitivity = 'cold' | 'normal' | 'hot';
+
+export type OutfitSettings = {
+  enabled: boolean;
+  sensitivity: OutfitSensitivity;
+};
+
+export type OutfitRecommendation = {
+  cached?: boolean;
+  data_gaps: string[];
+  generated_at: string;
+  layering_tip: string;
+  must_have: Array<{
+    label: string;
+    level: 'required' | 'recommended';
+    reason: string;
+    type: 'umbrella' | 'mask' | 'windbreaker' | 'scarf_gloves' | string;
+  }>;
+  outfit: {
+    accessories: string[];
+    band: string;
+    bottom: string[];
+    outer: string[];
+    top: string[];
+  };
+  outfit_note: string;
+  source: 'llm' | 'rule';
+  summary: string;
+  valid_until: string;
+  weather_snapshot: {
+    feels_avg?: number | null;
+    feels_max?: number | null;
+    feels_min?: number | null;
+    pm10_max?: number | null;
+    rain_prob_max?: number | null;
+    temp_range?: number | null;
+  };
+};
+
 

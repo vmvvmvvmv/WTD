@@ -49,6 +49,7 @@ import {
   DATA_LIST_PAGE_SIZE,
   DEFAULT_CITY,
   DEFAULT_NOTIFICATION_SETTINGS,
+  DEFAULT_OUTFIT_SETTINGS,
   DEFAULT_REGION,
   DEFAULT_REGION_STATE,
   dataMetrics,
@@ -68,6 +69,7 @@ import {
   saveGpsRegion,
   saveMapRecentSearches,
   saveNotificationSettings,
+  saveOutfitSettings,
   saveNotificationToken,
   saveSelectedRegion,
 } from '../storage/appStorage';
@@ -79,6 +81,7 @@ import type {
   DataMetricKey,
   HourlyDustItem,
   NotificationSettings,
+  OutfitSettings,
   PastDustItem,
   PredictionResponse,
   RegionState,
@@ -228,6 +231,7 @@ export function AppContent() {
 
   // 알림 권한과 일정 알림 설정 저장 상태입니다.
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
+  const [outfitSettings, setOutfitSettings] = useState<OutfitSettings>(DEFAULT_OUTFIT_SETTINGS);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [serverPushToken, setServerPushToken] = useState<string | null>(null);
   const [isSavingNotificationSettings, setIsSavingNotificationSettings] = useState(false);
@@ -883,6 +887,10 @@ export function AppContent() {
     setIsSavingNotificationSettings(false);
   };
 
+  const updateOutfitSetting = <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => {
+    setOutfitSettings((current) => ({ ...current, [key]: value }));
+  };
+
   // 홈 기준 지역을 바꾸고 관련 화면 데이터를 새로 불러올 준비를 합니다.
   const applyRegion = (region: RegionState, message?: string) => {
     const isSameSelectedRegion = selectedRegion ? isSameRegion(region, selectedRegion) : false;
@@ -1100,6 +1108,7 @@ export function AppContent() {
         setFavoriteRegions(nextFavorites);
         setMapRecentSearches(storedState.mapRecentSearches);
         setNotificationSettings(storedState.notificationSettings);
+        setOutfitSettings(storedState.outfitSettings);
         setServerPushToken(storedState.notificationToken);
         setCalendarEvents(storedState.calendarEvents);
         setHasLoadedRegionStore(true);
@@ -1286,6 +1295,11 @@ export function AppContent() {
     if (!hasLoadedRegionStore) return;
     saveNotificationSettings(notificationSettings);
   }, [hasLoadedRegionStore, notificationSettings]);
+
+  useEffect(() => {
+    if (!hasLoadedRegionStore) return;
+    saveOutfitSettings(outfitSettings);
+  }, [hasLoadedRegionStore, outfitSettings]);
 
   // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
   useEffect(() => {
@@ -1800,6 +1814,8 @@ export function AppContent() {
               onRemoveEvent={removeCalendarEvent}
               onUpdateEvent={updateCalendarEvent}
               onUpdateEventSeries={updateCalendarEventSeries}
+              outfitEnabled={outfitSettings.enabled}
+              outfitSensitivity={outfitSettings.sensitivity}
               prediction={prediction}
               todayDateLabel={todayDateLabel}
               weather={weather}
@@ -2006,6 +2022,8 @@ export function AppContent() {
               setMapViewKey((key) => key + 1);
               setActiveTab('map');
             }}
+            outfitEnabled={outfitSettings.enabled}
+            outfitSensitivity={outfitSettings.sensitivity}
             mapPreviewUrl={homeMapPreviewUrl}
             hourlyItems={hourlyItems}
             weatherHourlyItems={weatherHourlyItems}
@@ -2029,8 +2047,10 @@ export function AppContent() {
             locationMessage={locationMessage}
             notificationsUnavailable={IS_EXPO_GO}
             notificationSettings={notificationSettings}
+            outfitSettings={outfitSettings}
             onRemoveFavorite={removeFavoriteRegion}
             onToggleNotificationSetting={updateNotificationSetting}
+            onUpdateOutfitSetting={updateOutfitSetting}
             onUseCurrentLocation={applyNearestGpsRegion}
             selectedRegion={selectedRegion}
           />

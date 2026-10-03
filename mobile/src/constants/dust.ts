@@ -1,4 +1,4 @@
-import type { DataMetricKey, NotificationSettings } from '../types/dust';
+import type { DataMetricKey, NotificationSettings, OutfitSettings } from '../types/dust';
 
 // Default region used before GPS is available.
 export const DEFAULT_CITY = '\uC11C\uC6B8';
@@ -11,6 +11,7 @@ export const FAVORITE_REGIONS_STORAGE_KEY = 'dust.favorite-regions';
 export const MAP_RECENT_SEARCHES_STORAGE_KEY = 'dust.map-recent-searches';
 export const NOTIFICATION_SETTINGS_STORAGE_KEY = 'dust.notification-settings';
 export const NOTIFICATION_TOKEN_STORAGE_KEY = 'dust.notification-token';
+export const OUTFIT_SETTINGS_STORAGE_KEY = 'dust.outfit-settings';
 export const CALENDAR_EVENTS_STORAGE_KEY = 'dust.calendar-events';
 export const CALENDAR_NOTIFICATION_IDS_STORAGE_KEY = 'dust.calendar-notification-ids';
 
@@ -20,6 +21,11 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   weatherMorningAlerts: true,
   // TODO: Favorites-included notifications are marked for possible removal.
   includeFavorites: true,
+};
+
+export const DEFAULT_OUTFIT_SETTINGS: OutfitSettings = {
+  enabled: true,
+  sensitivity: 'normal',
 };
 
 export const dataMetrics: Array<{ key: DataMetricKey; label: string; code: string; unit: string; decimals: number }> = [

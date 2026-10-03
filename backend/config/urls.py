@@ -15,6 +15,7 @@ urlpatterns = [
     path('analyze/', include('analyze.urls')),
     path('app/', include('app.urls')),
     path('dust/', include('dust.urls')),
+    path('outfit/', include('dust.outfit_urls')),
 
     # React SPA: /api, /admin, /analyze, /app, /dust, /media 이외의 모든 경로를
     # React build/index.html로 처리 (React Router가 클라이언트 라우팅 담당)
