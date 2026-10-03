@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/WeatherToDoIcon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#F0F0F0"
+      "backgroundColor": "#F4F8FC"
     },
     "ios": {
       "supportsTablet": true
@@ -19,7 +19,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/WeatherToDoIcon.png",
-        "backgroundColor": "#F0F0F0"
+        "backgroundColor": "#F4F8FC"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,

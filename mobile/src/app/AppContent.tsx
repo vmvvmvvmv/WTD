@@ -1,11 +1,16 @@
+import { useCalendarLocationForecasts } from '../features/calendar/useCalendarLocationForecasts';
+import { loadStoredWeather, weatherStateFromStation } from '../features/weather/weatherData';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
   BackHandler,
+  Easing,
+  ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -19,8 +24,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
-import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../components/calendar/calendarForecast';
-import { calendarEventLocationKey } from '../components/calendar/calendarLocation';
+import { buildCalendarRiskByEvent } from '../components/calendar/calendarForecast';
 import { buildOutingAccentTheme } from '../theme/appTheme';
 import { DataPanel } from '../components/data/DataPanel';
 import { WeatherDataPanel } from '../components/data/WeatherDataPanel';
@@ -28,21 +32,16 @@ import type { WeatherDataMetricKey } from '../components/data/WeatherDataPanel';
 import { HomePanel } from '../components/home/HomePanel';
 import { FullMapScreen } from '../components/map/FullMapScreen';
 import { RegionPanel } from '../components/settings/RegionPanel';
+import { AppActionIcon } from '../components/shared/AppActionIcon';
+import { DETAIL_DATA_ENABLED } from '../config/features';
 import { styles } from '../styles/appStyles';
 import { AppTabBar } from '../navigation/AppTabBar';
 import { getTabRoute } from '../navigation/routes';
 import {
   getCurrentDust,
-  getHourlyDust,
-  getHourlyWeather,
   getKoreaStations,
-  getMidTermWeather,
-  getOptionalCurrentDust,
-  getOptionalKoreaStations,
   getOptionalPastDust,
-  getPastDust,
   getPastWeather,
-  getPrediction,
   postBriefingMessage,
   registerNotificationDevice,
 } from '../api/dustEndpoints';
@@ -56,12 +55,9 @@ import {
   dataRanges,
 } from '../constants/dust';
 import { API_URL, APP_TEST_TOKEN, IS_EXPO_GO } from '../config/runtime';
-import {
-  buildDashboardHourlyItems,
-  buildDashboardWeatherHourlyItems,
-  findStationForWeather,
-} from '../features/dashboard/dashboardData';
 import { loadDashboardCache, saveDashboardCache } from '../features/dashboard/dashboardCache';
+import { hasCompleteDashboardCache } from '../features/dashboard/dashboardCachePolicy';
+import { fetchDashboardDust, fetchDashboardWeather } from '../features/dashboard/dashboardService';
 import { loadStationCache, saveStationCache } from '../features/stations/stationCache';
 import {
   loadCalendarNotificationIds,
@@ -112,7 +108,6 @@ import {
   haversineKm,
   isSameRegion,
   normalizeLatLng,
-  normalizePredictionResponse,
   normalizeSearchText,
   stationIdentity,
   toCompactDate,
@@ -121,7 +116,62 @@ import {
   uniqueStations,
   wait,
 } from '../utils/dust';
-import { getWeatherIcon } from '../utils/weather';
+import { getWeatherIcon, getWeatherVisualKind } from '../utils/weather';
+
+const HOME_WEATHER_BACKGROUNDS = {
+  clear: require('../../assets/weather-hero-banner.png'),
+  cloudy: require('../../assets/weather-hero-cloudy.png'),
+  rain: require('../../assets/weather-hero-rain.png'),
+  snow: require('../../assets/weather-hero-snow.png'),
+} as const;
+
+function getHomeWeatherBackground(label?: string) {
+  return HOME_WEATHER_BACKGROUNDS[getWeatherVisualKind(label)];
+}
+
+function WeatherBackdrop({ label, prominent = false }: { label?: string; prominent?: boolean }) {
+  return (
+    <View pointerEvents="none" style={styles.weatherScreenBackdrop}>
+      <ImageBackground
+        source={getHomeWeatherBackground(label)}
+        style={styles.weatherScreenBackdropImage}
+        imageStyle={[styles.weatherScreenBackdropImageStyle, prominent && styles.weatherScreenBackdropImageStrong]}
+      />
+    </View>
+  );
+}
+
+function ScreenTransition({ children, transitionKey }: { children: ReactNode; transitionKey: string }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  const translateY = useRef(new Animated.Value(10)).current;
+
+  useLayoutEffect(() => {
+    opacity.setValue(0);
+    translateY.setValue(10);
+    const transition = Animated.parallel([
+      Animated.timing(opacity, {
+        duration: 180,
+        easing: Easing.out(Easing.cubic),
+        toValue: 1,
+        useNativeDriver: true,
+      }),
+      Animated.timing(translateY, {
+        duration: 220,
+        easing: Easing.out(Easing.cubic),
+        toValue: 0,
+        useNativeDriver: true,
+      }),
+    ]);
+    transition.start();
+    return () => transition.stop();
+  }, [opacity, transitionKey, translateY]);
+
+  return (
+    <Animated.View style={[styles.screenTransition, { opacity, transform: [{ translateY }] }]}>
+      {children}
+    </Animated.View>
+  );
+}
 
 // 앱 전체의 탭 상태, API 데이터, 위치/즐겨찾기/알림 설정을 관리하는 최상위 컨테이너입니다.
 export function AppContent() {
@@ -146,6 +196,7 @@ export function AppContent() {
   const [selectedStation, setSelectedStation] = useState<StationDustItem | null>(null);
   const [mapViewKey, setMapViewKey] = useState(0);
   const [weather, setWeather] = useState<WeatherState | null>(null);
+  const [yesterdayWeather, setYesterdayWeather] = useState<WeatherState | null>(null);
   const [detailWeather, setDetailWeather] = useState<WeatherState | null>(null);
   const [selectedStationWeather, setSelectedStationWeather] = useState<WeatherState | null>(null);
 
@@ -161,7 +212,6 @@ export function AppContent() {
   const [briefingMessages, setBriefingMessages] = useState<BriefingMessage[]>([]);
   const [isBriefingLoading, setIsBriefingLoading] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
-  const [calendarLocationForecasts, setCalendarLocationForecasts] = useState<Record<string, CalendarLocationForecast>>({});
 
   // GPS 기준 지역, 사용자가 선택한 지역, 즐겨찾기 지역 상태입니다.
   const [isLocating, setIsLocating] = useState(false);
@@ -205,6 +255,7 @@ export function AppContent() {
   const accentSoftTone = accentTheme.softTone;
   const accentBorderTone = accentTheme.borderTone;
   const todayDateLabel = toIsoDate(new Date());
+  const calendarLocationForecasts = useCalendarLocationForecasts(calendarEvents, hasLoadedRegionStore, todayDateLabel);
   const baseUrl = API_URL.replace(/\/$/, '');
   const mapBaseUrl = baseUrl.replace(/^http:\/\/localhost(?=[:/]|$)/, 'http://127.0.0.1');
   const mobileMapUrl = `${mapBaseUrl}/dust/mobile-map/`;
@@ -271,36 +322,6 @@ export function AppContent() {
     [stationItems],
   );
 
-  const weatherStateFromHourlyItem = (item?: WeatherHourlyItem): WeatherState | null => {
-    if (!item) return null;
-    const temperature = toNumber(item.temperature);
-    if (typeof temperature !== 'number') return null;
-    return {
-      humidity: toNumber(item.humidity),
-      label: item.label || '날씨',
-      measured_at: item.measuredAt,
-      rainMm: toNumber(item.rain_mm),
-      temperature,
-      windDirection: toNumber(item.wind_direction),
-      windSpeed: toNumber(item.wind_speed),
-    };
-  };
-
-  const weatherStateFromStation = (station?: StationDustItem | null): WeatherState | null => {
-    if (!station) return null;
-    const temperature = toNumber(station.weatherTemperature);
-    if (typeof temperature !== 'number') return null;
-    return {
-      humidity: toNumber(station.weatherHumidity),
-      label: station.weatherLabel || '날씨',
-      measured_at: station.weatherTime,
-      rainMm: toNumber(station.weatherRainMm),
-      temperature,
-      windDirection: toNumber(station.weatherWindDirection),
-      windSpeed: toNumber(station.weatherWindSpeed),
-    };
-  };
-
   const switchMapMarkerMode = (mode: 'dust' | 'weather') => {
     dismissMapSearchKeyboard();
     setIsMapSearchFocused(false);
@@ -313,58 +334,15 @@ export function AppContent() {
     `);
   };
 
-  const loadStoredWeather = async (lat: number, lng: number) => {
-    const todayCompact = toCompactDate(new Date());
-    const midTermEndCompact = toCompactDate(addDays(new Date(), 14));
-    const weatherHourlyData = await getHourlyWeather({ date: todayCompact, forecastHours: 72, lat, lng });
-    const midTermData = await getMidTermWeather({ endDate: midTermEndCompact, lat, lng, startDate: todayCompact });
-    const storedItems = Array.isArray(weatherHourlyData?.items) ? weatherHourlyData.items as WeatherHourlyItem[] : [];
-    const currentWeather = weatherStateFromHourlyItem(storedItems[storedItems.length - 1]);
-    return {
-      hourlyItems: buildDashboardWeatherHourlyItems(weatherHourlyData, currentWeather, todayDateLabel),
-      midTermItems: Array.isArray(midTermData?.items) ? midTermData.items as WeatherMidTermItem[] : [],
-      weather: currentWeather,
-    };
-  };
-
   const loadWeather = async (lat: number, lng: number) => {
     try {
-      const storedWeather = await loadStoredWeather(lat, lng);
+      const storedWeather = await loadStoredWeather(lat, lng, todayDateLabel);
       setWeather(storedWeather.weather);
+      setYesterdayWeather(storedWeather.yesterdayWeather);
     } catch {
       setWeather(null);
+      setYesterdayWeather(null);
     }
-  };
-
-  const loadCalendarLocationForecast = async (event: CalendarEvent): Promise<[string, CalendarLocationForecast] | null> => {
-    const key = calendarEventLocationKey(event);
-    if (!key || typeof event.locationLat !== 'number' || typeof event.locationLng !== 'number') return null;
-
-    const todayCompact = toCompactDate(new Date());
-    const midTermEndCompact = toCompactDate(addDays(new Date(), 14));
-    const region = event.locationCity && event.locationRegion
-      ? { city: event.locationCity, label: event.location, region: event.locationRegion }
-      : null;
-
-    const [weatherHourlyData, midTermData, hourlyDustData, predictionData, currentDustData] = await Promise.all([
-      getHourlyWeather({ date: todayCompact, forecastHours: 72, lat: event.locationLat, lng: event.locationLng }),
-      getMidTermWeather({ endDate: midTermEndCompact, lat: event.locationLat, lng: event.locationLng, startDate: todayCompact }),
-      region ? getHourlyDust({ date: todayCompact, region }) : Promise.resolve(null),
-      region ? getPrediction(region).catch(() => null) : Promise.resolve(null),
-      region ? getOptionalCurrentDust(region) : Promise.resolve(null),
-    ]);
-
-    const weatherStoredItems = Array.isArray(weatherHourlyData?.items) ? weatherHourlyData.items as WeatherHourlyItem[] : [];
-    const currentWeather = weatherStateFromHourlyItem(weatherStoredItems[weatherStoredItems.length - 1]);
-    const currentDustItem = currentDustData?.item as CurrentDustItem | undefined;
-    return [key, {
-      currentPm10: toNumber(currentDustItem?.pm10Value),
-      dustItems: buildDashboardHourlyItems(hourlyDustData, currentDustItem ?? null, todayDateLabel),
-      prediction: normalizePredictionResponse(predictionData),
-      weather: currentWeather,
-      weatherHourlyItems: buildDashboardWeatherHourlyItems(weatherHourlyData, currentWeather, todayDateLabel),
-      weatherMidTermItems: Array.isArray(midTermData?.items) ? midTermData.items as WeatherMidTermItem[] : [],
-    }];
   };
 
   // 지도 검색어에 맞는 측정소 후보를 계산합니다.
@@ -499,89 +477,39 @@ export function AppContent() {
       setWeather(cachedDashboard.weather ?? null);
       setIsLoading(false);
       finishRegionTransition();
-      if (!force && cachedDashboard.currentItem) return;
+      if (!force && hasCompleteDashboardCache(cachedDashboard)) return;
     } else {
       setIsLoading(true);
     }
       setError('');
     try {
-      const today = new Date();
-      const todayCompact = toCompactDate(today);
-      const [predictionResult, pastResult, currentResult, hourlyResult] = await Promise.allSettled([
-        getPrediction(region),
-        getPastDust({
-          region,
-          startDate: toCompactDate(addDays(today, -7)),
-          endDate: todayCompact,
-        }),
-        getOptionalCurrentDust(region),
-        getHourlyDust({ region, date: todayCompact }),
-      ]);
-
-      if (
-        predictionResult.status === 'rejected'
-        && pastResult.status === 'rejected'
-        && currentResult.status === 'rejected'
-        && hourlyResult.status === 'rejected'
-      ) {
-        throw predictionResult.reason;
-      }
-
-      const predictionRawData = predictionResult.status === 'fulfilled' ? predictionResult.value : null;
-      const pastData = pastResult.status === 'fulfilled' ? pastResult.value : null;
-      const currentData = currentResult.status === 'fulfilled' ? currentResult.value : null;
-      const hourlyData = hourlyResult.status === 'fulfilled' ? hourlyResult.value : null;
-      const predictionData = predictionRawData
-        ? normalizePredictionResponse(predictionRawData, region.city, region.region)
-        : cachedDashboard?.prediction ?? {};
-      const nextPastItems = (pastData?.items as PastDustItem[] | undefined) ?? cachedDashboard?.pastItems ?? [];
-      const currentDustItem = (currentData?.item as CurrentDustItem | undefined) ?? cachedDashboard?.currentItem ?? null;
-      const nextHourlyItems = hourlyData
-        ? buildDashboardHourlyItems(hourlyData, currentDustItem, todayDateLabel)
-        : cachedDashboard?.hourlyItems ?? buildDashboardHourlyItems(null, currentDustItem, todayDateLabel);
-
-      setPrediction(predictionData);
-      setPastItems(nextPastItems);
-      setHourlyItems(nextHourlyItems);
-      setCurrentItem(currentDustItem);
-      const nextCurrentNotice = currentData?.notice ?? cachedDashboard?.currentNotice ?? '';
-      setCurrentNotice(nextCurrentNotice);
-      setIsLoading(false);
-      finishRegionTransition();
-      void saveDashboardCache(region, {
+      const {
         currentItem: currentDustItem,
         currentNotice: nextCurrentNotice,
         hourlyItems: nextHourlyItems,
         pastItems: nextPastItems,
         prediction: predictionData,
-        weather: null,
-        weatherHourlyItems: [],
-        weatherMidTermItems: [],
-      });
+      } = await fetchDashboardDust(region, todayDateLabel, cachedDashboard);
 
+      setPrediction(predictionData);
+      setPastItems(nextPastItems);
+      setHourlyItems(nextHourlyItems);
+      setCurrentItem(currentDustItem);
+      setCurrentNotice(nextCurrentNotice);
+      setIsLoading(false);
+      finishRegionTransition();
       try {
-        let nextStationItems = stationItems;
-        if (nextStationItems.length === 0) {
-          const stationData = await getOptionalKoreaStations();
-          nextStationItems = Array.isArray(stationData?.items) ? stationData.items as StationDustItem[] : [];
-          if (nextStationItems.length > 0) setStationItems(nextStationItems);
-        }
-
-        const weatherStation = findStationForWeather(nextStationItems, region);
-        const weatherCoords = normalizeLatLng(weatherStation?.lat, weatherStation?.lng);
-        let nextWeatherHourlyItems: WeatherHourlyItem[] = [];
-        let nextWeatherMidTermItems: WeatherMidTermItem[] = [];
-        let currentWeatherData: WeatherState | null = null;
-        if (weatherCoords) {
-          const storedWeather = await loadStoredWeather(weatherCoords.lat, weatherCoords.lng);
-          nextWeatherHourlyItems = storedWeather.hourlyItems;
-          nextWeatherMidTermItems = storedWeather.midTermItems;
-          currentWeatherData = storedWeather.weather;
-        }
+        const storedWeather = await fetchDashboardWeather(region, todayDateLabel, stationItems);
+        const nextWeatherHourlyItems = storedWeather.hourlyItems;
+        const nextWeatherMidTermItems = storedWeather.midTermItems;
+        const currentWeatherData = storedWeather.weather;
+        const yesterdayWeatherData = storedWeather.yesterdayWeather;
+        if (storedWeather.stations.length > 0 && stationItems.length === 0) setStationItems(storedWeather.stations);
 
         setWeatherHourlyItems(nextWeatherHourlyItems);
         setWeatherMidTermItems(nextWeatherMidTermItems);
         setWeather(currentWeatherData);
+        setYesterdayWeather(yesterdayWeatherData);
         void saveDashboardCache(region, {
           currentItem: currentDustItem,
           currentNotice: nextCurrentNotice,
@@ -592,8 +520,19 @@ export function AppContent() {
           weatherHourlyItems: nextWeatherHourlyItems,
           weatherMidTermItems: nextWeatherMidTermItems,
         });
-      } catch {
+      } catch (weatherError) {
+        console.warn('대시보드 날씨 데이터를 불러오지 못했습니다.', weatherError);
         // Weather is secondary for first paint; keep the dust dashboard visible.
+        void saveDashboardCache(region, {
+          currentItem: currentDustItem,
+          currentNotice: nextCurrentNotice,
+          hourlyItems: nextHourlyItems,
+          pastItems: nextPastItems,
+          prediction: predictionData,
+          weather: cachedDashboard?.weather ?? null,
+          weatherHourlyItems: cachedDashboard?.weatherHourlyItems ?? [],
+          weatherMidTermItems: cachedDashboard?.weatherMidTermItems ?? [],
+        });
       }
     } catch (caught) {
       if (!cachedDashboard) {
@@ -736,7 +675,6 @@ export function AppContent() {
       fullMapUrlRef.current = null;
     }
     const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ view: 'full' });
-  const homeMapPreviewLabel = [gpsRegion?.city || selectedRegion?.city, gpsRegion?.region || selectedRegion?.region].filter(Boolean).join(' ') || '\uD604\uC7AC \uC704\uCE58';
   const calendarMapPickerUrl = calendarMapPickerCoords
     ? buildMobileMapUrl({ lat: calendarMapPickerCoords.lat, lng: calendarMapPickerCoords.lng, zoom: 15, view: 'picker' })
     : buildMobileMapUrl({ view: 'picker' });
@@ -754,6 +692,10 @@ export function AppContent() {
 
   // 지도 하단 정보창에서 지역명을 누르거나 마커를 더블 탭했을 때 상세 데이터 탭으로 이동합니다.
   const openStationDetail = (station: StationDustItem) => {
+    if (!DETAIL_DATA_ENABLED) {
+      setMapSearchMessage('상세 데이터 화면은 현재 숨겨져 있습니다.');
+      return;
+    }
     const city = station.sido;
     const region = station.city || station.name;
     if (!city || !region) {
@@ -772,7 +714,7 @@ export function AppContent() {
   };
 
   const openSelectedRegionDetail = () => {
-    if (!selectedRegion) return;
+    if (!DETAIL_DATA_ENABLED || !selectedRegion) return;
     Keyboard.dismiss();
     setShowFavoritePicker(false);
     setShowHomeRegionSearch(false);
@@ -1252,26 +1194,6 @@ export function AppContent() {
   ]);
 
   useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    let cancelled = false;
-    const eventsWithLocation = calendarEvents.filter((event) => !!calendarEventLocationKey(event));
-    const uniqueEvents = Array.from(new Map(eventsWithLocation.map((event) => [calendarEventLocationKey(event), event])).values());
-    if (uniqueEvents.length === 0) {
-      setCalendarLocationForecasts({});
-      return;
-    }
-
-    Promise.all(uniqueEvents.map((event) => loadCalendarLocationForecast(event).catch(() => null))).then((entries) => {
-      if (cancelled) return;
-      setCalendarLocationForecasts(Object.fromEntries(entries.filter((entry): entry is [string, CalendarLocationForecast] => !!entry)));
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [calendarEvents, hasLoadedRegionStore, todayDateLabel]);
-
-  useEffect(() => {
     if (!selectedRegion || mapStations.length === 0) return;
     const station = findStationForRegion(selectedRegion);
     const coords = normalizeLatLng(station?.lat, station?.lng);
@@ -1286,7 +1208,7 @@ export function AppContent() {
       return;
     }
     let isActive = true;
-    loadStoredWeather(coords.lat, coords.lng)
+    loadStoredWeather(coords.lat, coords.lng, todayDateLabel)
       .then((data) => {
         if (!isActive) return;
         setSelectedStationWeather(data.weather ?? weatherStateFromStation(selectedStation));
@@ -1377,7 +1299,7 @@ export function AppContent() {
     if (!selectedRegion) return;
     if (activeTab === 'home') loadDashboard();
     if (activeTab === 'map' && stationItems.length === 0) loadStations();
-    if (detailRegion) {
+    if (DETAIL_DATA_ENABLED && detailRegion) {
       if (dataDetailMode === 'weather') {
         loadWeatherDetail();
       } else {
@@ -1717,13 +1639,16 @@ export function AppContent() {
     </Animated.View>
   );
 
-  if (detailRegion) {
+  if (DETAIL_DATA_ENABLED && detailRegion) {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="dark" />
+        <WeatherBackdrop label={weather?.label} />
+        <ScreenTransition transitionKey={`detail-${resolvedDataRegion.city}-${resolvedDataRegion.region}-${dataDetailMode}`}>
         <ScrollView
           ref={mainScrollRef}
-          contentContainerStyle={styles.screen}
+          style={styles.screenTransitionScroll}
+          contentContainerStyle={[styles.screen, styles.detailScreen]}
           keyboardShouldPersistTaps="handled"
           refreshControl={<RefreshControl colors={[accentTone]} refreshing={isLoadingPast} tintColor={accentTone} onRefresh={() => dataDetailMode === 'weather' ? loadWeatherDetail() : loadPastData(dataRangeDays)} />}
         >
@@ -1732,12 +1657,12 @@ export function AppContent() {
               <Ionicons name="chevron-back" size={22} color="#141821" />
             </Pressable>
             <View style={styles.detailHeaderTextGroup}>
-              <Text style={styles.title}>{resolvedDataRegion.city} {resolvedDataRegion.region}</Text>
+              <Text style={styles.detailHeaderTitle}>{resolvedDataRegion.city} {resolvedDataRegion.region}</Text>
               <Text style={styles.detailHeaderSubText}>상세 데이터</Text>
             </View>
           </View>
-          <View style={[styles.segmentCard, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
-            <View style={styles.segmentRow}>
+          <View style={styles.detailModeCard}>
+            <View style={styles.detailModeRow}>
               {[
                 { key: 'dust' as const, label: '미세먼지' },
                 { key: 'weather' as const, label: '날씨' },
@@ -1745,9 +1670,9 @@ export function AppContent() {
                 <Pressable
                   key={mode.key}
                   onPress={() => setDataDetailMode(mode.key)}
-                  style={({ pressed }) => [styles.segmentButton, dataDetailMode === mode.key && { backgroundColor: accentTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
+                  style={({ pressed }) => [styles.detailModeButton, dataDetailMode === mode.key && { backgroundColor: accentTone }, pressed && styles.pressedFeedback]}
                 >
-                  <Text style={[styles.segmentText, dataDetailMode === mode.key && styles.segmentTextActive]}>{mode.label}</Text>
+                  <Text style={[styles.detailModeText, dataDetailMode === mode.key && styles.detailModeTextActive]}>{mode.label}</Text>
                 </Pressable>
               ))}
             </View>
@@ -1791,6 +1716,7 @@ export function AppContent() {
             />
           )}
         </ScrollView>
+        </ScreenTransition>
         {bottomToast}
       </SafeAreaView>
     );
@@ -1800,6 +1726,8 @@ export function AppContent() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="dark" />
+        <WeatherBackdrop label={weather?.label} />
+        <ScreenTransition transitionKey="map">
         <FullMapScreen
           accentBorderTone={accentBorderTone}
           accentTone={accentTone}
@@ -1843,6 +1771,7 @@ export function AppContent() {
           showSearchSuggestions={showSearchSuggestions}
           switchMapMarkerMode={switchMapMarkerMode}
         />
+        </ScreenTransition>
         {tabBar}
       </SafeAreaView>
     );
@@ -1850,20 +1779,11 @@ export function AppContent() {
 
   if (activeTab === 'calendar') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
         <StatusBar style="dark" />
-        <View style={styles.screen}>
-          <View style={styles.tabPageHeader}>
-            <View>
-              <Text style={styles.tabPageEyebrow}>PLAN YOUR DAY</Text>
-              <Text style={styles.tabPageTitle}>캘린더</Text>
-              <Text style={styles.tabPageSubtitle}>일정 시간대의 공기와 날씨를 함께 확인해요.</Text>
-            </View>
-            <View style={[styles.calendarTodayBadge, { backgroundColor: accentSoftTone }]}>
-              <Ionicons color={accentTone} name="sparkles-outline" size={15} />
-              <Text style={[styles.calendarTodayText, { color: accentTone }]}>오늘</Text>
-            </View>
-          </View>
+        <WeatherBackdrop label={weather?.label} />
+        <ScreenTransition transitionKey="calendar">
+        <View style={[styles.screen, styles.calendarOnlyScreen]}>
           <View style={styles.tabPageContent}>
             <CalendarPanel
               accentBorderTone={accentBorderTone}
@@ -1888,6 +1808,7 @@ export function AppContent() {
             />
           </View>
         </View>
+        </ScreenTransition>
         {tabBar}
       </SafeAreaView>
     );
@@ -1901,24 +1822,26 @@ export function AppContent() {
         keyboardVerticalOffset={0}
         style={styles.keyboardAvoidingRoot}
       >
+      {activeTab !== 'home' && activeTab !== 'account' && <WeatherBackdrop label={weather?.label} />}
+      <ScreenTransition transitionKey={activeTab}>
       <ScrollView
         ref={mainScrollRef}
-        contentContainerStyle={styles.screen}
+        style={styles.screenTransitionScroll}
+        contentContainerStyle={[styles.screen, (activeTab === 'home' || activeTab === 'account') && styles.edgeToEdgeScreen]}
         keyboardShouldPersistTaps="handled"
+        stickyHeaderIndices={activeTab === 'home' ? [0] : undefined}
         refreshControl={<RefreshControl colors={[accentTone]} refreshing={isRefreshingCurrent} tintColor={accentTone} onRefresh={loadCurrentDust} />}
       >
-        {activeTab === 'home' && <Text style={[styles.kicker, { color: accentTone }]}>DUST HEALTH AI</Text>}
         {activeTab === 'home' ? (
           <View style={styles.homeHeader}>
             <View style={styles.homeTitleRow}>
               <Pressable
-                disabled={favoriteRegions.length === 0}
-                accessibilityLabel="즐겨찾기 지역 선택"
-                onPress={toggleFavoritePicker}
-                style={({ pressed }) => [styles.homeTitleButton, pressed && favoriteRegions.length > 0 && styles.pressedFeedback]}
+                accessibilityLabel={favoriteRegions.length === 0 ? '지역 검색 열기' : '즐겨찾기 지역 선택'}
+                onPress={favoriteRegions.length === 0 ? openHomeRegionSearch : toggleFavoritePicker}
+                style={({ pressed }) => [styles.homeTitleButton, pressed && styles.pressedFeedback]}
               >
                 <View style={styles.homeTitleInline}>
-                  <Text numberOfLines={1} style={styles.title}>{activeCity} {activeRegion}</Text>
+                  <Text numberOfLines={1} style={[styles.title, styles.homeRegionTitle]}>{activeCity} {activeRegion}</Text>
                   <Ionicons color="#141821" name="chevron-down" size={20} style={styles.homeTitleChevron} />
                 </View>
               </Pressable>
@@ -1927,7 +1850,7 @@ export function AppContent() {
                 onPress={openHomeRegionSearch}
                 style={({ pressed }) => [styles.regionAddButton, showHomeRegionSearch && { backgroundColor: accentSoftTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
               >
-                <Ionicons color={showHomeRegionSearch ? accentTone : '#687180'} name="search-outline" size={15} />
+                <AppActionIcon name="search" size={22} />
                 <Text style={[styles.regionAddText, showHomeRegionSearch && { color: accentTone }]}>지역 검색</Text>
               </Pressable>
               <View style={styles.homeWeatherChip}>
@@ -1945,9 +1868,7 @@ export function AppContent() {
         ) : activeTab === 'account' ? (
           <View style={styles.tabPageHeader}>
             <View>
-              <Text style={styles.tabPageEyebrow}>YOUR SETTINGS</Text>
               <Text style={styles.tabPageTitle}>설정</Text>
-              <Text style={styles.tabPageSubtitle}>지역과 알림을 내 생활에 맞게 관리해요.</Text>
             </View>
             <Ionicons color="#2563eb" name="options-outline" size={24} />
           </View>
@@ -2086,13 +2007,14 @@ export function AppContent() {
               setActiveTab('map');
             }}
             mapPreviewUrl={homeMapPreviewUrl}
-            mapPreviewLabel={homeMapPreviewLabel}
             hourlyItems={hourlyItems}
             weatherHourlyItems={weatherHourlyItems}
             weatherMidTermItems={weatherMidTermItems}
             prediction={prediction}
             todayDateLabel={todayDateLabel}
             weather={weather}
+            yesterdayWeather={yesterdayWeather}
+            pastItems={pastItems}
           />
         )}
 
@@ -2114,6 +2036,7 @@ export function AppContent() {
           />
         )}
       </ScrollView>
+      </ScreenTransition>
       </KeyboardAvoidingView>
       {isRegionTransitioning && activeTab === 'home' && (
         <Animated.View
@@ -2138,6 +2061,3 @@ export function AppContent() {
     </SafeAreaView>
   );
 }
-
-
-

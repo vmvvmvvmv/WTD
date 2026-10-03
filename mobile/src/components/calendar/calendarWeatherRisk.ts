@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 
 import type { CalendarEvent } from '../../types/dust';
+import { semanticColors } from '../../theme/semanticColors';
 import { isDateInEventRange } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 
@@ -55,7 +56,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
       key: 'snowCold',
       label: '\uB208\u00B7\uC800\uC628 \uC8FC\uC758',
       priority: 40,
-      tone: '#d94b4b',
+      tone: semanticColors.weather.danger.tone,
     });
   }
   if (hasHeat(risk)) {
@@ -64,7 +65,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
       key: 'heat',
       label: typeof risk?.temperature === 'number' ? `\uACE0\uC628 \uC8FC\uC758 ${Math.round(risk.temperature)}\u00B0C` : '\uACE0\uC628 \uC8FC\uC758',
       priority: 35,
-      tone: risk?.temperature && risk.temperature >= 33 ? '#d94b4b' : '#c58a19',
+      tone: risk?.temperature && risk.temperature >= 33 ? semanticColors.weather.danger.tone : semanticColors.weather.caution.tone,
     });
   }
   if (hasRain(risk)) {
@@ -73,7 +74,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
       key: 'rain',
       label: risk?.rainTimeRange ? `${risk.rainTimeRange} \uBE44 \uC608\uC0C1` : '\uBE44 \uC608\uC0C1',
       priority: 30,
-      tone: '#2f80ed',
+      tone: semanticColors.weather.normal.tone,
     });
   }
   if (hasWind(risk)) {
@@ -82,7 +83,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
       key: 'wind',
       label: '\uAC15\uD48D \uC8FC\uC758',
       priority: 20,
-      tone: '#c58a19',
+      tone: semanticColors.weather.caution.tone,
     });
   }
   if (indicators.length === 0 && (risk?.level === 'bad' || risk?.level === 'adjust')) {

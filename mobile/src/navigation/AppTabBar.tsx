@@ -16,7 +16,6 @@ type AppTabBarProps = {
 export function AppTabBar({
   activeTab,
   accentBorderTone,
-  accentSoftTone,
   accentTone,
   onNavigate,
 }: AppTabBarProps) {
@@ -33,11 +32,11 @@ export function AppTabBar({
             onPress={() => onNavigate(route.key)}
             style={({ pressed }) => [
               styles.tabItem,
-              isActive && { backgroundColor: accentSoftTone },
+              isActive && { borderTopColor: accentTone },
               pressed && styles.pressedFeedback,
             ]}
           >
-            <Ionicons name={route.icon} size={19} color={isActive ? accentTone : '#687180'} />
+            <Ionicons color={isActive ? accentTone : '#687180'} name={route.icon} size={19} />
             <Text style={[styles.tabText, isActive && { color: accentTone }]}>{route.label}</Text>
           </Pressable>
         );

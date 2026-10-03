@@ -58,10 +58,41 @@ function mergeWeatherHourlyItems(items: WeatherHourlyItem[]) {
   return [...byTime.values()].sort((a, b) => weatherItemKey(a).localeCompare(weatherItemKey(b)));
 }
 
-function forecastAfterCurrentHour(forecastItems: WeatherHourlyItem[], currentItem: WeatherHourlyItem | null) {
-  if (!currentItem) return forecastItems;
-  const currentKey = weatherItemKey(currentItem);
-  return forecastItems.filter((item) => weatherItemKey(item) > currentKey);
+function weatherItemTimestamp(item: WeatherHourlyItem) {
+  const rawDate = item.date ?? item.measuredAt?.slice(0, 10) ?? '';
+  const dateMatch = rawDate.match(/^(\d{4})-?(\d{2})-?(\d{2})/);
+  const rawTime = item.hour ?? item.measuredAt?.slice(11, 16) ?? '';
+  const timeMatch = rawTime.match(/^(\d{1,2}):(\d{2})/);
+  if (!dateMatch || !timeMatch) return undefined;
+  const timestamp = new Date(
+    Number(dateMatch[1]),
+    Number(dateMatch[2]) - 1,
+    Number(dateMatch[3]),
+    Number(timeMatch[1]),
+    Number(timeMatch[2]),
+  ).getTime();
+  return Number.isNaN(timestamp) ? undefined : timestamp;
+}
+
+function currentHourRange(now = new Date()) {
+  const start = new Date(now);
+  start.setMinutes(0, 0, 0);
+  return { start: start.getTime(), end: start.getTime() + 60 * 60 * 1000 };
+}
+
+function itemsFromCurrentHour(items: WeatherHourlyItem[], now = new Date()) {
+  const { start } = currentHourRange(now);
+  return items.filter((item) => {
+    const timestamp = weatherItemTimestamp(item);
+    return timestamp === undefined || timestamp >= start;
+  });
+}
+
+function itemInCurrentHour(item: WeatherHourlyItem | null, now = new Date()) {
+  if (!item) return null;
+  const timestamp = weatherItemTimestamp(item);
+  const { start, end } = currentHourRange(now);
+  return timestamp !== undefined && timestamp >= start && timestamp < end ? item : null;
 }
 
 function currentDustHourItem(currentItem: CurrentDustItem | null, todayDateLabel: string): HourlyDustItem | null {
@@ -127,13 +158,16 @@ export function buildDashboardWeatherHourlyItems(
 ) {
   const storedItems = Array.isArray(weatherHourlyData?.items) ? weatherHourlyData.items as WeatherHourlyItem[] : [];
   const forecastItems = Array.isArray(weatherHourlyData?.forecastItems) ? weatherHourlyData.forecastItems as WeatherHourlyItem[] : [];
-  const currentItem = currentHourItem(currentWeather, todayDateLabel);
-  const nextForecastItems = forecastAfterCurrentHour(forecastItems, currentItem);
+  const now = new Date();
+  const currentItem = itemInCurrentHour(currentHourItem(currentWeather, todayDateLabel), now);
+  const nextForecastItems = itemsFromCurrentHour(forecastItems, now);
   if (currentItem) {
     return mergeWeatherHourlyItems([currentItem, ...nextForecastItems]);
   }
 
-  const latestStoredItem = storedItems.length > 0 ? { ...storedItems[storedItems.length - 1], phase: 'stored' } : null;
+  const latestStoredItem = storedItems.length > 0
+    ? itemInCurrentHour({ ...storedItems[storedItems.length - 1], phase: 'stored' }, now)
+    : null;
   const nextItems = mergeWeatherHourlyItems([
     ...(latestStoredItem ? [latestStoredItem] : []),
     ...nextForecastItems,

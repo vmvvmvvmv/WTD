@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import type { GestureResponderEvent } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
@@ -13,15 +13,18 @@ import { toNumber } from '../../utils/dust';
 type WeatherDataMetricKey = 'temperature' | 'humidity' | 'wind_speed' | 'rain_mm';
 type ChartMode = 'line' | 'bar';
 
+const DETAIL_WEATHER_ICON = require('../../../assets/icons/detail-weather-v2.png');
+const DETAIL_WEATHER_BACKGROUND = require('../../../assets/home-metric-clear-v3.png');
+
 const weatherMetrics: { key: WeatherDataMetricKey; code: string; label: string; unit: string; decimals: number }[] = [
   { key: 'temperature', code: 'TEMP', label: '기온', unit: '°C', decimals: 0 },
   { key: 'humidity', code: 'HUM', label: '습도', unit: '%', decimals: 0 },
   { key: 'wind_speed', code: 'WIND', label: '풍속', unit: 'm/s', decimals: 1 },
   { key: 'rain_mm', code: 'RAIN', label: '강수량', unit: 'mm', decimals: 1 },
 ];
-const WEATHER_CHART_TONE = '#f3b43f';
-const WEATHER_TEMP_LOW_TONE = '#2f80ed';
-const WEATHER_TEMP_HIGH_TONE = '#d94b4b';
+const WEATHER_CHART_TONE = '#F4C542';
+const WEATHER_TEMP_LOW_TONE = '#2D5DA1';
+const WEATHER_TEMP_HIGH_TONE = '#FF4D4D';
 const WEATHER_NEUTRAL_TONE = '#687180';
 const WEATHER_BLUE_LOW_TONE = '#b9dcff';
 const WEATHER_BLUE_MID_TONE = '#4d9bef';
@@ -109,6 +112,7 @@ export function WeatherDataPanel({
   accentBorderTone,
   accentSoftTone,
   accentTone,
+  currentWeather,
   dataRangeDays,
   error,
   isLoading,
@@ -141,6 +145,7 @@ export function WeatherDataPanel({
   const [chartMode, setChartMode] = useState<ChartMode>('line');
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [listPageIndex, setListPageIndex] = useState(0);
+  const { width: windowWidth } = useWindowDimensions();
   const activeMetric = weatherMetrics.find((item) => item.key === metric) ?? weatherMetrics[0];
   const chartItems = useMemo(() => items.filter((item) => typeof weatherValue(item, metric) === 'number').slice(-180), [items, metric]);
   const reversedItems = useMemo(() => [...items].reverse(), [items]);
@@ -151,13 +156,26 @@ export function WeatherDataPanel({
     : [];
   const values = chartItems.map((item) => weatherValue(item, metric)).filter((value): value is number => typeof value === 'number');
   const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
+  const latestDailyItem = chartItems[chartItems.length - 1];
+  const latestDailyValue = latestDailyItem ? weatherValue(latestDailyItem, metric) : undefined;
+  const currentMetricValue = metric === 'temperature'
+    ? toNumber(currentWeather?.temperature)
+    : metric === 'humidity'
+      ? toNumber(currentWeather?.humidity)
+      : metric === 'wind_speed'
+        ? toNumber(currentWeather?.windSpeed)
+        : toNumber(currentWeather?.rainMm);
+  const summaryValue = currentMetricValue ?? latestDailyValue;
+  const summaryDate = currentMetricValue !== undefined ? '현재 관측' : latestDailyItem?.date ?? '최근 데이터 없음';
+  const activeRangeLabel = dataRanges.find((range) => range.days === dataRangeDays)?.label ?? `${dataRangeDays}일`;
   const selectedPointIndex = selectedIndex !== null && chartItems[selectedIndex] ? selectedIndex : chartItems.length - 1;
   const selectedItem = chartItems[selectedPointIndex];
   const selectedValue = selectedItem ? weatherValue(selectedItem, metric) : undefined;
   const latestWeatherDate = chartItems[chartItems.length - 1]?.date ?? items[items.length - 1]?.date ?? '-';
-  const chartWidth = Math.max(320, chartItems.length * 34);
-  const compactBarChart = chartItems.length <= 10;
-  const barChartWidth = compactBarChart ? 320 : Math.max(320, chartItems.length * 24);
+  const barChartItems = chartItems.length <= 8
+    ? chartItems
+    : Array.from({ length: 8 }, (_, index) => chartItems[Math.round((index * (chartItems.length - 1)) / 7)]);
+  const chartWidth = Math.max(280, windowWidth - 40);
   const chartHeight = 188;
   const chartPaddingX = 28;
   const chartPaddingTop = 18;
@@ -201,8 +219,8 @@ export function WeatherDataPanel({
   };
 
   const renderLineChart = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartScroll} contentContainerStyle={styles.chartScrollContent}>
-      <View style={[styles.detailLineChartArea, { width: chartWidth, shadowColor: accentTone }]}>
+    <View style={styles.chartScroll}>
+      <View style={[styles.detailLineChartArea, { width: chartWidth }]}>
         <Svg width={chartWidth} height={chartHeight} viewBox={`0 0 ${chartWidth} ${chartHeight}`}>
           <Line x1={chartPaddingX} x2={chartWidth - chartPaddingX} y1={chartPaddingTop + chartInnerHeight} y2={chartPaddingTop + chartInnerHeight} stroke="#eef1f5" strokeWidth={2} />
           <Line x1={chartPaddingX} x2={chartWidth - chartPaddingX} y1={chartPaddingTop + chartInnerHeight / 2} y2={chartPaddingTop + chartInnerHeight / 2} stroke="#eef1f5" strokeDasharray="5 6" strokeWidth={1.5} />
@@ -226,31 +244,32 @@ export function WeatherDataPanel({
         )}
         <Pressable accessibilityLabel={`${activeMetric.label} 일자료 수치 보기`} onPress={handleChartPress} style={styles.detailLineChartTouchSurface} />
       </View>
-    </ScrollView>
+    </View>
   );
 
   const renderBarChart = () => (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartScroll} contentContainerStyle={styles.chartScrollContent}>
-      <View style={[styles.chartArea, compactBarChart ? styles.weatherChartAreaCompact : { width: barChartWidth }]}>
-        {chartItems.map((item, index) => {
+    <View style={styles.chartScroll}>
+      <View style={[styles.chartArea, styles.weatherChartAreaCompact]}>
+        {barChartItems.map((item) => {
+          const index = chartItems.indexOf(item);
           const value = weatherValue(item, metric);
           const height = typeof value === 'number' ? Math.max(8, ((value - chartMin) / chartRange) * 108) : 4;
           const selected = index === selectedPointIndex;
           const barTone = weatherMetricChartTone(metric, value);
           return (
-            <Pressable key={`${weatherDateLabel(item)}-${metric}-bar`} onPress={() => setSelectedIndex(index)} style={({ pressed }) => [styles.chartColumn, compactBarChart && styles.weatherChartColumnCompact, pressed && styles.pressedFeedback]}>
+            <Pressable key={`${weatherDateLabel(item)}-${metric}-bar`} onPress={() => setSelectedIndex(index)} style={({ pressed }) => [styles.chartColumn, styles.weatherChartColumnCompact, pressed && styles.pressedFeedback]}>
               <View style={styles.chartTrackWrap}>
                 {selected && <View style={[styles.chartSelectedCap, { backgroundColor: barTone }]} />}
                 <View style={styles.chartTrack}>
                   <View style={[styles.chartBar, selected && styles.chartBarSelected, { borderColor: selected ? barTone : 'transparent', height, backgroundColor: barTone }]} />
                 </View>
               </View>
-              <Text style={[styles.chartDate, compactBarChart && styles.chartDateCompact]}>{(item.date ?? '').slice(5).replace('-', '.')}</Text>
+              <Text style={[styles.chartDate, styles.chartDateCompact]}>{(item.date ?? '').slice(5).replace('-', '.')}</Text>
             </Pressable>
           );
         })}
       </View>
-    </ScrollView>
+    </View>
   );
 
   const renderWeatherRow = (item: WeatherDailyItem, index: number) => {
@@ -281,8 +300,8 @@ export function WeatherDataPanel({
   };
 
   return (
-    <View onTouchStart={() => selectedIndex !== null && setSelectedIndex(null)}>
-      <Pressable onPress={onToggleRegionPicker} style={({ pressed }) => [styles.detailRegionSelector, { borderColor: accentBorderTone, shadowColor: accentTone }, pressed && styles.pressedFeedback]}>
+    <View style={styles.detailPanel} onTouchStart={() => selectedIndex !== null && setSelectedIndex(null)}>
+      <Pressable onPress={onToggleRegionPicker} style={({ pressed }) => [styles.detailRegionSelector, pressed && styles.pressedFeedback]}>
         <View>
           <Text style={styles.detailRegionSelectorLabel}>보고 있는 지역</Text>
           <Text style={styles.detailRegionTitle}>{region.city} {region.region}</Text>
@@ -293,7 +312,42 @@ export function WeatherDataPanel({
       </Pressable>
       {regionPickerContent}
 
-      <View style={[styles.segmentCard, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
+      <View style={styles.detailSummaryHero}>
+        <Image resizeMode="cover" source={DETAIL_WEATHER_BACKGROUND} style={styles.detailSummaryBackgroundImage} />
+        <View style={styles.detailSummaryOrbLarge} />
+        <View style={styles.detailSummaryOrbSmall} />
+        <View style={styles.detailSummaryHeader}>
+          <View style={styles.detailSummaryHeading}>
+            <Text style={styles.detailSummaryEyebrow}>{activeMetric.code} · {activeRangeLabel}</Text>
+            <Text style={styles.detailSummaryTitle}>{activeMetric.label} 상세 현황</Text>
+          </View>
+          <View style={styles.detailSummaryIcon}>
+            <Image resizeMode="contain" source={DETAIL_WEATHER_ICON} style={styles.detailSummaryIconImage} />
+          </View>
+        </View>
+        <View style={styles.detailSummaryBody}>
+          <View style={styles.detailSummaryPrimary}>
+            <View style={styles.detailSummaryValueRow}>
+              <Text style={styles.detailSummaryValue}>{formatWeatherValue(summaryValue, activeMetric.decimals)}</Text>
+              <Text style={styles.detailSummaryUnit}>{activeMetric.unit}</Text>
+            </View>
+            <Text style={styles.detailSummaryStatus}>{currentMetricValue !== undefined ? '현재' : '최근 일평균'}</Text>
+            <Text style={styles.detailSummaryDate}>{summaryDate}</Text>
+          </View>
+          <View style={styles.detailSummaryStats}>
+            <View style={styles.detailSummaryStat}>
+              <Text style={styles.detailSummaryStatLabel}>기간 평균</Text>
+              <Text style={styles.detailSummaryStatValue}>{formatWeatherValue(average, activeMetric.decimals)} {activeMetric.unit}</Text>
+            </View>
+            <View style={[styles.detailSummaryStat, styles.detailSummaryStatDivider]}>
+              <Text style={styles.detailSummaryStatLabel}>기록 수</Text>
+              <Text style={styles.detailSummaryStatValue}>{items.length}일</Text>
+            </View>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.segmentCard}>
         <Text style={styles.sectionLabel}>기간</Text>
         <View style={styles.segmentRow}>
           {dataRanges.map((range) => (
@@ -312,11 +366,10 @@ export function WeatherDataPanel({
         </View>
       </View>
 
-      <View style={[styles.card, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
+      <View style={[styles.card, styles.detailSectionCard]}>
         <View style={styles.cardHeader}>
           <View style={styles.detailChartTitleGroup}>
             <Text style={styles.cardTitle}>{activeMetric.label} 일별 기록</Text>
-            <Text numberOfLines={1} style={styles.cardHint}>최근 {dataRangeDays}일의 일평균 기록을 볼 수 있어요.</Text>
           </View>
           <View style={[styles.chartModeRow, styles.chartModeRowInline]}>
             {[{ key: 'line' as const, label: '선형' }, { key: 'bar' as const, label: '막대' }].map((mode) => (
@@ -370,11 +423,10 @@ export function WeatherDataPanel({
         )}
       </View>
 
-      <View style={[styles.card, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
-        <Pressable onPress={() => { setIsListExpanded((current) => !current); setListPageIndex(0); }} style={({ pressed }) => [styles.listHeader, { borderColor: accentBorderTone }, pressed && styles.pressedFeedback]}>
+      <View style={[styles.card, styles.detailSectionCard]}>
+        <Pressable onPress={() => { setIsListExpanded((current) => !current); setListPageIndex(0); }} style={({ pressed }) => [styles.listHeader, pressed && styles.pressedFeedback]}>
           <View>
-            <Text style={styles.cardTitle}>일평균 기록 목록</Text>
-            <Text style={styles.cardHint}>전체 {items.length}개</Text>
+            <Text style={styles.cardTitle}>일평균 기록 목록 · {items.length}</Text>
           </View>
           <View style={styles.listHeaderAction}>
             <View style={[styles.listChevron, { borderColor: accentBorderTone }]}>

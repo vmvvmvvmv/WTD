@@ -92,11 +92,11 @@ export function CalendarMonthGrid({
     <View style={styles.calendarMonthCard}>
       <View style={styles.calendarMonthHeader}>
         <Pressable accessibilityLabel={"\uC774\uC804 \uB2EC"} onPress={() => handleMoveMonth(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color="#4b5563" name="chevron-back" size={18} />
+          <Ionicons color="#3D7FEA" name="chevron-back" size={22} />
         </Pressable>
         <Text style={styles.calendarMonthTitle}>{monthTitle}</Text>
         <Pressable accessibilityLabel={"\uB2E4\uC74C \uB2EC"} onPress={() => handleMoveMonth(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color="#4b5563" name="chevron-forward" size={18} />
+          <Ionicons color="#3D7FEA" name="chevron-forward" size={22} />
         </Pressable>
       </View>
       <View style={styles.calendarWeekRow}>

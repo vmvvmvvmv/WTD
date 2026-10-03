@@ -6,6 +6,7 @@ import { styles } from '../../styles/appStyles';
 import type { NotificationSettings, RegionState } from '../../types/dust';
 import { isSameRegion } from '../../utils/dust';
 import { NotificationToggleRow } from '../shared/DustWidgets';
+import { AppActionIcon } from '../shared/AppActionIcon';
 
 // Manages location, notification options, and favorite regions on the settings screen.
 export function RegionPanel({
@@ -54,13 +55,21 @@ export function RegionPanel({
 
   return (
     <>
-      <View style={styles.accountHero}>
+      <View style={styles.settingsHero}>
+        <View style={styles.settingsHeroTop}>
+          <View style={[styles.settingsHeroIcon, { backgroundColor: accentSoftTone }]}>
+            <Ionicons color={accentTone} name="settings-outline" size={22} />
+          </View>
+          <View style={styles.settingsHeroTextGroup}>
+            <Text style={styles.settingsHeroTitle}>{selectedRegion.city} {selectedRegion.region}</Text>
+          </View>
+        </View>
         <Pressable disabled={isLocating} onPress={onUseCurrentLocation} style={({ pressed }) => [styles.locationButton, pressed && styles.pressedFeedback]}>
           {isLocating ? (
             <ActivityIndicator color={accentTone} />
           ) : (
             <>
-              <Ionicons color={accentTone} name="locate-outline" size={17} />
+              <AppActionIcon name="location" size={24} />
               <Text style={[styles.locationButtonText, { color: accentTone }]}>{'\uD604\uC7AC \uC704\uCE58\uB85C \uC9C0\uC5ED \uC124\uC815'}</Text>
             </>
           )}
@@ -68,13 +77,14 @@ export function RegionPanel({
         {!!locationMessage && <Text style={styles.accountMessage}>{locationMessage}</Text>}
       </View>
 
-      <View style={[styles.card, { borderColor: accentBorderTone }]}>
-        <View style={styles.cardHeader}>
-          <View>
-            <Text style={styles.cardTitle}>{'\uC54C\uB9BC \uC124\uC815'}</Text>
-            <Text style={styles.cardHint}>
-              {notificationsUnavailable ? '\uAC1C\uBC1C \uBE4C\uB4DC\uC5D0\uC11C \uC54C\uB9BC\uC744 \uD655\uC778\uD574\uC8FC\uC138\uC694.' : '\uC77C\uC815 \uC2DC\uAC04\uC5D0 \uB9DE\uCDB0 \uB0A0\uC528\uC640 \uC900\uBE44\uBB3C \uC548\uB0B4\uB97C \uBC1B\uC744 \uC218 \uC788\uC5B4\uC694.'}
-            </Text>
+      <View style={styles.settingsSection}>
+        <View style={styles.settingsSectionHeader}>
+          <View style={[styles.settingsSectionIcon, { backgroundColor: accentSoftTone }]}>
+            <AppActionIcon name="notification" size={25} />
+          </View>
+          <View style={styles.settingsSectionTitleGroup}>
+            <Text style={styles.settingsSectionTitle}>{'\uC54C\uB9BC \uC124\uC815'}</Text>
+            {notificationsUnavailable && <Text style={styles.settingsUnavailableText}>{'\uAC1C\uBC1C \uBE4C\uB4DC\uC5D0\uC11C \uC54C\uB9BC\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC788\uC5B4\uC694.'}</Text>}
           </View>
           {isSavingNotificationSettings && <ActivityIndicator color={accentTone} />}
         </View>
@@ -101,18 +111,20 @@ export function RegionPanel({
         />
       </View>
 
-      <View style={[styles.card, { borderColor: accentBorderTone }]}>
-        <View style={styles.cardHeader}>
-          <View>
-            <Text style={styles.cardTitle}>{'\uC990\uACA8\uCC3E\uAE30 \uC9C0\uC5ED'}</Text>
-            <Text style={styles.cardHint}>{'\uC790\uC8FC \uD655\uC778\uD558\uB294 \uC9C0\uC5ED\uC744 \uC800\uC7A5\uD574\uB450\uACE0 \uD648\uC5D0\uC11C \uBE60\uB974\uAC8C \uBC14\uAFD4\uBCFC \uC218 \uC788\uC5B4\uC694.'}</Text>
+      <View style={styles.settingsSection}>
+        <View style={styles.settingsSectionHeader}>
+          <View style={[styles.settingsSectionIcon, { backgroundColor: accentSoftTone }]}>
+            <AppActionIcon name="favorite" size={25} />
+          </View>
+          <View style={styles.settingsSectionTitleGroup}>
+            <Text style={styles.settingsSectionTitle}>{'\uC990\uACA8\uCC3E\uAE30 \uC9C0\uC5ED'}</Text>
           </View>
         </View>
 
         {favoriteRegions.length === 0 ? (
           <View style={styles.emptyFavoriteBox}>
-            <Ionicons color="#8a94a3" name="star-outline" size={22} />
-            <Text style={styles.mutedText}>{'\uC9C0\uB3C4\uB098 \uD648\uC758 \uC9C0\uC5ED \uAC80\uC0C9\uC5D0\uC11C \uBCC4\uD45C\uB97C \uB204\uB974\uBA74 \uC5EC\uAE30\uC5D0 \uC800\uC7A5\uB3FC\uC694.'}</Text>
+            <AppActionIcon name="favorite" size={30} />
+            <Text style={styles.mutedText}>{'\uC800\uC7A5\uB41C \uC9C0\uC5ED\uC774 \uC5C6\uC5B4\uC694.'}</Text>
           </View>
         ) : (
           <>
@@ -120,14 +132,17 @@ export function RegionPanel({
               {visibleFavoriteRegions.map((region) => {
                 const selected = isSameRegion(region, selectedRegion);
                 return (
-                  <View key={`${region.city}-${region.region}`} style={[styles.favoriteRow, selected && { backgroundColor: accentSoftTone, borderColor: accentTone }]}>
+                  <View key={`${region.city}-${region.region}`} style={[styles.settingsFavoriteRow, selected && { backgroundColor: accentSoftTone }]}>
                     <View style={styles.favoriteSelectArea}>
-                      <Text style={[styles.favoriteTitle, selected && { color: accentTone }]}>{region.city} {region.region}</Text>
+                      <View style={styles.settingsFavoriteTitleRow}>
+                        {selected && <View style={[styles.settingsFavoriteActiveDot, { backgroundColor: accentTone }]} />}
+                        <Text style={[styles.favoriteTitle, selected && { color: accentTone }]}>{region.city} {region.region}</Text>
+                      </View>
                       <Text style={styles.favoriteMeta}>{region.label ? `${region.label} ${'\uCE21\uC815\uC18C \uAE30\uC900'}` : '\uC800\uC7A5\uB41C \uC9C0\uC5ED'}</Text>
                     </View>
-                    <Pressable onPress={() => onRemoveFavorite(region)} style={({ pressed }) => [styles.favoriteRemoveButton, pressed && styles.pressedFeedback]}>
+                    <Pressable onPress={() => onRemoveFavorite(region)} style={({ pressed }) => [styles.settingsFavoriteRemoveButton, pressed && styles.pressedFeedback]}>
                       <Ionicons color="#687180" name="trash-outline" size={15} />
-                      <Text style={styles.favoriteRemoveText}>{'\uC0AD\uC81C'}</Text>
+                      <Text style={styles.settingsFavoriteRemoveText}>{'\uC0AD\uC81C'}</Text>
                     </Pressable>
                   </View>
                 );
@@ -138,7 +153,7 @@ export function RegionPanel({
                 <Pressable
                   disabled={!canGoPrevFavoritePage}
                   onPress={() => setFavoritePageIndex((page) => Math.max(0, page - 1))}
-                  style={({ pressed }) => [styles.favoritePagerButton, !canGoPrevFavoritePage && styles.favoritePagerButtonDisabled, pressed && canGoPrevFavoritePage && styles.pressedFeedback]}
+                  style={({ pressed }) => [styles.settingsPagerButton, !canGoPrevFavoritePage && styles.settingsPagerButtonDisabled, pressed && canGoPrevFavoritePage && styles.pressedFeedback]}
                 >
                   <Text style={[styles.favoritePagerIcon, !canGoPrevFavoritePage && styles.favoritePagerIconDisabled]}>‹</Text>
                 </Pressable>
@@ -146,7 +161,7 @@ export function RegionPanel({
                 <Pressable
                   disabled={!canGoNextFavoritePage}
                   onPress={() => setFavoritePageIndex((page) => Math.min(favoritePageCount - 1, page + 1))}
-                  style={({ pressed }) => [styles.favoritePagerButton, !canGoNextFavoritePage && styles.favoritePagerButtonDisabled, pressed && canGoNextFavoritePage && styles.pressedFeedback]}
+                  style={({ pressed }) => [styles.settingsPagerButton, !canGoNextFavoritePage && styles.settingsPagerButtonDisabled, pressed && canGoNextFavoritePage && styles.pressedFeedback]}
                 >
                   <Text style={[styles.favoritePagerIcon, !canGoNextFavoritePage && styles.favoritePagerIconDisabled]}>›</Text>
                 </Pressable>

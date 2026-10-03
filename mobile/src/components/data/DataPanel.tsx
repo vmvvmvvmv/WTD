@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { DATA_LIST_PAGE_SIZE, dataMetrics, dataRanges } from '../../constants/dust';
@@ -11,6 +11,8 @@ import { formatValue, getMetricLabel, getMetricTone, getMetricValue } from '../.
 import { FlowRow } from '../shared/DustWidgets';
 
 type ChartMode = 'line' | 'bar';
+
+const DETAIL_DUST_BACKGROUND = require('../../../assets/home-metric-cloudy-v1.png');
 
 function dustChartMax(metric: DataMetricKey, maxValue: number) {
   if (metric === 'o3' || metric === 'no2') {
@@ -63,6 +65,7 @@ export function DataPanel({
   const [isListExpanded, setIsListExpanded] = useState(false);
   const [listPageIndex, setListPageIndex] = useState(0);
   const [chartMode, setChartMode] = useState<ChartMode>('line');
+  const { width: windowWidth } = useWindowDimensions();
   const activeMetric = dataMetrics.find((metric) => metric.key === dataMetric) ?? dataMetrics[0];
   const chartItems = items.slice(-Math.min(items.length, 180));
   const reversedItems = useMemo(() => [...items].reverse(), [items]);
@@ -76,10 +79,12 @@ export function DataPanel({
   const latestItem = [...items].reverse().find((item) => typeof getMetricValue(item, dataMetric) === 'number');
   const average = values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : undefined;
   const maxValue = values.length ? Math.max(...values) : 0;
-  const compactChart = chartItems.length <= 10;
   const selectedChartItem = chartItems.find((item) => item.msurDt === selectedChartDate) ?? chartItems[chartItems.length - 1];
   const selectedChartValue = selectedChartItem ? getMetricValue(selectedChartItem, dataMetric) : undefined;
-  const chartWidth = compactChart ? 320 : Math.max(320, chartItems.length * 34);
+  const chartViewportWidth = Math.max(280, windowWidth - 40);
+  const chartPointSpacing = 54;
+  const chartWidth = Math.max(chartViewportWidth, Math.max(0, chartItems.length - 1) * chartPointSpacing + 56);
+  const barChartWidth = Math.max(chartViewportWidth, chartItems.length * 54 + 12);
   const lineChartHeight = 188;
   const chartPaddingX = 28;
   const chartPaddingTop = 18;
@@ -123,8 +128,15 @@ export function DataPanel({
   };
 
   const renderLineChart = () => (
-    <ScrollView horizontal={!compactChart} scrollEnabled={!compactChart} showsHorizontalScrollIndicator={false} style={styles.chartScroll} contentContainerStyle={styles.chartScrollContent}>
-      <View style={[styles.detailLineChartArea, { width: chartWidth, shadowColor: accentTone }]}>
+    <ScrollView
+      contentOffset={{ x: Math.max(0, chartWidth - chartViewportWidth), y: 0 }}
+      horizontal
+      key={`dust-line-${dataMetric}-${dataRangeDays}-${chartItems.length}`}
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator={false}
+      style={styles.chartScroll}
+    >
+      <View style={[styles.detailLineChartArea, { width: chartWidth }]}>
         <Svg width={chartWidth} height={lineChartHeight} viewBox={`0 0 ${chartWidth} ${lineChartHeight}`}>
           <Line x1={chartPaddingX} x2={chartWidth - chartPaddingX} y1={chartPaddingTop + chartInnerHeight} y2={chartPaddingTop + chartInnerHeight} stroke="#eef1f5" strokeWidth={2} />
           <Line x1={chartPaddingX} x2={chartWidth - chartPaddingX} y1={chartPaddingTop + chartInnerHeight / 2} y2={chartPaddingTop + chartInnerHeight / 2} stroke="#eef1f5" strokeDasharray="5 6" strokeWidth={1.5} />
@@ -150,8 +162,7 @@ export function DataPanel({
               />
             );
           })}
-          {chartPoints.map((point, index) => {
-            if (index % Math.ceil(chartItems.length / 8 || 1) !== 0 && index !== chartItems.length - 1) return null;
+          {chartPoints.map((point) => {
             return (
               <SvgText
                 key={`${point.item.msurDt}-${dataMetric}-label`}
@@ -185,14 +196,21 @@ export function DataPanel({
   );
 
   const renderBarChart = () => (
-    <ScrollView horizontal={!compactChart} scrollEnabled={!compactChart} showsHorizontalScrollIndicator={false} style={styles.chartScroll} contentContainerStyle={styles.chartScrollContent}>
-      <View style={[styles.chartArea, compactChart ? styles.chartAreaCompact : { width: Math.max(320, chartItems.length * 24) }]}>
+    <ScrollView
+      contentOffset={{ x: Math.max(0, barChartWidth - chartViewportWidth), y: 0 }}
+      horizontal
+      key={`dust-bar-${dataMetric}-${dataRangeDays}-${chartItems.length}`}
+      nestedScrollEnabled
+      showsHorizontalScrollIndicator={false}
+      style={styles.chartScroll}
+    >
+      <View style={[styles.chartArea, styles.chartAreaCompact, { justifyContent: 'flex-start', width: barChartWidth }]}>
         {chartItems.map((item) => {
           const value = getMetricValue(item, dataMetric);
           const height = typeof value === 'number' ? Math.max(8, (value / chartMax) * 108) : 4;
           const selected = item.msurDt === selectedChartItem?.msurDt;
           return (
-            <Pressable key={`${item.msurDt}-${dataMetric}`} onPress={() => onSelectChartDate(item.msurDt)} style={({ pressed }) => [styles.chartColumn, compactChart && styles.chartColumnCompact, pressed && styles.pressedFeedback]}>
+            <Pressable key={`${item.msurDt}-${dataMetric}`} onPress={() => onSelectChartDate(item.msurDt)} style={({ pressed }) => [styles.chartColumn, styles.chartColumnCompact, pressed && styles.pressedFeedback]}>
               <View style={styles.chartTrackWrap}>
                 {selected && <View style={[styles.chartSelectedCap, { backgroundColor: getMetricTone(dataMetric, value) }]} />}
                 <View style={styles.chartTrack}>
@@ -210,7 +228,7 @@ export function DataPanel({
                   />
                 </View>
               </View>
-              <Text style={[styles.chartDate, compactChart && styles.chartDateCompact]}>{item.msurDt.slice(5).replace('-', '.')}</Text>
+              <Text style={[styles.chartDate, styles.chartDateCompact]}>{item.msurDt.slice(5).replace('-', '.')}</Text>
             </Pressable>
           );
         })}
@@ -219,10 +237,10 @@ export function DataPanel({
   );
 
   return (
-    <View onTouchStart={() => selectedChartDate && onSelectChartDate(null)}>
+    <View style={styles.detailPanel} onTouchStart={() => selectedChartDate && onSelectChartDate(null)}>
       <Pressable
         onPress={onToggleRegionPicker}
-        style={({ pressed }) => [styles.detailRegionSelector, { borderColor: accentBorderTone, shadowColor: accentTone }, pressed && styles.pressedFeedback]}
+        style={({ pressed }) => [styles.detailRegionSelector, pressed && styles.pressedFeedback]}
       >
         <View>
           <Text style={styles.detailRegionSelectorLabel}>보고 있는 지역</Text>
@@ -234,7 +252,36 @@ export function DataPanel({
       </Pressable>
       {regionPickerContent}
 
-      <View style={[styles.segmentCard, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
+      <View style={[styles.detailSummaryHero, styles.dustMetricSelectorHero]}>
+        <Image resizeMode="cover" source={DETAIL_DUST_BACKGROUND} style={styles.detailSummaryBackgroundImage} />
+        <View style={styles.detailSummaryMetricPicker}>
+          <View style={styles.detailSummaryMetricGrid}>
+            {dataMetrics.map((metric) => {
+              const isActive = dataMetric === metric.key;
+              return (
+                <Pressable
+                  key={metric.key}
+                  onPress={() => onMetricChange(metric.key)}
+                  style={({ pressed }) => [
+                    styles.detailSummaryMetricButton,
+                    isActive && styles.detailSummaryMetricButtonActive,
+                    pressed && styles.pressedFeedback,
+                  ]}
+                >
+                  <Text style={[styles.detailSummaryMetricCode, isActive && styles.detailSummaryMetricCodeActive]}>
+                    {metric.code}
+                  </Text>
+                  <Text style={[styles.detailSummaryMetricText, isActive && styles.detailSummaryMetricTextActive]}>
+                    {metric.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.segmentCard}>
         <Text style={styles.sectionLabel}>기간</Text>
         <View style={styles.segmentRow}>
           {dataRanges.map((range) => (
@@ -247,25 +294,13 @@ export function DataPanel({
             </Pressable>
           ))}
         </View>
-        <Text style={styles.sectionLabel}>항목</Text>
-        <View style={styles.metricSelectGrid}>
-          {dataMetrics.map((metric) => (
-            <Pressable
-              key={metric.key}
-              onPress={() => onMetricChange(metric.key)}
-              style={({ pressed }) => [styles.metricSelectButton, dataMetric === metric.key && { backgroundColor: accentSoftTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
-            >
-              <Text style={[styles.metricSelectLabel, dataMetric === metric.key && { color: accentTone }]}>{metric.label}</Text>
-            </Pressable>
-          ))}
-        </View>
+
       </View>
 
-      <View style={[styles.card, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
+      <View style={[styles.card, styles.detailSectionCard]}>
         <View style={styles.cardHeader}>
           <View style={styles.detailChartTitleGroup}>
             <Text style={styles.cardTitle}>{activeMetric.label} 기록</Text>
-            <Text numberOfLines={1} style={styles.cardHint}>최근 {chartItems.length}일의 일평균 기록을 볼 수 있어요.</Text>
           </View>
           <View style={[styles.chartModeRow, styles.chartModeRowInline]}>
             {[
@@ -317,17 +352,16 @@ export function DataPanel({
         )}
       </View>
 
-      <View style={[styles.card, { borderColor: '#d9dee5', shadowColor: accentTone }]}>
+      <View style={[styles.card, styles.detailSectionCard]}>
         <Pressable
           onPress={() => {
             setIsListExpanded((current) => !current);
             setListPageIndex(0);
           }}
-          style={({ pressed }) => [styles.listHeader, { borderColor: accentBorderTone }, pressed && styles.pressedFeedback]}
+          style={({ pressed }) => [styles.listHeader, pressed && styles.pressedFeedback]}
         >
           <View>
-            <Text style={styles.cardTitle}>일평균 기록 목록</Text>
-            <Text style={styles.cardHint}>전체 {items.length}개</Text>
+            <Text style={styles.cardTitle}>일평균 기록 목록 · {items.length}</Text>
           </View>
           <View style={styles.listHeaderAction}>
             <View style={[styles.listChevron, { borderColor: accentBorderTone }]}>

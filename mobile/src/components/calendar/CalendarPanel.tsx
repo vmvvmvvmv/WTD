@@ -1,8 +1,8 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, Pressable, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
+import { AppActionIcon } from '../shared/AppActionIcon';
 import type { CalendarEvent, HourlyDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
@@ -266,11 +266,11 @@ export function CalendarPanel({
         onPress={() => draft.openEditor(selectedDate)}
         style={({ pressed }) => [
           styles.calendarFloatingAddButton,
-          { backgroundColor: accentTone, bottom: isDaySheetOpen ? targetDaySheetHeight + 16 : 20, shadowColor: accentTone },
+          { backgroundColor: '#ffffff', borderColor: accentTone, bottom: isDaySheetOpen ? targetDaySheetHeight + 16 : 20, shadowColor: accentTone },
           pressed && styles.pressedFeedback,
         ]}
       >
-        <Ionicons color="#ffffff" name="add" size={30} />
+        <AppActionIcon name="schedule" size={38} />
       </Pressable>
 
       <CalendarEventEditor
@@ -294,7 +294,6 @@ export function CalendarPanel({
         onChangeRepeatEndDate={draft.setRepeatEndDate}
         onChangeRepeatMode={draft.setRepeatMode}
         onChangeRepeatWeekdays={draft.setRepeatWeekdays}
-        onChangeSensitive={draft.setSensitive}
         onChangeStartDate={draft.setStartDate}
         onChangeStartTime={draft.setStartTime}
         onChangeTitle={draft.setTitle}
@@ -305,7 +304,6 @@ export function CalendarPanel({
         repeatWeekdays={draft.repeatWeekdays}
         notificationHoursBefore={draft.notificationHoursBefore}
         selectedLocation={draft.selectedLocation}
-        sensitive={draft.sensitive}
         startDate={draft.startDate}
         startTime={draft.startTime}
         title={draft.title}
