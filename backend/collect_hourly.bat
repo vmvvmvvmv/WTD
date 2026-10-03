@@ -18,7 +18,7 @@ if errorlevel 1 goto :failed
 
 set "CURRENT_STEP=collect_realtime_dust"
 echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
-"%PYTHON_EXE%" manage.py collect_realtime_dust >> "%LOG_FILE%" 2>&1
+"%PYTHON_EXE%" manage.py collect_realtime_dust --spike-retry-delay 60 >> "%LOG_FILE%" 2>&1
 if errorlevel 1 goto :failed
 
 set "CURRENT_STEP=collect_realtime_weather"

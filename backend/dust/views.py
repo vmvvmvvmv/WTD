@@ -20,6 +20,7 @@ from django.utils import timezone
 from dotenv import load_dotenv
 from .notification_registry import notification_device_response, upsert_notification_device
 from .current_dust_service import (
+    canonical_sido_name,
     has_usable_realtime_values as _has_usable_realtime_values,
     select_current_dust,
     station_realtime_to_current_item as _station_realtime_to_current_item,
@@ -1497,6 +1498,7 @@ def _region_lookup_tokens(region):
     return [token for index, token in enumerate(tokens) if token and token not in tokens[:index]]
 
 def _candidate_stations_for_region(city, region):
+    city = canonical_sido_name(city)
     mapping_name = STATION_MAPPING.get(city, {}).get(region)
     candidates = []
     if mapping_name:
@@ -1507,7 +1509,9 @@ def _candidate_stations_for_region(city, region):
     for station in stations:
         lookup_name = _station_lookup_name(station.name)
         lookup_addr = _station_lookup_name(station.addr)
-        if lookup_name == _station_lookup_name(region) or any(token in lookup_name or token in lookup_addr for token in tokens):
+        compact_region = _station_lookup_name(region)
+        station_name_in_region = len(lookup_name) >= 2 and lookup_name in compact_region
+        if lookup_name == compact_region or station_name_in_region or any(token in lookup_name or token in lookup_addr for token in tokens):
             candidates.append(station)
 
     unique = {}
@@ -1516,6 +1520,7 @@ def _candidate_stations_for_region(city, region):
     return list(unique.values())
 
 def _resolve_station_name(city, region):
+    city = canonical_sido_name(city)
     mapped = STATION_MAPPING.get(city, {}).get(region)
     if mapped:
         return mapped
@@ -2177,13 +2182,14 @@ def mobile_map_client_log(request):
 def current_dust(request):
     city = request.GET.get('city') or '서울'
     region = request.GET.get('region') or '송파구'
-    station_name = _resolve_station_name(city, region)
+    lookup_city = canonical_sido_name(city)
+    station_name = _resolve_station_name(lookup_city, region)
 
     try:
         realtime_values, _ = _load_realtime_station_values(with_debug=True)
         latest_daily_values = _load_latest_daily_station_values()
-        current = _find_current_realtime_value(city, region, station_name, realtime_values)
-        latest_daily = latest_daily_values.get(f'{city}:{_station_lookup_name(station_name)}')
+        current = _find_current_realtime_value(lookup_city, region, station_name, realtime_values)
+        latest_daily = latest_daily_values.get(f'{lookup_city}:{_station_lookup_name(station_name)}')
         payload, status_code = select_current_dust(city, region, station_name, current, latest_daily)
         return Response(payload, status=status_code)
     except Exception:

@@ -360,3 +360,16 @@ npx expo export --platform android --output-dir .expo-export-check
 - `AppContent.tsx`의 대시보드 데이터 요청과 날씨 측정소 선택을 `features/dashboard/dashboardService.ts`로 추출했다.
 - 백엔드 `/dust/current/`의 응답 선택을 `dust/current_dust_service.py`로 옮기고 실행 불가능한 과거 fallback 분기를 제거했다. 서버 내부 오류 메시지는 응답에 노출하지 않고 로그에 남긴다.
 - 모바일 캐시 회귀 테스트 2개와 백엔드 서비스 단위 테스트 4개 통과(0 측정값 포함). Django 런타임이 설치되지 않은 현재 환경에서는 Django 엔드포인트 테스트 실행이 필요하다.
+
+## 29. 2026-10-04 로컬 데이터 수집 안정화
+
+- `dust/data_freshness.py`와 `check_data_freshness` management command를 추가해 측정소, 실시간 미세먼지, 시간별 날씨의 누락·지연 상태를 검사한다.
+- `collect_hourly.bat`는 각 단계의 종료 코드를 확인하며, 중간 실패 시 성공으로 기록하지 않고 실패 단계와 종료 코드를 로그에 남긴다.
+- `start_local_backend.bat`는 서버 시작 전에 데이터 최신성을 검사하고, 오래됐으면 `collect_hourly.bat` 실행을 안내한다.
+- `setup_local_tasks.bat`와 `remove_local_tasks.bat`를 추가했다. 현재 Windows PC에는 `WeatherToDo Hourly Collection`과 `WeatherToDo Morning Notifications` 작업이 등록되어 있다.
+- 수집 작업은 매시간 5분, 아침 알림은 매일 07:00에 실행된다. 절전 복귀 실행, 배터리 실행, 중복 실행 방지 설정을 적용했다.
+- 전체 시·도 이름(`부산광역시`)과 AirKorea DB 이름(`부산`)을 정규화하고 `동대신동3가`가 `대신동` 측정소를 찾도록 보완했다.
+- 2026-10-04 수동 실행 결과: 실시간 미세먼지 362행 신규 저장, 시간별 날씨 11,232행 갱신, 예측 12행, 중기예보 80행 갱신. 최신성 검사 통과.
+- 부산광역시 동대신동3가 기준 현재 미세먼지, 현재 날씨, 시간별 예보 46개, 전국 측정소 681개, 지도 HTML 응답을 확인했다.
+- Backend 단위 테스트 12건, Mobile TypeScript 검사, Dashboard 캐시 테스트 2건, Android Expo export가 통과했다.
+- 로컬 Django 서버는 `127.0.0.1:8001`에서 실행한다. PC 재시작 후에는 `backend/start_local_backend.bat`를 다시 실행해야 한다.
