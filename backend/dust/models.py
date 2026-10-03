@@ -231,3 +231,20 @@ class DustNotificationLog(models.Model):
 
     def __str__(self):
         return f'{self.notification_type} {self.city} {self.region} {self.basis_key}'
+
+
+class OutfitRecommendationCache(models.Model):
+    cache_key = models.CharField(max_length=160, unique=True)
+    response_json = models.JSONField(default=dict)
+    source = models.CharField(max_length=12, default='rule')
+    created_at = models.DateTimeField(auto_now_add=True)
+    valid_until = models.DateTimeField()
+
+    class Meta:
+        db_table = 'outfit_recommendation_cache'
+        indexes = [
+            models.Index(fields=['valid_until'], name='outfit_cache_valid_idx'),
+        ]
+
+    def __str__(self):
+        return f'{self.source} {self.valid_until:%Y-%m-%d %H:%M}'

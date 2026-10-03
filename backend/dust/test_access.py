@@ -15,7 +15,8 @@ class AppTestTokenMiddleware:
 
     def __call__(self, request):
         expected_token = os.environ.get("APP_TEST_TOKEN", "").strip()
-        if not expected_token or not request.path.startswith("/dust/") or request.method == "OPTIONS":
+        protected_path = request.path.startswith("/dust/") or request.path.startswith("/outfit/")
+        if not expected_token or not protected_path or request.method == "OPTIONS":
             return self.get_response(request)
 
         supplied_token = request.META.get(TOKEN_HEADER) or request.GET.get(TOKEN_QUERY_PARAM)

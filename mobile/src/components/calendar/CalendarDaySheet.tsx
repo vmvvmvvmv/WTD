@@ -3,7 +3,8 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent, OutfitSensitivity } from '../../types/dust';
+import { OutfitCardContainer } from '../outfit/OutfitCard';
 import { eventDateLabel, eventRangeLength, formatDateDisplay, formatSelectedDateTitle } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
@@ -28,6 +29,8 @@ type Props = {
   onEditEvent?: (event: CalendarEvent) => void;
   onExpandStateChange?: (expanded: boolean) => void;
   onRemoveEvent: (eventId: string) => void;
+  outfitEnabled: boolean;
+  outfitSensitivity: OutfitSensitivity;
   pm10?: number;
   riskByEvent?: Record<string, CalendarRiskResult>;
   selectedDate: string;
@@ -99,6 +102,8 @@ export function CalendarDaySheet({
   onEditEvent,
   onExpandStateChange,
   onRemoveEvent,
+  outfitEnabled,
+  outfitSensitivity,
   pm10,
   riskByEvent,
   selectedDate,
@@ -161,38 +166,41 @@ export function CalendarDaySheet({
           const risk = riskByEvent?.[event.id];
           const tone = risk?.tone ?? accentTone;
           return (
-            <View key={event.id} style={styles.calendarEventRow}>
-              <View style={[styles.calendarEventIcon, { backgroundColor: `${tone}14` }]}>
-                <AppActionIcon name={eventImage(event)} size={32} />
+            <View key={event.id} style={styles.calendarEventGroup}>
+              <View style={styles.calendarEventRow}>
+                <View style={[styles.calendarEventIcon, { backgroundColor: `${tone}14` }]}>
+                  <AppActionIcon name={eventImage(event)} size={32} />
+                </View>
+                <View style={styles.calendarEventBody}>
+                  <Text style={styles.calendarEventTitle}>{event.title}</Text>
+                  <Text style={styles.calendarEventMeta}>
+                    {eventDateLabel(event)} {event.time}{event.endTime ? `~${event.endTime}` : ''} · {activityLabel(event)}
+                  </Text>
+                  {!!eventLocationMeta(event) && <Text style={styles.calendarEventMeta}>{eventLocationMeta(event)}</Text>}
+                  {!!risk?.desc && <Text style={styles.calendarEventMemo}>{risk.desc}</Text>}
+                  {!!event.memo && <Text style={styles.calendarEventMemo}>{event.memo}</Text>}
+                </View>
+                <View style={styles.calendarBadgeStack}>
+                  {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: '#eef5ff', color: '#2f80ed' }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
+                  <Text style={[styles.calendarGuideBadge, { backgroundColor: `${tone}14`, color: tone }]}>{risk?.badge ?? impactLabel(event)}</Text>
+                  <Text style={styles.calendarGuideBadge}>{activityLabel(event)}</Text>
+                </View>
+                <Pressable
+                  accessibilityLabel={`${event.title} 일정 편집`}
+                  onPress={() => onEditEvent?.(event)}
+                  style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
+                >
+                  <AppActionIcon name="edit" size={24} />
+                </Pressable>
+                <Pressable
+                  accessibilityLabel={`${event.title} 일정 삭제`}
+                  onPress={() => onRemoveEvent(event.id)}
+                  style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
+                >
+                  <AppActionIcon name="delete" size={24} />
+                </Pressable>
               </View>
-              <View style={styles.calendarEventBody}>
-                <Text style={styles.calendarEventTitle}>{event.title}</Text>
-                <Text style={styles.calendarEventMeta}>
-                  {eventDateLabel(event)} {event.time}{event.endTime ? `~${event.endTime}` : ''} · {activityLabel(event)}
-                </Text>
-                {!!eventLocationMeta(event) && <Text style={styles.calendarEventMeta}>{eventLocationMeta(event)}</Text>}
-                {!!risk?.desc && <Text style={styles.calendarEventMemo}>{risk.desc}</Text>}
-                {!!event.memo && <Text style={styles.calendarEventMemo}>{event.memo}</Text>}
-              </View>
-              <View style={styles.calendarBadgeStack}>
-                {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: '#eef5ff', color: '#2f80ed' }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
-                <Text style={[styles.calendarGuideBadge, { backgroundColor: `${tone}14`, color: tone }]}>{risk?.badge ?? impactLabel(event)}</Text>
-                <Text style={styles.calendarGuideBadge}>{activityLabel(event)}</Text>
-              </View>
-              <Pressable
-                accessibilityLabel={`${event.title} 일정 편집`}
-                onPress={() => onEditEvent?.(event)}
-                style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
-              >
-                <AppActionIcon name="edit" size={24} />
-              </Pressable>
-              <Pressable
-                accessibilityLabel={`${event.title} 일정 삭제`}
-                onPress={() => onRemoveEvent(event.id)}
-                style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
-              >
-                <AppActionIcon name="delete" size={24} />
-              </Pressable>
+              <OutfitCardContainer enabled={outfitEnabled} event={event} sensitivity={outfitSensitivity} />
             </View>
           );
         })}

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
-import type { NotificationSettings, RegionState } from '../../types/dust';
+import type { NotificationSettings, OutfitSettings, RegionState } from '../../types/dust';
 import { isSameRegion } from '../../utils/dust';
 import { NotificationToggleRow } from '../shared/DustWidgets';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -19,8 +19,10 @@ export function RegionPanel({
   locationMessage,
   notificationsUnavailable,
   notificationSettings,
+  outfitSettings,
   onRemoveFavorite,
   onToggleNotificationSetting,
+  onUpdateOutfitSetting,
   onUseCurrentLocation,
   selectedRegion,
 }: {
@@ -33,8 +35,10 @@ export function RegionPanel({
   locationMessage: string;
   notificationsUnavailable: boolean;
   notificationSettings: NotificationSettings;
+  outfitSettings: OutfitSettings;
   onRemoveFavorite: (region: RegionState) => void;
   onToggleNotificationSetting: (key: keyof NotificationSettings, value: boolean | number) => void;
+  onUpdateOutfitSetting: <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => void;
   onUseCurrentLocation: () => void;
   selectedRegion: RegionState;
 }) {
@@ -75,6 +79,44 @@ export function RegionPanel({
           )}
         </Pressable>
         {!!locationMessage && <Text style={styles.accountMessage}>{locationMessage}</Text>}
+      </View>
+
+      <View style={styles.settingsSection}>
+        <View style={styles.settingsSectionHeader}>
+          <View style={[styles.settingsSectionIcon, { backgroundColor: accentSoftTone }]}>
+            <AppActionIcon name="activityOutdoor" size={25} />
+          </View>
+          <View style={styles.settingsSectionTitleGroup}>
+            <Text style={styles.settingsSectionTitle}>옷차림 추천</Text>
+          </View>
+        </View>
+        <NotificationToggleRow
+          accentTone={accentTone}
+          label="일정별 옷차림 추천"
+          value={outfitSettings.enabled}
+          onValueChange={(value) => onUpdateOutfitSetting('enabled', value)}
+        />
+        {outfitSettings.enabled && (
+          <View style={styles.outfitSensitivitySection}>
+            <Text style={styles.outfitSensitivityLabel}>체감 성향</Text>
+            <View style={styles.outfitSensitivityOptions}>
+              {([['cold', '추위 많이 탐'], ['normal', '보통'], ['hot', '더위 많이 탐']] as const).map(([value, label]) => {
+                const selected = outfitSettings.sensitivity === value;
+                return (
+                  <Pressable
+                    accessibilityLabel={`체감 성향 ${label}`}
+                    accessibilityState={{ selected }}
+                    key={value}
+                    onPress={() => onUpdateOutfitSetting('sensitivity', value)}
+                    style={({ pressed }) => [styles.outfitSensitivityButton, selected && { backgroundColor: accentSoftTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
+                  >
+                    <Text style={[styles.outfitSensitivityButtonText, selected && { color: accentTone }]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={styles.settingsSection}>

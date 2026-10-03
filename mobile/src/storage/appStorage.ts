@@ -4,14 +4,16 @@ import { parseStoredCalendarEvents } from '../components/calendar/calendarStorag
 import {
   CALENDAR_EVENTS_STORAGE_KEY,
   CALENDAR_NOTIFICATION_IDS_STORAGE_KEY,
+  DEFAULT_OUTFIT_SETTINGS,
   FAVORITE_REGIONS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
   MAP_RECENT_SEARCHES_STORAGE_KEY,
   NOTIFICATION_SETTINGS_STORAGE_KEY,
   NOTIFICATION_TOKEN_STORAGE_KEY,
+  OUTFIT_SETTINGS_STORAGE_KEY,
   SELECTED_REGION_STORAGE_KEY,
 } from '../constants/dust';
-import type { CalendarEvent, NotificationSettings, RegionState, StationDustItem } from '../types/dust';
+import type { CalendarEvent, NotificationSettings, OutfitSettings, RegionState, StationDustItem } from '../types/dust';
 import {
   parseStoredFavoriteRegions,
   parseStoredMapRecentSearches,
@@ -26,6 +28,7 @@ export type StoredAppState = {
   mapRecentSearches: StationDustItem[];
   notificationSettings: NotificationSettings;
   notificationToken: string | null;
+  outfitSettings: OutfitSettings;
   selectedRegion: RegionState | null;
 };
 
@@ -43,7 +46,7 @@ function saveJson(key: string, value: unknown) {
 
 // One loader owns the storage keys and recovery rules for app startup.
 export async function loadStoredAppState(): Promise<StoredAppState> {
-  const [storedRegion, storedGpsRegion, storedFavorites, storedMapRecentSearches, storedNotificationSettings, storedCalendarEvents, notificationToken] = await Promise.all([
+  const [storedRegion, storedGpsRegion, storedFavorites, storedMapRecentSearches, storedNotificationSettings, storedCalendarEvents, notificationToken, storedOutfitSettings] = await Promise.all([
     safeGet(SELECTED_REGION_STORAGE_KEY),
     safeGet(GPS_REGION_STORAGE_KEY),
     safeGet(FAVORITE_REGIONS_STORAGE_KEY),
@@ -51,7 +54,19 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     safeGet(NOTIFICATION_SETTINGS_STORAGE_KEY),
     safeGet(CALENDAR_EVENTS_STORAGE_KEY),
     safeGet(NOTIFICATION_TOKEN_STORAGE_KEY),
+    safeGet(OUTFIT_SETTINGS_STORAGE_KEY),
   ]);
+
+  let outfitSettings = DEFAULT_OUTFIT_SETTINGS;
+  try {
+    const parsed = JSON.parse(storedOutfitSettings ?? '{}') as Partial<OutfitSettings>;
+    outfitSettings = {
+      enabled: parsed.enabled !== false,
+      sensitivity: ['cold', 'normal', 'hot'].includes(parsed.sensitivity ?? '') ? parsed.sensitivity as OutfitSettings['sensitivity'] : 'normal',
+    };
+  } catch {
+    outfitSettings = DEFAULT_OUTFIT_SETTINGS;
+  }
 
   return {
     calendarEvents: parseStoredCalendarEvents(storedCalendarEvents),
@@ -60,6 +75,7 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     mapRecentSearches: parseStoredMapRecentSearches(storedMapRecentSearches),
     notificationSettings: parseStoredNotificationSettings(storedNotificationSettings),
     notificationToken,
+    outfitSettings,
     selectedRegion: parseStoredRegion(storedRegion),
   };
 }
@@ -82,6 +98,10 @@ export function saveMapRecentSearches(searches: StationDustItem[]) {
 
 export function saveNotificationSettings(settings: NotificationSettings) {
   return saveJson(NOTIFICATION_SETTINGS_STORAGE_KEY, settings);
+}
+
+export function saveOutfitSettings(settings: OutfitSettings) {
+  return saveJson(OUTFIT_SETTINGS_STORAGE_KEY, settings);
 }
 
 export function saveNotificationToken(token: string) {
