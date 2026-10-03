@@ -1,9 +1,14 @@
 import unittest
 
-from .current_dust_service import select_current_dust
+from .current_dust_service import canonical_sido_name, select_current_dust
 
 
 class CurrentDustServiceUnitTests(unittest.TestCase):
+    def test_full_city_name_is_normalized_for_station_lookup(self):
+        self.assertEqual(canonical_sido_name('부산광역시'), '부산')
+        self.assertEqual(canonical_sido_name('서울특별시'), '서울')
+        self.assertEqual(canonical_sido_name('강원특별자치도'), '강원')
+
     def test_realtime_is_preferred(self):
         payload, status = select_current_dust(
             '부산', '대신동', '대신동',

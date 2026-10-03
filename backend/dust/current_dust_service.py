@@ -1,4 +1,33 @@
-"""Select the current dust response from stored realtime and daily measurements."""
+"""Normalize region labels and select the current dust response."""
+
+
+SIDO_ALIASES = {
+    '서울': ('서울', '서울특별시'),
+    '부산': ('부산', '부산광역시'),
+    '대구': ('대구', '대구광역시'),
+    '인천': ('인천', '인천광역시'),
+    '광주': ('광주', '광주광역시'),
+    '대전': ('대전', '대전광역시'),
+    '울산': ('울산', '울산광역시'),
+    '세종': ('세종', '세종특별자치시'),
+    '경기': ('경기', '경기도'),
+    '강원': ('강원', '강원도', '강원특별자치도'),
+    '충북': ('충북', '충청북도'),
+    '충남': ('충남', '충청남도'),
+    '전북': ('전북', '전라북도', '전북특별자치도'),
+    '전남': ('전남', '전라남도'),
+    '경북': ('경북', '경상북도'),
+    '경남': ('경남', '경상남도'),
+    '제주': ('제주', '제주도', '제주특별자치도'),
+}
+
+
+def canonical_sido_name(value):
+    compact = (value or '').strip().replace(' ', '')
+    for canonical, aliases in SIDO_ALIASES.items():
+        if compact in {alias.replace(' ', '') for alias in aliases}:
+            return canonical
+    return (value or '').strip()
 
 
 def has_usable_realtime_values(item):
