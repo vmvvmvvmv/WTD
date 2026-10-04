@@ -86,5 +86,8 @@ def recommend_outfit(payload: dict, *, client_key: str = "") -> dict:
     except Exception:
         logger.warning("Outfit LLM failed validation; returning rule result.", exc_info=True)
         result = rule_response
-    save_cached_recommendation(key, result, result["source"], valid_until)
+    # 일시적인 LLM 장애가 복구된 뒤에도 규칙 응답이 3시간 남지 않도록
+    # 검증을 통과한 LLM 결과만 영속 캐시에 저장한다.
+    if result["source"] == "llm":
+        save_cached_recommendation(key, result, result["source"], valid_until)
     return result
