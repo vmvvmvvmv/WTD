@@ -485,6 +485,9 @@ export function HomePanel({
     () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent),
     [activityGuideRiskByEvent, todayCalendarEvents],
   );
+  const currentTimeLabel = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+  const defaultOutfitEvent = todayCalendarEvents.find((event) => event.time >= currentTimeLabel) ?? todayCalendarEvents[0];
+  const activeOutfitEvent = todayCalendarEvents.find((event) => event.id === selectedOutfitEventId) ?? defaultOutfitEvent;
   return (
     <View>
       <View style={styles.homeHeroBanner}>
@@ -604,13 +607,13 @@ export function HomePanel({
             </View>
           )}
           {activityGuideRows.map((item) => {
-            const event = todayCalendarEvents.find((candidate) => candidate.id === item.id);
-            const selected = selectedOutfitEventId === item.id;
+            const selected = activeOutfitEvent?.id === item.id;
             return (
               <View key={item.id} style={styles.activityGuideItemGroup}>
                 <Pressable
-                  accessibilityLabel={`${item.title} 옷차림 추천 ${selected ? '닫기' : '열기'}`}
-                  onPress={() => setSelectedOutfitEventId((current) => current === item.id ? null : item.id)}
+                  accessibilityLabel={`${item.title} 옷차림 추천 보기`}
+                  accessibilityState={{ selected }}
+                  onPress={() => setSelectedOutfitEventId(item.id)}
                   style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
                 >
                   <View style={[styles.activityGuideIconBox, { backgroundColor: '#E8F1FE' }]}>
@@ -633,9 +636,8 @@ export function HomePanel({
                     </View>
                     <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{item.advice}</Text>
                   </View>
-                  <Ionicons color="#8CA0BA" name={selected ? 'chevron-up' : 'chevron-down'} size={17} style={styles.activityGuideRowChevron} />
+                  <Ionicons color={selected ? accentTone : '#8CA0BA'} name={selected ? 'checkmark-circle' : 'chevron-forward'} size={17} style={styles.activityGuideRowChevron} />
                 </Pressable>
-                {selected && event && <View style={styles.activityGuideOutfit}><OutfitCardContainer enabled={outfitEnabled} event={event} sensitivity={outfitSensitivity} /></View>}
               </View>
             );
           })}
@@ -656,6 +658,29 @@ export function HomePanel({
           <Ionicons color={accentTone} name="chevron-forward" size={16} />
         </Pressable>
       </View>
+      {outfitEnabled && <View style={styles.homeOutfitSection}>
+        <View style={styles.homeOutfitSectionHeader}>
+          <View style={styles.homeOutfitSectionTitleGroup}>
+            <Text style={styles.homeOutfitSectionTitle}>오늘 옷차림</Text>
+            <Text numberOfLines={1} style={styles.homeOutfitSectionMeta}>
+              {activeOutfitEvent ? `${activeOutfitEvent.time} · ${activeOutfitEvent.title}` : '일정 시간과 장소에 맞춰 추천해드려요'}
+            </Text>
+          </View>
+          <Ionicons color={accentTone} name="shirt-outline" size={24} />
+        </View>
+        {activeOutfitEvent ? (
+          <OutfitCardContainer enabled={outfitEnabled} event={activeOutfitEvent} sensitivity={outfitSensitivity} />
+        ) : (
+          <Pressable
+            accessibilityLabel="옷차림 추천을 위한 일정 추가"
+            onPress={onOpenCalendar}
+            style={({ pressed }) => [styles.homeOutfitEmpty, pressed && styles.pressedFeedback]}
+          >
+            <Text style={styles.homeOutfitEmptyText}>일정을 등록하면 날씨와 대기질에 맞는 옷차림을 보여드려요.</Text>
+            <Ionicons color={accentTone} name="chevron-forward" size={17} />
+          </Pressable>
+        )}
+      </View>}
       <Pressable
         accessibilityLabel={"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}
         onPress={onOpenMap}
