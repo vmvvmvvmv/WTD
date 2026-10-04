@@ -638,7 +638,7 @@ export const styles = StyleSheet.create({
   calendarSelectionEmptyBar: { borderRadius: 999, height: 32, opacity: 0.75, width: 4 },
   calendarSelectionEmptyTitle: { color: '#687180', fontSize: 15, fontWeight: '900' },
   calendarFloatingAddButton: { alignItems: 'center', borderRadius: 999, borderWidth: 1, bottom: 20, height: 58, justifyContent: 'center', position: 'absolute', right: 18, ...bauhausMediumShadow, width: 58, zIndex: 6 },
-  calendarFloatingAddIcon: { marginLeft: 2 },
+  calendarFloatingAddIcon: { marginLeft: 4 },
   calendarEditorSaveFab: { alignItems: 'center', borderRadius: 999, bottom: 24, elevation: 7, height: 56, justifyContent: 'center', position: 'absolute', right: 20, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, width: 56, zIndex: 8 },
   calendarSectionTitle: { color: '#141821', fontSize: 17, fontWeight: '900' },
   calendarInput: { backgroundColor: bauhausColors.white, borderColor: bauhausColors.muted, borderWidth: 1, color: bauhausColors.foreground, fontSize: 13, fontWeight: '800', minHeight: 44, paddingHorizontal: 12, ...handDrawnControlShape },

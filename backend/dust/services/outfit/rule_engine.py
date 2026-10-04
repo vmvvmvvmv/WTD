@@ -3,6 +3,19 @@ from copy import deepcopy
 from .constants import BANDS
 
 
+SPORT_OUTFITS = {
+    "B1": {"top": ["기능성 민소매", "기능성 반팔"], "bottom": ["러닝 쇼츠", "얇은 운동복 바지"], "outer": []},
+    "B2": {"top": ["기능성 반팔"], "bottom": ["러닝 쇼츠", "얇은 운동복 바지"], "outer": []},
+    "B3": {"top": ["기능성 긴팔", "기능성 반팔"], "bottom": ["얇은 운동복 바지"], "outer": ["얇은 바람막이"]},
+    "B4": {"top": ["흡습속건 긴팔"], "bottom": ["긴 운동복 바지"], "outer": ["경량 바람막이"]},
+    "B5": {"top": ["기능성 긴팔"], "bottom": ["긴 운동복 바지"], "outer": ["보온 러닝 자켓"]},
+    "B6": {"top": ["기능성 긴팔", "얇은 기능성 이너"], "bottom": ["기모 러닝 타이츠"], "outer": ["보온 러닝 자켓"]},
+    "B7": {"top": ["보온 기능성 이너"], "bottom": ["기모 러닝 타이츠"], "outer": ["방풍 러닝 자켓"]},
+    "B8": {"top": ["보온 기능성 이너"], "bottom": ["기모 러닝 타이츠"], "outer": ["두꺼운 방풍 자켓"]},
+    "B9": {"top": ["보온 기능성 이너"], "bottom": ["기모 러닝 타이츠"], "outer": ["겨울용 방풍 자켓"]},
+}
+
+
 def _band_index(feels_avg: float, sensitivity: str) -> int:
     adjusted = feels_avg - 2 if sensitivity == "cold" else feels_avg + 2 if sensitivity == "hot" else feels_avg
     return next(index for index, band in enumerate(BANDS) if adjusted >= band["minimum"])
@@ -43,6 +56,8 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
     feels_min = snapshot.get("feels_min")
     if resolved_activity != "indoor" and feels_min is not None and index < len(BANDS) - 1 and feels_min <= band["minimum"] - 3:
         band = deepcopy(BANDS[index + 1])
+    if occasion in {"running", "sport"}:
+        band.update(deepcopy(SPORT_OUTFITS[band["band"]]))
     if resolved_activity == "indoor":
         band["outer"] = ["들고 다닐 수 있는 가벼운 겉옷"]
 
@@ -54,6 +69,8 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
     main_outer = band["outer"][0] if band["outer"] else band["top"][0]
     required_labels = [item["label"] for item in must_have if item["level"] == "required"]
     summary = f"{main_outer} 차림이 좋아요."
+    if occasion in {"running", "sport"} and band["outer"]:
+        summary = f"운동할 땐 {band['top'][0]}, 전후엔 {band['outer'][0]}를 챙겨요."
     if required_labels:
         summary = f"{main_outer}에 {'·'.join(required_labels)}도 챙기세요."
     outfit_note = f"{band['top'][0]}과 {band['bottom'][0]}"
