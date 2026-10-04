@@ -30,9 +30,10 @@ export function AppActionIcon({
   return (
     <Image
       accessibilityIgnoresInvertColors
+      fadeDuration={0}
       resizeMode="contain"
       source={actionIconSources[name]}
-      style={[{ height: size, transform: [{ scale: ICON_VISUAL_SCALE }], width: size }, style]}
+      style={[{ flexShrink: 0, height: size, transform: [{ scale: ICON_VISUAL_SCALE }], width: size }, style]}
     />
   );
 }
