@@ -22,6 +22,7 @@ import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity } from '../
 import { MustHaveIcon, OutfitIcon } from './OutfitIcon';
 import { OUTFIT_MOTION } from './motion';
 import { outfitStyles } from './outfitStyles';
+import { OutfitVisual } from './OutfitVisual';
 
 function useTypewriter(value: string, reduceMotion: boolean) {
   const [visible, setVisible] = useState(reduceMotion ? value : '');
@@ -107,8 +108,7 @@ function MustHaveChip({ item, index }: { item: OutfitRecommendation['must_have']
   );
 }
 
-export function OutfitCard({ activityType, onRetry, result, showRetry = false }: {
-  activityType: CalendarEvent['activityType'];
+export function OutfitCard({ onRetry, result, showRetry = false }: {
   onRetry?: () => void;
   result: OutfitRecommendation;
   showRetry?: boolean;
@@ -123,7 +123,7 @@ export function OutfitCard({ activityType, onRetry, result, showRetry = false }:
   return (
     <Animated.View entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)} style={outfitStyles.card}>
       <View style={outfitStyles.cardHeader}>
-        <View style={outfitStyles.cardHeaderIcon}><OutfitIcon activityType={activityType} /></View>
+        <View style={outfitStyles.visualFrame}><OutfitVisual result={result} /></View>
         <View style={outfitStyles.cardHeaderText}>
           <Text style={outfitStyles.eyebrow}>옷차림 추천</Text>
           <Pressable accessibilityLabel={result.summary} onPress={typed.complete}>
@@ -150,7 +150,7 @@ export function OutfitCardContainer({ enabled, event, sensitivity }: {
   const { result, retry, status } = useOutfitRecommendation({ enabled, event, sensitivity });
   if (!enabled || status === 'idle') return null;
   if (status === 'loading' && !result) return <OutfitSkeleton />;
-  if (result) return <OutfitCard activityType={event.activityType} onRetry={retry} result={result} showRetry={status === 'error'} />;
+  if (result) return <OutfitCard onRetry={retry} result={result} showRetry={status === 'error'} />;
   return (
     <View style={outfitStyles.empty}>
       <OutfitIcon activityType={event.activityType} size={25} />

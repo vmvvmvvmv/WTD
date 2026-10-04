@@ -186,6 +186,7 @@ export type OutfitRecommendation = {
   data_gaps: string[];
   generated_at: string;
   layering_tip: string;
+  occasion?: 'running' | 'sport' | 'formal' | 'casual' | 'unknown' | string;
   must_have: Array<{
     label: string;
     level: 'required' | 'recommended';
