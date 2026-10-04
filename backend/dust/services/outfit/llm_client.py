@@ -16,7 +16,15 @@ OUTPUT_SCHEMA = {
         "summary": {"type": "string"},
         "outfit_note": {"type": "string"},
         "layering_tip": {"type": "string"},
-        "reasons": {"type": "object", "additionalProperties": {"type": "string"}},
+        "reasons": {
+            "type": "object",
+            "properties": {
+                "umbrella": {"type": "string"},
+                "mask": {"type": "string"},
+                "windbreaker": {"type": "string"},
+                "scarf_gloves": {"type": "string"},
+            },
+        },
     },
     "required": ["summary", "outfit_note", "layering_tip", "reasons"],
 }

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { ApiHttpError, postOutfitRecommendation } from '../../api/dustEndpoints';
 import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
-import { getCachedOutfit, getLastOutfit, outfitCacheKey, setCachedOutfit } from './outfitCache';
+import { clearCachedOutfit, getCachedOutfit, getLastOutfit, outfitCacheKey, setCachedOutfit } from './outfitCache';
 
 export type OutfitLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unavailable';
 
@@ -55,6 +55,9 @@ export function useOutfitRecommendation({ enabled, event, sensitivity }: {
     };
   }, [enabled, event, key, retryVersion, sensitivity]);
 
-  const retry = useCallback(() => setRetryVersion((value) => value + 1), []);
+  const retry = useCallback(() => {
+    clearCachedOutfit(key);
+    setRetryVersion((value) => value + 1);
+  }, [key]);
   return { result, retry, status };
 }
