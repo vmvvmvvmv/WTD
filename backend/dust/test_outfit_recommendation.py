@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
-from dust.services.outfit.llm_client import OUTPUT_SCHEMA
+from dust.services.outfit.llm_client import GeminiLLMClient, OUTPUT_SCHEMA
 from dust.services.outfit.occasion import classify_occasion
 from dust.services.outfit.response_parser import validate_llm_output
 from dust.services.outfit.rule_engine import build_rule_result
@@ -93,6 +93,21 @@ class OutfitLlmValidationTests(SimpleTestCase):
         reasons_schema = OUTPUT_SCHEMA["properties"]["reasons"]
         self.assertNotIn("additionalProperties", reasons_schema)
         self.assertIn("umbrella", reasons_schema["properties"])
+
+    @patch("dust.services.outfit.llm_client.requests.post")
+    def test_missing_configured_model_uses_current_fallback(self, post):
+        missing = Mock(status_code=404)
+        success = Mock(status_code=200)
+        success.raise_for_status.return_value = None
+        success.json.return_value = {
+            "candidates": [{"content": {"parts": [{"text": '{"summary":"좋아요","outfit_note":"가볍게 입어요","layering_tip":"","reasons":{}}'}]}}]
+        }
+        post.side_effect = [missing, success]
+
+        result = GeminiLLMClient(api_key="test", model="gemini-2.5-flash", timeout=1).generate("system", {})
+
+        self.assertEqual(result["summary"], "좋아요")
+        self.assertIn("gemini-3.5-flash-lite", post.call_args_list[1].args[0])
 
 
 class OutfitServiceTests(SimpleTestCase):
