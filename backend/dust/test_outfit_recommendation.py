@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
+from dust.services.outfit.occasion import classify_occasion
 from dust.services.outfit.response_parser import validate_llm_output
 from dust.services.outfit.rule_engine import build_rule_result
 from dust.services.outfit.service import recommend_outfit
@@ -31,6 +32,16 @@ class OutfitAggregationTests(SimpleTestCase):
 
 
 class OutfitRuleEngineTests(SimpleTestCase):
+    def test_running_uses_sportswear_instead_of_cardigan(self):
+        result = build_rule_result(snapshot(feels_min=20, feels_max=23, feels_avg=21.5), activity_type="outdoor", sensitivity="normal", occasion="running")
+        self.assertEqual(result["outfit"]["outer"], ["얇은 바람막이"])
+        self.assertIn("기능성", result["outfit"]["top"][0])
+        self.assertNotIn("가디건", result["summary"])
+
+    def test_common_running_and_fitness_typos_are_normalized(self):
+        self.assertEqual(classify_occasion("저녁 런닝"), "running")
+        self.assertEqual(classify_occasion("헬쓰 운동"), "sport")
+
     def test_cold_rain_dust_uses_b8_and_required_items(self):
         result = build_rule_result(snapshot(rain_prob_max=70, pm10_max=100), activity_type="outdoor", sensitivity="normal", occasion="casual")
         self.assertEqual(result["outfit"]["band"], "B8")

@@ -157,10 +157,3 @@ export function eventTone(event: CalendarEvent) {
   if (event.activityType === 'transit') return '#2f80ed';
   return '#687180';
 }
-
-export function inferActivityType(title: string, memo = ''): CalendarEvent['activityType'] {
-  const text = `${title} ${memo}`.replace(/\s+/g, '').toLowerCase();
-  if (/이동|버스|지하철|기차|택시|운전|공항|여행|병원|통학|출근/.test(text)) return 'transit';
-  if (/집|실내|카페|영화|도서관|학교|회사|마트|식당|회의/.test(text)) return 'indoor';
-  return 'outdoor';
-}

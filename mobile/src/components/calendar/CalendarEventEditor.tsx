@@ -41,21 +41,15 @@ const repeatOptions: Array<{ label: string; value: CalendarRepeatMode }> = [
 
 type DateTimeUnit = typeof pickerUnits[number]['key'];
 type DateTarget = 'start' | 'end';
-export type CalendarActivityInput = 'auto' | CalendarEvent['activityType'];
+export type CalendarActivityInput = CalendarEvent['activityType'];
 
 const activityOptions: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; value: CalendarActivityInput }> = [
-  { icon: 'sparkles-outline', label: '자동', value: 'auto' },
   { icon: 'home-outline', label: '실내', value: 'indoor' },
   { icon: 'walk-outline', label: '실외', value: 'outdoor' },
   { icon: 'bus-outline', label: '이동', value: 'transit' },
 ];
 
 const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon: AppActionIconName; title: string }> = {
-  auto: {
-    desc: '일정 이름을 바탕으로 실내·실외·이동 유형을 자동으로 판단해요.',
-    icon: 'schedule',
-    title: '자동 활동 가이드',
-  },
   indoor: {
     desc: '실내 일정은 환기 시간과 바깥 공기 상태를 함께 확인해요.',
     icon: 'activityIndoor',

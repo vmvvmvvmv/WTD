@@ -7,7 +7,6 @@ import { buildRepeatedEvents, nextDefaultRepeatEndDate } from './calendarRepeat'
 import {
   addMinutesToDateTime,
   formatDate,
-  inferActivityType,
   makeCalendarId,
   normalizeDate,
   normalizeEndDate,
@@ -74,7 +73,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
   const [location, setLocation] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<CalendarLocationCandidate | null>(null);
   const [memo, setMemo] = useState('');
-  const [activityInput, setActivityInput] = useState<CalendarActivityInput>('auto');
+  const [activityInput, setActivityInput] = useState<CalendarActivityInput>('outdoor');
   const [sensitive, setSensitive] = useState(false);
   const [repeatMode, setRepeatMode] = useState<CalendarRepeatMode>('none');
   const [repeatEndDate, setRepeatEndDate] = useState(nextDefaultRepeatEndDate(initialDate));
@@ -96,7 +95,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     setLocation(initialLocation?.label ?? '');
     setSelectedLocation(initialLocation);
     setMemo('');
-    setActivityInput('auto');
+    setActivityInput('outdoor');
     setSensitive(false);
     setRepeatMode('none');
     setRepeatEndDate(nextDefaultRepeatEndDate(date));
@@ -146,7 +145,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     const detailMemo = memo.trim();
     const normalizedStartDate = normalizeDate(startDate, selectedDate);
     const normalizedEndDate = normalizeEndDate(endDate, normalizedStartDate);
-    const activityType = activityInput === 'auto' ? inferActivityType(nextTitle, detailMemo) : activityInput;
+    const activityType = activityInput;
     const baseEvent: CalendarEvent = {
       activityType,
       date: normalizedStartDate,
