@@ -19,3 +19,7 @@ export function getLastOutfit(key: string) {
 export function setCachedOutfit(key: string, value: OutfitRecommendation) {
   memoryCache.set(key, value);
 }
+
+export function clearCachedOutfit(key: string) {
+  memoryCache.delete(key);
+}

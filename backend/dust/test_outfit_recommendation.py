@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
+from dust.services.outfit.llm_client import OUTPUT_SCHEMA
 from dust.services.outfit.occasion import classify_occasion
 from dust.services.outfit.response_parser import validate_llm_output
 from dust.services.outfit.rule_engine import build_rule_result
@@ -88,6 +89,11 @@ class OutfitLlmValidationTests(SimpleTestCase):
         with self.assertRaises(ValueError):
             validate_llm_output({"summary": "20도로 예상돼요.", "outfit_note": "겹쳐 입어요.", "layering_tip": "", "reasons": {"umbrella": "비에 대비해요"}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
 
+    def test_gemini_schema_uses_explicit_reason_properties(self):
+        reasons_schema = OUTPUT_SCHEMA["properties"]["reasons"]
+        self.assertNotIn("additionalProperties", reasons_schema)
+        self.assertIn("umbrella", reasons_schema["properties"])
+
 
 class OutfitServiceTests(SimpleTestCase):
     @patch("dust.services.outfit.service.save_cached_recommendation")
@@ -110,6 +116,21 @@ class OutfitServiceTests(SimpleTestCase):
         result = recommend_outfit(request_payload("full"), client_key="device")
         self.assertTrue(result["cached"])
         build_client.assert_not_called()
+
+    @patch("dust.services.outfit.service.save_cached_recommendation")
+    @patch("dust.services.outfit.service.get_cached_recommendation", return_value=None)
+    @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot())
+    @patch("dust.services.outfit.service._llm_allowed", return_value=True)
+    @patch("dust.services.outfit.service.build_llm_client")
+    def test_failed_llm_rule_fallback_is_not_cached(self, build_client, _allowed, _snapshot, _cached, save_cached):
+        client = Mock()
+        client.generate.side_effect = RuntimeError("temporary failure")
+        build_client.return_value = client
+
+        result = recommend_outfit(request_payload("full"), client_key="device")
+
+        self.assertEqual(result["source"], "rule")
+        save_cached.assert_not_called()
 
 
 class OutfitEndpointTests(SimpleTestCase):
