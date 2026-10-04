@@ -3,7 +3,7 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
-import type { CalendarEvent, OutfitSensitivity } from '../../types/dust';
+import type { CalendarEvent, OutfitFigure, OutfitSensitivity } from '../../types/dust';
 import { OutfitCardContainer } from '../outfit/OutfitCard';
 import { eventDateLabel, eventRangeLength, formatDateDisplay, formatSelectedDateTitle } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
@@ -30,6 +30,7 @@ type Props = {
   onExpandStateChange?: (expanded: boolean) => void;
   onRemoveEvent: (eventId: string) => void;
   outfitEnabled: boolean;
+  outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
   pm10?: number;
   riskByEvent?: Record<string, CalendarRiskResult>;
@@ -103,6 +104,7 @@ export function CalendarDaySheet({
   onExpandStateChange,
   onRemoveEvent,
   outfitEnabled,
+  outfitFigure,
   outfitSensitivity,
   pm10,
   riskByEvent,
@@ -200,7 +202,7 @@ export function CalendarDaySheet({
                   <AppActionIcon name="delete" size={24} />
                 </Pressable>
               </View>
-              <OutfitCardContainer enabled={outfitEnabled} event={event} sensitivity={outfitSensitivity} />
+              <OutfitCardContainer enabled={outfitEnabled} event={event} figure={outfitFigure} sensitivity={outfitSensitivity} />
             </View>
           );
         })}
