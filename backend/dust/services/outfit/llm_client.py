@@ -10,6 +10,7 @@ from .constants import SYSTEM_PROMPT
 
 logger = logging.getLogger(__name__)
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-flash-lite"
 OUTPUT_SCHEMA = {
     "type": "object",
     "properties": {
@@ -53,19 +54,25 @@ class GeminiLLMClient:
             },
         }
         last_error = None
-        for _attempt in range(2):
-            try:
-                response = requests.post(
-                    GEMINI_URL.format(model=self.model),
-                    headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
-                    json=body,
-                    timeout=self.timeout,
-                )
-                response.raise_for_status()
-                text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
-                return json.loads(text)
-            except (KeyError, IndexError, TypeError, ValueError, requests.RequestException) as exc:
-                last_error = exc
+        model_candidates = list(dict.fromkeys((self.model, DEFAULT_GEMINI_MODEL)))
+        for model in model_candidates:
+            for _attempt in range(2):
+                try:
+                    response = requests.post(
+                        GEMINI_URL.format(model=model),
+                        headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
+                        json=body,
+                        timeout=self.timeout,
+                    )
+                    if response.status_code == 404:
+                        last_error = requests.HTTPError(f"Gemini model unavailable: {model}", response=response)
+                        logger.warning("Gemini model %s is unavailable; trying fallback model.", model)
+                        break
+                    response.raise_for_status()
+                    text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
+                    return json.loads(text)
+                except (KeyError, IndexError, TypeError, ValueError, requests.RequestException) as exc:
+                    last_error = exc
         raise RuntimeError("LLM generation failed") from last_error
 
 
@@ -84,7 +91,7 @@ def build_llm_client() -> LLMClient | None:
         timeout = max(1, min(int(os.getenv("LLM_TIMEOUT_SEC", "8")), 30))
     except ValueError:
         timeout = 8
-    return GeminiLLMClient(api_key=api_key, model=os.getenv("LLM_MODEL", "gemini-2.5-flash"), timeout=timeout)
+    return GeminiLLMClient(api_key=api_key, model=os.getenv("LLM_MODEL", DEFAULT_GEMINI_MODEL), timeout=timeout)
 
 
 def llm_input_for(rule_result: dict, request) -> dict:
