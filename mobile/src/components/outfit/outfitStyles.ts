@@ -6,12 +6,14 @@ const token = semanticColors.outfit;
 
 export const outfitStyles = StyleSheet.create({
   card: { backgroundColor: token.card, borderColor: token.border, borderRadius: 20, borderWidth: 1, overflow: 'hidden', padding: 14 },
-  cardHeader: { alignItems: 'center', flexDirection: 'row', gap: 10 },
+  cardHeader: { alignItems: 'flex-start', flexDirection: 'row', gap: 10 },
   cardHeaderIcon: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 14, height: 46, justifyContent: 'center', width: 46 },
-  cardHeaderText: { flex: 1, minWidth: 0 },
+  cardHeaderText: { flex: 1, minWidth: 0, paddingTop: 5 },
+  visualFrame: { alignItems: 'center', alignSelf: 'stretch', backgroundColor: '#FFFFFF', borderColor: token.border, borderRadius: 16, borderWidth: 1, justifyContent: 'flex-end', minHeight: 116, overflow: 'hidden', width: 92 },
+  visualImage: { height: 112, width: 88 },
   eyebrow: { color: token.accent, fontSize: 10, fontWeight: '900' },
   source: { color: '#718096', fontSize: 9, fontWeight: '800' },
-  sourcePill: { backgroundColor: '#FFFFFF', borderColor: token.border, borderRadius: 999, borderWidth: 1, paddingHorizontal: 7, paddingVertical: 4 },
+  sourcePill: { backgroundColor: '#FFFFFF', borderColor: token.border, borderRadius: 999, borderWidth: 1, marginTop: 3, paddingHorizontal: 7, paddingVertical: 4 },
   summary: { color: '#23324D', fontSize: 15, fontWeight: '900', lineHeight: 21, marginTop: 10 },
   note: { color: '#53657D', fontSize: 11, fontWeight: '800', lineHeight: 17, marginTop: 6 },
   layerTip: { color: token.accent, fontSize: 10, fontWeight: '800', lineHeight: 15, marginTop: 5 },
