@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
-import type { CalendarEvent, HourlyDustItem, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
+import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
 import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
@@ -376,6 +376,7 @@ export function HomePanel({
   onOpenDetail,
   onOpenMap,
   outfitEnabled,
+  outfitFigure,
   outfitSensitivity,
   mapPreviewUrl,
   hourlyItems,
@@ -398,6 +399,7 @@ export function HomePanel({
   onOpenDetail: () => void;
   onOpenMap: () => void;
   outfitEnabled: boolean;
+  outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
   mapPreviewUrl: string;
   hourlyItems: HourlyDustItem[];
@@ -669,7 +671,7 @@ export function HomePanel({
           <Ionicons color={accentTone} name="shirt-outline" size={24} />
         </View>
         {activeOutfitEvent ? (
-          <OutfitCardContainer enabled={outfitEnabled} event={activeOutfitEvent} sensitivity={outfitSensitivity} />
+          <OutfitCardContainer enabled={outfitEnabled} event={activeOutfitEvent} figure={outfitFigure} sensitivity={outfitSensitivity} />
         ) : (
           <Pressable
             accessibilityLabel="옷차림 추천을 위한 일정 추가"

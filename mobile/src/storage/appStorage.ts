@@ -62,6 +62,7 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     const parsed = JSON.parse(storedOutfitSettings ?? '{}') as Partial<OutfitSettings>;
     outfitSettings = {
       enabled: parsed.enabled !== false,
+      figure: parsed.figure === 'female' ? 'female' : 'male',
       sensitivity: ['cold', 'normal', 'hot'].includes(parsed.sensitivity ?? '') ? parsed.sensitivity as OutfitSettings['sensitivity'] : 'normal',
     };
   } catch {

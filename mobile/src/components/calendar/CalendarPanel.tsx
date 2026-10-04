@@ -3,7 +3,7 @@ import { Alert, Animated, Pressable, useWindowDimensions, View } from 'react-nat
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon } from '../shared/AppActionIcon';
-import type { CalendarEvent, HourlyDustItem, OutfitSensitivity, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
+import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
@@ -38,6 +38,7 @@ export function CalendarPanel({
   onUpdateEvent,
   onUpdateEventSeries,
   outfitEnabled,
+  outfitFigure,
   outfitSensitivity,
   prediction,
   todayDateLabel,
@@ -60,6 +61,7 @@ export function CalendarPanel({
   onUpdateEvent?: (event: CalendarEvent) => void;
   onUpdateEventSeries?: (event: CalendarEvent) => void;
   outfitEnabled: boolean;
+  outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
   prediction?: PredictionResponse | null;
   todayDateLabel: string;
@@ -255,6 +257,7 @@ export function CalendarPanel({
           onExpandStateChange={setDaySheetExpanded}
           onRemoveEvent={onRemoveEvent}
           outfitEnabled={outfitEnabled}
+          outfitFigure={outfitFigure}
           outfitSensitivity={outfitSensitivity}
           pm10={selectedForecast.pm10}
           riskByEvent={selectedRiskByEvent}
