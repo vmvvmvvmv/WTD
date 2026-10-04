@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useOutfitRecommendation, type OutfitLoadStatus } from '../../features/outfit/useOutfitRecommendation';
-import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
+import type { CalendarEvent, OutfitFigure, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
 import { MustHaveIcon, OutfitIcon } from './OutfitIcon';
 import { OUTFIT_MOTION } from './motion';
 import { outfitStyles } from './outfitStyles';
@@ -108,7 +108,8 @@ function MustHaveChip({ item, index }: { item: OutfitRecommendation['must_have']
   );
 }
 
-export function OutfitCard({ onRetry, result, showRetry = false }: {
+export function OutfitCard({ figure, onRetry, result, showRetry = false }: {
+  figure: OutfitFigure;
   onRetry?: () => void;
   result: OutfitRecommendation;
   showRetry?: boolean;
@@ -123,7 +124,7 @@ export function OutfitCard({ onRetry, result, showRetry = false }: {
   return (
     <Animated.View entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)} style={outfitStyles.card}>
       <View style={outfitStyles.cardHeader}>
-        <View style={outfitStyles.visualFrame}><OutfitVisual result={result} /></View>
+        <View style={outfitStyles.visualFrame}><OutfitVisual figure={figure} result={result} /></View>
         <View style={outfitStyles.cardHeaderText}>
           <Text style={outfitStyles.eyebrow}>옷차림 추천</Text>
           <Pressable accessibilityLabel={result.summary} onPress={typed.complete}>
@@ -142,15 +143,16 @@ export function OutfitCard({ onRetry, result, showRetry = false }: {
   );
 }
 
-export function OutfitCardContainer({ enabled, event, sensitivity }: {
+export function OutfitCardContainer({ enabled, event, figure, sensitivity }: {
   enabled: boolean;
   event: CalendarEvent;
+  figure: OutfitFigure;
   sensitivity: OutfitSensitivity;
 }) {
   const { result, retry, status } = useOutfitRecommendation({ enabled, event, sensitivity });
   if (!enabled || status === 'idle') return null;
   if (status === 'loading' && !result) return <OutfitSkeleton />;
-  if (result) return <OutfitCard onRetry={retry} result={result} showRetry={status === 'error'} />;
+  if (result) return <OutfitCard figure={figure} onRetry={retry} result={result} showRetry={status === 'error'} />;
   return (
     <View style={outfitStyles.empty}>
       <OutfitIcon activityType={event.activityType} size={25} />

@@ -1815,6 +1815,7 @@ export function AppContent() {
               onUpdateEvent={updateCalendarEvent}
               onUpdateEventSeries={updateCalendarEventSeries}
               outfitEnabled={outfitSettings.enabled}
+              outfitFigure={outfitSettings.figure}
               outfitSensitivity={outfitSettings.sensitivity}
               prediction={prediction}
               todayDateLabel={todayDateLabel}
@@ -2023,6 +2024,7 @@ export function AppContent() {
               setActiveTab('map');
             }}
             outfitEnabled={outfitSettings.enabled}
+            outfitFigure={outfitSettings.figure}
             outfitSensitivity={outfitSettings.sensitivity}
             mapPreviewUrl={homeMapPreviewUrl}
             hourlyItems={hourlyItems}

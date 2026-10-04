@@ -175,9 +175,11 @@ export type NotificationSettings = {
 };
 
 export type OutfitSensitivity = 'cold' | 'normal' | 'hot';
+export type OutfitFigure = 'male' | 'female';
 
 export type OutfitSettings = {
   enabled: boolean;
+  figure: OutfitFigure;
   sensitivity: OutfitSensitivity;
 };
 
