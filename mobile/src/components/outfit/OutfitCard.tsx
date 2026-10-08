@@ -24,6 +24,13 @@ import { OUTFIT_MOTION } from './motion';
 import { outfitStyles } from './outfitStyles';
 import { OutfitVisual } from './OutfitVisual';
 
+export type OutfitFallbackLocation = {
+  city?: string;
+  lat?: number;
+  lng?: number;
+  region?: string;
+};
+
 function useTypewriter(value: string, reduceMotion: boolean) {
   const [visible, setVisible] = useState(reduceMotion ? value : '');
   useEffect(() => {
@@ -108,10 +115,11 @@ function MustHaveChip({ item, index }: { item: OutfitRecommendation['must_have']
   );
 }
 
-export function OutfitCard({ figure, onRetry, result, showRetry = false }: {
+export function OutfitCard({ figure, onRetry, result, showBothFigures = false, showRetry = false }: {
   figure: OutfitFigure;
   onRetry?: () => void;
   result: OutfitRecommendation;
+  showBothFigures?: boolean;
   showRetry?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
@@ -121,6 +129,51 @@ export function OutfitCard({ figure, onRetry, result, showRetry = false }: {
     ...result.outfit.bottom.slice(0, 1),
     ...result.outfit.outer.slice(0, 1),
   ], [result.outfit.bottom, result.outfit.outer, result.outfit.top]);
+  const essentials = useMemo(() => result.must_have.map((item) => item.label).join(' · '), [result.must_have]);
+
+  if (showBothFigures) {
+    return (
+      <Animated.View
+        entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)}
+        style={[outfitStyles.card, outfitStyles.dualCard]}
+      >
+        <View style={outfitStyles.dualVisualRow}>
+          <View style={outfitStyles.dualVisualPanel}>
+            <Text style={outfitStyles.dualVisualLabel}>남성 옷차림</Text>
+            <OutfitVisual figure="male" imageStyle={outfitStyles.dualVisualImage} result={result} />
+          </View>
+          <View style={outfitStyles.dualVisualPanel}>
+            <Text style={outfitStyles.dualVisualLabel}>여성 옷차림</Text>
+            <OutfitVisual figure="female" imageStyle={outfitStyles.dualVisualImage} result={result} />
+          </View>
+        </View>
+        <View style={outfitStyles.dualDescription}>
+          <Text style={outfitStyles.dualDescriptionText}>{result.outfit_note || result.summary}</Text>
+          {!!result.layering_tip && <Text style={outfitStyles.dualDescriptionSubtext}>{result.layering_tip}</Text>}
+          {!!essentials && <Text style={outfitStyles.dualEssentials}>챙길 것 · {essentials}</Text>}
+        </View>
+        {!!result.schedule_tips?.length && (
+          <View style={outfitStyles.scheduleTipList}>
+            {result.schedule_tips.slice(0, 2).map((tip) => (
+              <View key={`${tip.schedule_id}-${tip.time}`} style={outfitStyles.scheduleTipRow}>
+                <Text style={outfitStyles.scheduleTipTime}>{tip.time}</Text>
+                <View style={outfitStyles.scheduleTipBody}>
+                  <Text numberOfLines={1} style={outfitStyles.scheduleTipTitle}>{tip.title}</Text>
+                  <Text style={outfitStyles.scheduleTipMessage}>{tip.message}</Text>
+                  {!!tip.items.length && <Text style={outfitStyles.scheduleTipItems}>{tip.items.join(' · ')}</Text>}
+                </View>
+              </View>
+            ))}
+            {(result.schedule_tips.length > 2 || (result.total_schedules ?? 0) > 2) && (
+              <Text style={outfitStyles.scheduleTipMore}>나머지 일정도 기본 옷차림에 반영했어요.</Text>
+            )}
+          </View>
+        )}
+        {showRetry && onRetry && <Pressable accessibilityLabel="옷차림 추천 다시 시도" onPress={onRetry} style={outfitStyles.retry}><Text style={outfitStyles.retryText}>다시 시도</Text></Pressable>}
+      </Animated.View>
+    );
+  }
+
   return (
     <Animated.View entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)} style={outfitStyles.card}>
       <View style={outfitStyles.cardHeader}>
@@ -143,19 +196,33 @@ export function OutfitCard({ figure, onRetry, result, showRetry = false }: {
   );
 }
 
-export function OutfitCardContainer({ enabled, event, figure, sensitivity }: {
+export function OutfitCardContainer({ enabled, enhanceWithLlm = false, event, events, fallbackLocation, figure, sensitivity, showBothFigures = false }: {
   enabled: boolean;
-  event: CalendarEvent;
+  enhanceWithLlm?: boolean;
+  event?: CalendarEvent;
+  events?: CalendarEvent[];
+  fallbackLocation?: OutfitFallbackLocation;
   figure: OutfitFigure;
   sensitivity: OutfitSensitivity;
+  showBothFigures?: boolean;
 }) {
-  const { result, retry, status } = useOutfitRecommendation({ enabled, event, sensitivity });
+  const resolvedEvents = useMemo<CalendarEvent[]>(() => {
+    const requested = events?.length ? events : event ? [event] : [];
+    return requested.map((item) => ({
+      ...item,
+      locationCity: item.locationCity || fallbackLocation?.city,
+      locationLat: typeof item.locationLat === 'number' ? item.locationLat : fallbackLocation?.lat,
+      locationLng: typeof item.locationLng === 'number' ? item.locationLng : fallbackLocation?.lng,
+      locationRegion: item.locationRegion || fallbackLocation?.region,
+    }));
+  }, [event, events, fallbackLocation?.city, fallbackLocation?.lat, fallbackLocation?.lng, fallbackLocation?.region]);
+  const { result, retry, status } = useOutfitRecommendation({ enabled, enhanceWithLlm, events: resolvedEvents, sensitivity });
   if (!enabled || status === 'idle') return null;
   if (status === 'loading' && !result) return <OutfitSkeleton />;
-  if (result) return <OutfitCard figure={figure} onRetry={retry} result={result} showRetry={status === 'error'} />;
+  if (result) return <OutfitCard figure={figure} onRetry={retry} result={result} showBothFigures={showBothFigures} showRetry={status === 'error'} />;
   return (
     <View style={outfitStyles.empty}>
-      <OutfitIcon activityType={event.activityType} size={25} />
+      <OutfitIcon activityType={resolvedEvents[0]?.activityType ?? 'outdoor'} size={25} />
       <Text style={outfitStyles.emptyText}>{status === 'unavailable' ? '날씨 데이터가 부족해 옷차림을 추천하기 어려워요.' : '옷차림 추천을 불러오지 못했어요.'}</Text>
       <Pressable accessibilityLabel="옷차림 추천 다시 시도" onPress={retry} style={outfitStyles.retry}><Text style={outfitStyles.retryText}>다시 시도</Text></Pressable>
     </View>

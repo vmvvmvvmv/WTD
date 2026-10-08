@@ -216,7 +216,7 @@ def _script_json(value):
 
 def mobile_map(request):
     client_id = NAVER_MAP_CLIENT_ID
-    initial_mode = "weather" if request.GET.get("mode") == "weather" else "dust"
+    initial_mode = "dust" if request.GET.get("mode") == "dust" else "weather"
     picker_mode = request.GET.get("picker") == "1"
     view_mode = request.GET.get("view") or ("picker" if picker_mode else "unknown")
     basic_mode = request.GET.get("basic") == "1"
@@ -293,6 +293,8 @@ def mobile_map(request):
         padding: 0;
         text-align: center;
         width: 36px;
+        position: relative;
+        z-index: 2;
       }}
       .picker-gps-marker {{
         align-items: center;
@@ -319,7 +321,74 @@ def mobile_map(request):
         display: flex;
         flex-direction: column;
         gap: 4px;
+        position: relative;
         transform: translateX(-1px);
+      }}
+      .weather-badges {{
+        display: flex;
+        gap: 2px;
+        pointer-events: none;
+        position: absolute;
+        right: -13px;
+        top: -10px;
+        z-index: 4;
+      }}
+      .weather-badge {{
+        align-items: center;
+        background: rgba(255,255,255,.98);
+        border: 1px solid #c9dcf3;
+        border-radius: 999px;
+        box-shadow: 0 2px 7px rgba(31,65,115,.2);
+        display: flex;
+        height: 23px;
+        justify-content: center;
+        width: 23px;
+      }}
+      .weather-badge img {{ display: block; height: 19px; object-fit: contain; width: 19px; }}
+      .weather-badge.rain {{ color: #3D7FEA; animation: rainPulse 1.8s ease-in-out infinite; }}
+      .weather-badge.snow {{ color: #65A1D8; animation: snowFloat 2.4s ease-in-out infinite; }}
+      .weather-badge.wind {{ color: #475569; animation: windDrift 1.6s ease-in-out infinite; }}
+      .marker-wrap.weather-rain .marker {{
+        box-shadow: 0 0 0 3px rgba(61,127,234,.42), 0 3px 10px rgba(40,86,140,.28);
+      }}
+      .marker-wrap.weather-heavy-rain .marker {{
+        box-shadow: 0 0 0 4px rgba(61,127,234,.62), 0 3px 12px rgba(40,86,140,.32);
+        animation: rainRing 1.5s ease-in-out infinite;
+      }}
+      .marker-wrap.weather-snow .marker {{
+        border-style: dashed;
+        box-shadow: 0 0 0 3px rgba(101,161,216,.52), 0 3px 10px rgba(40,86,140,.24);
+      }}
+      .wind-trail {{
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        left: 18px;
+        pointer-events: none;
+        position: absolute;
+        top: 17px;
+        transform: rotate(var(--wind-angle));
+        transform-origin: 0 50%;
+        z-index: 1;
+      }}
+      .wind-trail i {{
+        animation: windFlow 1.5s ease-in-out infinite;
+        background: rgba(71,85,105,.72);
+        border-radius: 999px;
+        display: block;
+        height: 2px;
+        width: 20px;
+      }}
+      .wind-trail i:nth-child(2) {{ animation-delay: 140ms; margin-left: 4px; width: 27px; }}
+      .wind-trail i:nth-child(3) {{ animation-delay: 280ms; margin-left: 1px; width: 23px; }}
+      .wind-trail.strong i {{ background: rgba(31,65,115,.86); height: 3px; }}
+      @keyframes rainPulse {{ 0%, 100% {{ transform: translateY(0); }} 50% {{ transform: translateY(2px); }} }}
+      @keyframes snowFloat {{ 0%, 100% {{ transform: rotate(-6deg); }} 50% {{ transform: rotate(6deg); }} }}
+      @keyframes windDrift {{ 0%, 100% {{ transform: translateX(-1px); }} 50% {{ transform: translateX(2px); }} }}
+      @keyframes windFlow {{ 0%, 100% {{ opacity: .44; transform: translateX(0); }} 50% {{ opacity: 1; transform: translateX(5px); }} }}
+      @keyframes rainRing {{ 0%, 100% {{ box-shadow: 0 0 0 3px rgba(61,127,234,.48), 0 3px 10px rgba(40,86,140,.28); }} 50% {{ box-shadow: 0 0 0 5px rgba(61,127,234,.24), 0 3px 12px rgba(40,86,140,.32); }} }}
+      @media (prefers-reduced-motion: reduce) {{
+        .weather-badge, .wind-trail i, .marker-wrap.weather-heavy-rain .marker {{ animation: none !important; }}
       }}
       .marker-label {{
         background: rgba(255,255,255,.96);
@@ -386,10 +455,17 @@ def mobile_map(request):
       .map-legend.hidden {{ display: none; }}
       .legend-item {{ align-items: center; color: #475569; display: flex; font-size: 9px; font-weight: 800; gap: 4px; white-space: nowrap; }}
       .legend-dot {{ border: 1px solid rgba(255,255,255,.9); border-radius: 999px; box-shadow: 0 1px 3px rgba(31,65,115,.16); height: 9px; width: 9px; }}
+      .legend-scale {{ align-items: center; display: flex; gap: 5px; }}
+      .legend-gradient {{ border: 1px solid rgba(255,255,255,.9); border-radius: 999px; height: 7px; width: 64px; }}
+      .legend-gradient.weather {{ background: linear-gradient(90deg, var(--weather-cold), var(--weather-cool), var(--weather-mild), var(--weather-warm), var(--weather-hot)); }}
+      .legend-gradient.dust {{ background: linear-gradient(90deg, var(--air-good), var(--air-moderate), var(--air-bad), var(--air-very-bad)); }}
+      .legend-events {{ border-left: 1px solid #d7e4f2; padding-left: 8px; }}
+      .legend-weather-icon {{ display: inline-block; height: 15px; object-fit: contain; vertical-align: middle; width: 15px; }}
+      .legend-weather-group {{ align-items: center; display: inline-flex; gap: 2px; }}
       .info {{
         background: #ffffff;
         border: 1px solid #d7e4f2;
-        border-radius: 16px;
+        border-radius: 0;
         box-shadow: 0 5px 18px rgba(48,84,120,.16);
         color: #17202a;
         font-size: 13px;
@@ -404,14 +480,15 @@ def mobile_map(request):
       }}
       .info .grid {{
         display: grid;
-        gap: 6px;
+        column-gap: 12px;
         grid-template-columns: 1fr 1fr;
       }}
       .info .metric {{
-        background: #f4f8fc;
-        border: 1px solid #e5edf5;
-        border-radius: 10px;
-        padding: 7px;
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid #e5edf5;
+        border-radius: 0;
+        padding: 7px 2px;
       }}
       .info .label {{
         color: #687180;
@@ -638,6 +715,44 @@ def mobile_map(request):
         return station.city || station.name || station.sido || '';
       }}
 
+      function weatherEventPresentation(station) {{
+        const label = String(station.weatherLabel || '').toLowerCase();
+        const rainMm = Number(station.weatherRainMm);
+        const windSpeed = Number(station.weatherWindSpeed);
+        const windDirection = Number(station.weatherWindDirection);
+        const hasSnow = label.includes('눈') || label.includes('snow');
+        const hasRain = !hasSnow && (
+          label.includes('비') ||
+          label.includes('소나기') ||
+          label.includes('rain') ||
+          (Number.isFinite(rainMm) && rainMm > 0)
+        );
+        const hasWind = Number.isFinite(windSpeed) && windSpeed >= 5;
+        const hasStrongWind = Number.isFinite(windSpeed) && windSpeed >= 9;
+        const classes = [];
+        const badges = [];
+        if (hasSnow) {{
+          classes.push('weather-snow');
+          badges.push('<span class="weather-badge snow" aria-label="눈" title="눈"><img alt="" src="/static/dust/icons/map-weather-snow.png"></span>');
+        }} else if (hasRain) {{
+          classes.push(Number.isFinite(rainMm) && rainMm >= 5 ? 'weather-heavy-rain' : 'weather-rain');
+          badges.push('<span class="weather-badge rain" aria-label="비" title="비"><img alt="" src="/static/dust/icons/map-weather-rain.png"></span>');
+        }}
+        if (hasStrongWind) badges.push('<span class="weather-badge wind" aria-label="강풍" title="강풍"><img alt="" src="/static/dust/icons/map-weather-wind.png"></span>');
+        let windTrail = '';
+        if (hasWind) {{
+          classes.push(hasStrongWind ? 'weather-strong-wind' : 'weather-windy');
+          const angle = Number.isFinite(windDirection) ? (windDirection + 180) % 360 : 0;
+          const lines = hasStrongWind ? '<i></i><i></i><i></i>' : '<i></i>';
+          windTrail = '<span class="wind-trail ' + (hasStrongWind ? 'strong' : '') + '" aria-label="' + (hasStrongWind ? '강풍' : '바람') + '" style="--wind-angle:' + angle + 'deg">' + lines + '</span>';
+        }}
+        return {{
+          badges: badges.length ? '<div class="weather-badges">' + badges.slice(0, 2).join('') + '</div>' : '',
+          className: classes.join(' '),
+          windTrail
+        }};
+      }}
+
       function updateLegend() {{
         if (!mapLegend) return;
         if (pickerMode) {{
@@ -645,10 +760,15 @@ def mobile_map(request):
           return;
         }}
         mapLegend.classList.remove('hidden');
-        const entries = mapMode === 'weather' ? mapUi.weather.legend : mapUi.dust.legend;
-        mapLegend.innerHTML = entries.map((item) => (
-          '<span class="legend-item"><span class="legend-dot" style="background:' + item.color + '"></span>' + safeHtml(item.label) + '</span>'
-        )).join('');
+        const metricLegend = mapMode === 'weather'
+          ? '<span class="legend-item legend-scale"><span>추움</span><span class="legend-gradient weather"></span><span>더움</span></span>'
+          : '<span class="legend-item legend-scale"><span>좋음</span><span class="legend-gradient dust"></span><span>매우 나쁨</span></span>';
+        const eventLegend = '<span class="legend-item legend-events">' +
+          '<span class="legend-weather-group"><img class="legend-weather-icon" alt="" src="/static/dust/icons/map-weather-rain.png">비</span>' +
+          '<span class="legend-weather-group"><img class="legend-weather-icon" alt="" src="/static/dust/icons/map-weather-snow.png">눈</span>' +
+          '<span class="legend-weather-group"><img class="legend-weather-icon" alt="" src="/static/dust/icons/map-weather-wind.png">강풍</span>' +
+          '</span>';
+        mapLegend.innerHTML = metricLegend + eventLegend;
       }}
 
       function markerLimitByZoom(zoom) {{
@@ -878,13 +998,16 @@ def mobile_map(request):
             const lat = coords.lat;
             const lng = coords.lng;
             const isFocused = stationKey(station) === focusedKey;
+            const weatherEvent = weatherEventPresentation(station);
             const marker = new naver.maps.Marker({{
               position: new naver.maps.LatLng(lat, lng),
               map,
               zIndex: isFocused ? 3000 : 1000,
               icon: {{
                 content:
-                  '<div class="marker-wrap">' +
+                  '<div class="marker-wrap ' + weatherEvent.className + '">' +
+                  weatherEvent.windTrail +
+                  weatherEvent.badges +
                   '<div class="marker ' + markerClass(station) + (isFocused ? ' selected' : '') + '">' + markerValue(station) + '</div>' +
                   (showLabels ? '<div class="marker-label ' + (isFocused ? 'selected' : '') + '">' + escapeHtml(markerLabel(station)) + '</div>' : '') +
                   '</div>',
@@ -901,8 +1024,10 @@ def mobile_map(request):
                 '<div class="metric"><span class="label">PM2.5</span><span class="value">' + displayValue(station.pm25) + ' ug/m3</span></div>' +
                 '<div class="metric"><span class="label">O3</span><span class="value">' + displayValue(station.o3) + ' ppm</span></div>' +
                 '<div class="metric"><span class="label">NO2</span><span class="value">' + displayValue(station.no2) + ' ppm</span></div>' +
-                '<div class="metric"><span class="label">기온</span><span class="value">' + displayValue(station.weatherTemperature) + '°</span></div>' +
+                '<div class="metric"><span class="label">기온</span><span class="value">' + displayValue(station.weatherTemperature) + '</span></div>' +
                 '<div class="metric"><span class="label">습도</span><span class="value">' + displayValue(station.weatherHumidity) + '%</span></div>' +
+                '<div class="metric"><span class="label">바람</span><span class="value">' + displayValue(station.weatherWindSpeed) + ' m/s</span></div>' +
+                '<div class="metric"><span class="label">강수</span><span class="value">' + displayValue(station.weatherRainMm) + ' mm</span></div>' +
                 '</div>' +
                 '<div class="muted">' + (station.addr || '') + '</div>' +
                 '<div class="muted">' + (station.time || '') + '</div>' +
@@ -3780,7 +3905,7 @@ def _site_help_answer(question):
     if any(keyword in question for keyword in ['지역', '변경', '설정', '즐겨찾기']):
         return "앱은 처음에 GPS로 현재 지역을 잡아요. 자주 보는 지역은 홈이나 지도에서 즐겨찾기로 저장할 수 있고, 홈 상단 지역명을 눌러 빠르게 바꿔볼 수 있습니다. 저장한 지역은 설정 탭에서 정리할 수 있어요."
     if any(keyword in question for keyword in ['알림']):
-        return "알림은 미세먼지가 나쁨 이상으로 올라갈 때 알려주는 기능이에요. Expo Go에서는 테스트가 제한돼서 개발 빌드에서 확인해야 하고, 설정 탭에서 켜고 끌 수 있습니다."
+        return "알림에서는 일정 전 날씨와 준비물, 아침 날씨 요약을 확인할 수 있어요. Expo Go에서는 알림이 제한되므로 개발 빌드에서 확인해 주세요. 설정 탭에서 일정 알림과 아침 날씨 알림을 각각 켜고 끌 수 있습니다."
     if any(keyword in question for keyword in ['챗봇', '채팅', '질문']):
         return "챗봇에서는 오늘 공기와 날씨, 내일 미세먼지 예측, 예측 근거, 최근 평균 비교를 물어볼 수 있어요. 앱 사용법이 헷갈릴 때도 '지도는 어떻게 봐?'처럼 물어보면 간단히 안내해드릴게요."
     if any(keyword in question for keyword in ['예측', '정확', '모델']):

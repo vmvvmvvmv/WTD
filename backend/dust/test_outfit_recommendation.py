@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 from django.test import SimpleTestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
+from dust.services.outfit.daily_service import merge_daily_snapshots, recommend_daily_outfit
 from dust.services.outfit.llm_client import GeminiLLMClient, OUTPUT_SCHEMA
 from dust.services.outfit.occasion import classify_occasion
 from dust.services.outfit.response_parser import validate_llm_output
@@ -31,6 +32,15 @@ class OutfitAggregationTests(SimpleTestCase):
         self.assertIn("rain", result["data_gaps"])
         self.assertIn("pm10", result["data_gaps"])
 
+    def test_mixed_snow_precipitation_has_priority_over_rain_and_wind(self):
+        result = aggregate_schedule_window(
+            [WeatherPoint(temperature=1, wind_speed=10, rain_mm=2, precipitation_type="2", label="비/눈")],
+            [],
+        )
+        self.assertTrue(result["has_snow"])
+        self.assertTrue(result["has_rain"])
+        self.assertEqual(result["weather_condition"], "snow")
+
 
 class OutfitRuleEngineTests(SimpleTestCase):
     def test_running_uses_sportswear_instead_of_cardigan(self):
@@ -53,6 +63,15 @@ class OutfitRuleEngineTests(SimpleTestCase):
         self.assertEqual(result["outfit"]["band"], "B2")
         self.assertEqual(result["must_have"], [])
 
+    def test_very_hot_outdoor_weather_recommends_sun_parasol(self):
+        result = build_rule_result(snapshot(feels_min=29, feels_max=33, feels_avg=31), activity_type="outdoor", sensitivity="normal", occasion="unknown")
+        self.assertIn("sun_parasol", [item["type"] for item in result["must_have"]])
+        self.assertIn("양산", result["outfit"]["accessories"])
+
+    def test_very_hot_indoor_schedule_does_not_recommend_sun_parasol(self):
+        result = build_rule_result(snapshot(feels_min=29, feels_max=33, feels_avg=31), activity_type="indoor", sensitivity="normal", occasion="unknown")
+        self.assertNotIn("sun_parasol", [item["type"] for item in result["must_have"]])
+
     def test_large_temperature_range_adds_layering_tip(self):
         result = build_rule_result(snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9), activity_type="outdoor", sensitivity="normal", occasion="unknown")
         self.assertTrue(result["layering_tip"])
@@ -60,6 +79,21 @@ class OutfitRuleEngineTests(SimpleTestCase):
     def test_strong_wind_adds_windbreaker(self):
         result = build_rule_result(snapshot(feels_min=12, feels_max=12, feels_avg=12, wind_max=10), activity_type="outdoor", sensitivity="normal", occasion="unknown")
         self.assertIn("windbreaker", [item["type"] for item in result["must_have"]])
+        self.assertIn("방풍", result["outfit"]["outer"][0])
+        self.assertEqual(result["weather_condition"], "strong_wind")
+
+    def test_rain_replaces_outer_with_water_resistant_option(self):
+        result = build_rule_result(snapshot(feels_min=18, feels_max=18, feels_avg=18, rain_prob_max=70), activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertIn("방수", result["outfit"]["outer"][0])
+        self.assertIn("umbrella", [item["type"] for item in result["must_have"]])
+        self.assertEqual(result["weather_condition"], "rain")
+
+    def test_snow_uses_weatherproof_outer_and_footwear(self):
+        result = build_rule_result(snapshot(feels_min=-1, feels_max=2, feels_avg=1, has_snow=True, has_rain=True, wind_max=10), activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertIn("방수·방풍", result["outfit"]["outer"][0])
+        self.assertIn("waterproof_shoes", [item["type"] for item in result["must_have"]])
+        self.assertNotIn("umbrella", [item["type"] for item in result["must_have"]])
+        self.assertEqual(result["weather_condition"], "snow")
 
     def test_indoor_always_has_portable_outer(self):
         result = build_rule_result(snapshot(feels_avg=30), activity_type="indoor", sensitivity="normal", occasion="unknown")
@@ -70,6 +104,38 @@ class OutfitRuleEngineTests(SimpleTestCase):
         cold = build_rule_result(snapshot(feels_min=13, feels_max=13, feels_avg=13), activity_type="outdoor", sensitivity="cold", occasion="unknown")
         self.assertEqual(normal["outfit"]["band"], "B5")
         self.assertEqual(cold["outfit"]["band"], "B6")
+
+
+class DailyOutfitServiceTests(SimpleTestCase):
+    def test_daily_snapshot_uses_full_temperature_range_and_weather_priority(self):
+        result = merge_daily_snapshots([
+            snapshot(feels_min=18, feels_max=24, feels_avg=21, weather_condition="normal"),
+            snapshot(feels_min=2, feels_max=7, feels_avg=4, has_snow=True, has_rain=True, weather_condition="snow"),
+        ])
+        self.assertEqual(result["feels_min"], 2)
+        self.assertEqual(result["feels_avg"], 4)
+        self.assertEqual(result["feels_max"], 24)
+        self.assertEqual(result["temp_range"], 22)
+        self.assertEqual(result["weather_condition"], "snow")
+
+    @patch("dust.services.outfit.daily_service.get_cached_recommendation", return_value=None)
+    @patch("dust.services.outfit.daily_service.build_llm_client", return_value=None)
+    @patch("dust.services.outfit.daily_service.load_schedule_snapshot")
+    def test_multiple_schedules_return_one_base_outfit_with_prioritized_tips(self, load_snapshot, _client, _cache):
+        load_snapshot.side_effect = [
+            snapshot(feels_min=18, feels_max=22, feels_avg=20, weather_condition="normal"),
+            snapshot(feels_min=12, feels_max=15, feels_avg=13, rain_prob_max=80, has_rain=True, weather_condition="rain"),
+        ]
+        first = request_payload("full")
+        second = {**request_payload("full"), "schedule_id": "event-2", "title": "저녁 운동", "start": "2026-10-04T19:00:00+09:00", "end": "2026-10-04T20:00:00+09:00"}
+        payload = {"schedules": [first, second], "sensitivity": "normal", "mode": "full"}
+
+        result = recommend_daily_outfit(payload, client_key="device")
+
+        self.assertEqual(result["total_schedules"], 2)
+        self.assertEqual(result["weather_condition"], "rain")
+        self.assertEqual(result["schedule_tips"][0]["schedule_id"], "event-2")
+        self.assertIn("우산", result["schedule_tips"][0]["items"])
 
 
 class OutfitLlmValidationTests(SimpleTestCase):

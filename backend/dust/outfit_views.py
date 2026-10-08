@@ -5,6 +5,7 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from .services.outfit import recommend_outfit
+from .services.outfit.daily_service import recommend_daily_outfit
 from .services.outfit.context_builder import OutfitContextError
 from .services.outfit.service import OutfitDataUnavailable
 
@@ -30,6 +31,17 @@ def recommend(request):
     try:
         payload = request.data if isinstance(request.data, dict) else {}
         return Response(recommend_outfit(payload, client_key=_client_key(request)))
+    except OutfitContextError as exc:
+        return Response({'error': str(exc)}, status=400)
+    except OutfitDataUnavailable as exc:
+        return Response({'error': str(exc)}, status=503)
+
+
+@api_view(['POST'])
+def recommend_daily(request):
+    try:
+        payload = request.data if isinstance(request.data, dict) else {}
+        return Response(recommend_daily_outfit(payload, client_key=_client_key(request)))
     except OutfitContextError as exc:
         return Response({'error': str(exc)}, status=400)
     except OutfitDataUnavailable as exc:

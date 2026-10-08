@@ -17,9 +17,12 @@ export type CalendarRiskResult = {
   rainProbability?: number;
   rainTimeRange?: string;
   temperature?: number;
+  temperatureMax?: number;
+  temperatureMin?: number;
   tone: string;
   weatherLabel?: string;
   windSpeed?: number;
+  windTimeRange?: string;
 };
 
 type DustPoint = {
@@ -58,15 +61,15 @@ type RiskContext = {
 const EVENT_WEATHER_BUFFER_MS = 60 * 60 * 1000;
 
 const TEXT = {
-  adjust: '\uC8FC\uC758',
-  bad: '\uACBD\uACE0',
-  currentBasis: '\uD604\uC7AC \uAE30\uC900',
-  forecastNeeded: '\uC608\uBCF4 \uD655\uC778 \uD544\uC694',
-  good: '\uC88B\uC74C',
-  midTermBasis: '\uC911\uAE30\uC608\uBCF4 \uAE30\uC900',
-  unknown: '\uD655\uC778 \uC911',
-  watch: '\uD655\uC778',
-  past: '\uC9C0\uB09C \uC77C\uC815',
+  adjust: '주의',
+  bad: '경고',
+  currentBasis: '현재 기준',
+  forecastNeeded: '예보 확인 필요',
+  good: '좋음',
+  midTermBasis: '중기예보 기준',
+  unknown: '확인 중',
+  watch: '확인',
+  past: '지난 일정',
 };
 
 function dateMs(value?: string) {
@@ -141,14 +144,26 @@ function isPastEvent(event: CalendarEvent, todayDateLabel: string) {
   const end = dateMs(event.endDate ?? event.date);
   const today = dateMs(todayDateLabel);
   if (typeof end !== 'number' || typeof today !== 'number') return false;
-  return end < today;
+  if (end < today) return true;
+  if (end > today) return false;
+
+  const now = new Date();
+  const currentDateLabel = [
+    now.getFullYear(),
+    String(now.getMonth() + 1).padStart(2, '0'),
+    String(now.getDate()).padStart(2, '0'),
+  ].join('-');
+  if (currentDateLabel !== todayDateLabel) return false;
+
+  const endDateTime = dateTimeMs(event.endDate ?? event.date, event.endTime ?? event.time);
+  return typeof endDateTime === 'number' && endDateTime < now.getTime();
 }
 
 function isPointInEventRange(pointDateValue: string, pointTime: string, event: CalendarEvent) {
   const point = dateTimeMs(pointDateValue, pointTime);
   const { end, start } = eventRange(event);
   if (typeof point !== 'number' || typeof start !== 'number' || typeof end !== 'number') return false;
-  return point >= start && point <= end;
+  return end > start ? point >= start && point < end : point === start;
 }
 
 function isPointNearEventRange(pointDateValue: string, pointTime: string, event: CalendarEvent) {
@@ -169,41 +184,63 @@ function pickDustPoint(event: CalendarEvent, points: DustPoint[]) {
   const inRange = points.filter((item) => isPointInEventRange(item.date, item.label, event));
   if (inRange.length > 0) {
     const worst = inRange.reduce((best, item) => (item.pm10 > best.pm10 ? item : best));
-    return { basis: `${worst.label} \uAE30\uC900`, point: worst };
+    return { basis: `${worst.label} 기준`, point: worst };
   }
   const sameDate = points.filter((item) => item.date === event.date);
   const nearest = sameDate.reduce<DustPoint | null>((best, item) => {
     if (!best) return item;
     return pointDistance(item.date, item.label, event) < pointDistance(best.date, best.label, event) ? item : best;
   }, null);
-  return nearest ? { basis: `${nearest.label} \uAE30\uC900`, point: nearest } : { basis: '', point: undefined };
+  return nearest ? { basis: `${nearest.label} 기준`, point: nearest } : { basis: '', point: undefined };
 }
 
-function pickWeatherPoint(event: CalendarEvent, points: WeatherPoint[]) {
+function selectWeatherPoints(event: CalendarEvent, points: WeatherPoint[]) {
   const inRange = points.filter((item) => isPointInEventRange(item.date, item.label, event));
-  if (inRange.length > 0) {
-    const worst = inRange.reduce((best, item) => {
-      const bestScore = (best.rainMm ?? 0) + ((best.rainProbability ?? 0) / 10) + (best.windSpeed ?? 0) + Math.abs((best.temperature ?? 20) - 20);
-      const itemScore = (item.rainMm ?? 0) + ((item.rainProbability ?? 0) / 10) + (item.windSpeed ?? 0) + Math.abs((item.temperature ?? 20) - 20);
-      return itemScore > bestScore ? item : best;
-    });
-    return { basis: `${worst.label} \uAE30\uC900`, point: worst };
-  }
+  if (inRange.length > 0) return { basis: '일정 시간대 예보 기준', points: inRange };
+
   const nearRange = points.filter((item) => isPointNearEventRange(item.date, item.label, event));
-  if (nearRange.length > 0) {
-    const worst = nearRange.reduce((best, item) => {
-      const bestScore = (best.rainMm ?? 0) + ((best.rainProbability ?? 0) / 10) + (best.windSpeed ?? 0) + Math.abs((best.temperature ?? 20) - 20);
-      const itemScore = (item.rainMm ?? 0) + ((item.rainProbability ?? 0) / 10) + (item.windSpeed ?? 0) + Math.abs((item.temperature ?? 20) - 20);
-      return itemScore > bestScore ? item : best;
-    });
-    return { basis: `${worst.label} \uADFC\uCC98 \uAE30\uC900`, point: worst };
-  }
+  if (nearRange.length > 0) return { basis: '일정 전후 1시간 예보 기준', points: nearRange };
+
   const sameDate = points.filter((item) => item.date === event.date);
   const nearest = sameDate.reduce<WeatherPoint | null>((best, item) => {
     if (!best) return item;
     return pointDistance(item.date, item.label, event) < pointDistance(best.date, best.label, event) ? item : best;
   }, null);
-  return nearest ? { basis: `${nearest.label} \uAE30\uC900`, point: nearest } : { basis: '', point: undefined };
+  return nearest ? { basis: `${nearest.label} 기준`, points: [nearest] } : { basis: '', points: [] };
+}
+
+function maxValue(values: Array<number | undefined>) {
+  const numbers = values.filter((value): value is number => typeof value === 'number');
+  return numbers.length > 0 ? Math.max(...numbers) : undefined;
+}
+
+function minValue(values: Array<number | undefined>) {
+  const numbers = values.filter((value): value is number => typeof value === 'number');
+  return numbers.length > 0 ? Math.min(...numbers) : undefined;
+}
+
+function aggregateWeather(points: WeatherPoint[]) {
+  const temperatureMin = minValue(points.map((item) => item.temperature));
+  const temperatureMax = maxValue(points.map((item) => item.temperature));
+  const temperatures = [temperatureMin, temperatureMax].filter((value): value is number => typeof value === 'number');
+  const temperature = temperatures.reduce<number | undefined>((selected, value) => {
+    if (typeof selected !== 'number') return value;
+    return Math.abs(value - 20) > Math.abs(selected - 20) ? value : selected;
+  }, undefined);
+  const priorityPoint = points.find((item) => isThunderLabel(item.weatherLabel))
+    ?? points.find((item) => isSnowyLabel(item.weatherLabel))
+    ?? points.find(rainyPoint)
+    ?? points[0];
+
+  return {
+    rainMm: maxValue(points.map((item) => item.rainMm)),
+    rainProbability: maxValue(points.map((item) => item.rainProbability)),
+    temperature,
+    temperatureMax,
+    temperatureMin,
+    weatherLabel: priorityPoint?.weatherLabel,
+    windSpeed: maxValue(points.map((item) => item.windSpeed)),
+  };
 }
 
 function midTermPointForItem(item: WeatherMidTermItem, startHour: number): MidTermPoint {
@@ -257,22 +294,33 @@ function addOneHour(label: string) {
 
 function rainSummaryText(probability: number | undefined, timeRange: string) {
   return typeof probability === 'number'
-    ? `\uAC15\uC218 \uD655\uB960 ${Math.round(probability)}% ${timeRange} \uC608\uC0C1`
-    : `${timeRange} \uBE44 \uC608\uC0C1`;
+    ? `강수 확률 ${Math.round(probability)}% ${timeRange} 예상`
+    : `${timeRange} 비 예상`;
+}
+
+function matchingRiskPoints(event: CalendarEvent, points: WeatherPoint[], predicate: (point: WeatherPoint) => boolean) {
+  const eventPoints = points.filter((item) => isPointInEventRange(item.date, item.label, event));
+  if (eventPoints.length > 0) return eventPoints.filter(predicate);
+  return points.filter((item) => isPointNearEventRange(item.date, item.label, event) && predicate(item));
+}
+
+function pointsTimeRange(points: WeatherPoint[]) {
+  if (points.length === 0) return undefined;
+  const sorted = [...points].sort((a, b) => `${a.date} ${a.label}`.localeCompare(`${b.date} ${b.label}`));
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  if (first.date === last.date) return `${first.label}~${addOneHour(last.label)}`;
+  return `${first.date.slice(5)} ${first.label}~${last.date.slice(5)} ${addOneHour(last.label)}`;
 }
 
 function rainSummaryForEvent(event: CalendarEvent, points: WeatherPoint[], midTermWeather: MidTermPoint | null) {
-  const rainyPoints = points
-    .filter((item) => isPointNearEventRange(item.date, item.label, event) && rainyPoint(item))
-    .sort((a, b) => `${a.date} ${a.label}`.localeCompare(`${b.date} ${b.label}`));
+  const rainyPoints = matchingRiskPoints(event, points, rainyPoint);
   if (rainyPoints.length > 0) {
     const maxProbability = rainyPoints.reduce<number | undefined>((best, item) => {
       if (typeof item.rainProbability !== 'number') return best;
       return typeof best === 'number' ? Math.max(best, item.rainProbability) : item.rainProbability;
     }, undefined);
-    const first = rainyPoints[0];
-    const last = rainyPoints[rainyPoints.length - 1];
-    const timeRange = `${first.label}~${addOneHour(last.label)}`;
+    const timeRange = pointsTimeRange(rainyPoints) ?? '일정 시간대';
     return {
       probability: maxProbability,
       text: rainSummaryText(maxProbability, timeRange),
@@ -282,8 +330,8 @@ function rainSummaryForEvent(event: CalendarEvent, points: WeatherPoint[], midTe
   if (typeof midTermWeather?.rainProbability === 'number' && midTermWeather.rainProbability >= 60) {
     return {
       probability: midTermWeather.rainProbability,
-      text: `\uAC15\uC218 \uD655\uB960 ${Math.round(midTermWeather.rainProbability)}% \uC77C\uC815 \uC2DC\uAC04\uB300 \uC608\uC0C1`,
-      timeRange: '\uC77C\uC815 \uC2DC\uAC04\uB300',
+      text: `강수 확률 ${Math.round(midTermWeather.rainProbability)}% 일정 시간대 예상`,
+      timeRange: '일정 시간대',
     };
   }
   return null;
@@ -325,7 +373,7 @@ function buildAdviceLines(lines: Array<string | undefined>) {
 
 function isSnowyLabel(label?: string) {
   const text = label ?? '';
-  return text.includes('\uB208') || text.toLowerCase().includes('snow');
+  return text.includes('눈') || text.toLowerCase().includes('snow');
 }
 
 export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskContext): CalendarRiskResult {
@@ -333,7 +381,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
     return {
       badge: TEXT.past,
       basis: context.locationBasis ?? '',
-      desc: '\uC9C0\uB09C \uC77C\uC815\uC774\uB77C \uC608\uCE21\uACFC \uD3C9\uAC00\uB294 \uD45C\uC2DC\uD558\uC9C0 \uC54A\uC544\uC694.',
+      desc: '이미 지난 일정이에요.',
       icon: activityIcon(event),
       level: 'unknown',
       tone: semanticColors.outing.unavailable.tone,
@@ -342,24 +390,27 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
 
   const dustResult = pickDustPoint(event, normalizeDustPoints(context.dustItems));
   const weatherPoints = normalizeWeatherPoints(context.weatherItems);
-  const weatherResult = pickWeatherPoint(event, weatherPoints);
+  const weatherResult = selectWeatherPoints(event, weatherPoints);
+  const weatherAggregate = aggregateWeather(weatherResult.points);
   const midTermWeather = midTermWeatherForEvent(event, context.weatherMidTermItems);
   const isTodayEvent = isSameDateOrRangeIncludes(context.todayDateLabel, event);
   const dailyPredictedPm10 = dailyPredictionForEvent(event, context.prediction);
   const pm10 = dustResult.point?.pm10 ?? (isTodayEvent ? context.currentPm10 : undefined) ?? dailyPredictedPm10;
-  const temperature = weatherResult.point?.temperature ?? (isTodayEvent ? context.weather?.temperature : undefined) ?? midTermWeather?.temperature;
-  const rainMm = weatherResult.point?.rainMm ?? (isTodayEvent ? context.weather?.rainMm : undefined);
+  const temperature = weatherAggregate.temperature ?? (isTodayEvent ? context.weather?.temperature : undefined) ?? midTermWeather?.temperature;
+  const temperatureMin = weatherAggregate.temperatureMin ?? temperature;
+  const temperatureMax = weatherAggregate.temperatureMax ?? temperature;
+  const rainMm = weatherAggregate.rainMm ?? (isTodayEvent ? context.weather?.rainMm : undefined);
   const rainSummary = rainSummaryForEvent(event, weatherPoints, midTermWeather);
-  const rainProbability = weatherResult.point?.rainProbability ?? rainSummary?.probability ?? midTermWeather?.rainProbability;
-  const windSpeed = weatherResult.point?.windSpeed ?? (isTodayEvent ? context.weather?.windSpeed : undefined);
-  const weatherLabel = weatherResult.point?.weatherLabel ?? (isTodayEvent ? context.weather?.label : undefined) ?? midTermWeather?.weatherLabel;
-  const rawBasis = dustResult.basis || (typeof dailyPredictedPm10 === 'number' ? '3\uC77C \uBBF8\uC138\uBA3C\uC9C0 \uC608\uCE21 \uAE30\uC900' : '') || weatherResult.basis || (midTermWeather ? TEXT.midTermBasis : (isTodayEvent ? TEXT.currentBasis : TEXT.forecastNeeded));
-  const basis = context.locationBasis ? context.locationBasis + ' \u00B7 ' + rawBasis : rawBasis;
+  const rainProbability = weatherAggregate.rainProbability ?? rainSummary?.probability ?? midTermWeather?.rainProbability;
+  const windSpeed = weatherAggregate.windSpeed ?? (isTodayEvent ? context.weather?.windSpeed : undefined);
+  const weatherLabel = weatherAggregate.weatherLabel ?? (isTodayEvent ? context.weather?.label : undefined) ?? midTermWeather?.weatherLabel;
+  const rawBasis = weatherResult.basis || dustResult.basis || (typeof dailyPredictedPm10 === 'number' ? '3일 미세먼지 예측 기준' : '') || (midTermWeather ? TEXT.midTermBasis : (isTodayEvent ? TEXT.currentBasis : TEXT.forecastNeeded));
+  const basis = context.locationBasis ? context.locationBasis + ' · ' + rawBasis : rawBasis;
 
   const outingIndex = calculateOutingIndex({ pm10, rainMm, rainProbability, temperature, weatherLabel, windSpeed });
-  const outingIndexValue = typeof outingIndex === 'number' ? String(outingIndex) + '\uC810' : '\uD655\uC778 \uC911';
-  const outingIndexRange = eventDayCount(event) > 1 ? ' (' + eventDayCount(event) + '\uC77C \uC77C\uC815 \uAE30\uC900)' : '';
-  const outingIndexLine = '\n\uC608\uC0C1 \uC678\uCD9C \uC9C0\uC218 : ' + outingIndexValue + outingIndexRange;
+  const outingIndexValue = typeof outingIndex === 'number' ? String(outingIndex) + '점' : '확인 중';
+  const outingIndexRange = eventDayCount(event) > 1 ? ' (' + eventDayCount(event) + '일 일정 기준)' : '';
+  const outingIndexLine = '\n예상 외출 지수 : ' + outingIndexValue + outingIndexRange;
 
   if (event.activityType === 'indoor') {
     const indoorLevel: CalendarRiskLevel = typeof pm10 === 'number' && pm10 > 150 ? 'watch' : 'good';
@@ -369,8 +420,8 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
       basis,
       desc: buildAdviceLines([
         indoorLevel === 'watch'
-          ? '\uC2E4\uB0B4 \uC77C\uC815\uC774\uB77C \uAD1C\uCC2E\uC9C0\uB9CC, \uC774\uB3D9 \uC804 \uACF5\uAE30 \uC0C1\uD0DC\uB294 \uD55C \uBC88 \uD655\uC778\uD558\uC138\uC694.'
-          : '\uC2E4\uB0B4 \uC77C\uC815\uC774\uB77C \uD070 \uC601\uD5A5\uC740 \uC5C6\uC5B4 \uBCF4\uC5EC\uC694.',
+          ? '실내 일정이지만 가는 길의 공기는 한 번 확인해 주세요.'
+          : '실내 일정이라 날씨 걱정은 덜어도 되겠어요.',
         outingIndexLine.trim(),
       ]),
       icon: activityIcon(event),
@@ -381,6 +432,8 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
       rainProbability,
       rainTimeRange: rainSummary?.timeRange,
       temperature,
+      temperatureMax,
+      temperatureMin,
       weatherLabel,
       windSpeed,
     };
@@ -390,12 +443,18 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
   const highDust = typeof pm10 === 'number' && pm10 > dustLimit;
   const veryHighDust = typeof pm10 === 'number' && pm10 > (event.sensitive ? 80 : 150);
   const rainy = isRainyLabel(weatherLabel) || (typeof rainMm === 'number' && rainMm > 0) || (typeof rainProbability === 'number' && rainProbability >= 60);
-  const snowy = isSnowyLabel(weatherLabel);
-  const thunder = isThunderLabel(weatherLabel);
+  const snowyPoints = matchingRiskPoints(event, weatherPoints, (point) => isSnowyLabel(point.weatherLabel));
+  const thunderPoints = matchingRiskPoints(event, weatherPoints, (point) => isThunderLabel(point.weatherLabel));
+  const windyPoints = matchingRiskPoints(event, weatherPoints, (point) => typeof point.windSpeed === 'number' && point.windSpeed >= 8);
+  const snowy = snowyPoints.length > 0 || isSnowyLabel(weatherLabel);
+  const thunder = thunderPoints.length > 0 || isThunderLabel(weatherLabel);
   const strongWind = typeof windSpeed === 'number' && windSpeed >= 8;
-  const hardTemperature = typeof temperature === 'number' && (temperature >= 33 || temperature <= -5);
-  const highTemperature = typeof temperature === 'number' && temperature >= 30;
-  const hotOrCold = typeof temperature === 'number' && (temperature >= 30 || temperature <= 0);
+  const hardTemperature = (typeof temperatureMax === 'number' && temperatureMax >= 33)
+    || (typeof temperatureMin === 'number' && temperatureMin <= -5);
+  const highTemperature = typeof temperatureMax === 'number' && temperatureMax >= 30;
+  const lowTemperature = typeof temperatureMin === 'number' && temperatureMin <= 0;
+  const hotOrCold = highTemperature || lowTemperature;
+  const windTimeRange = pointsTimeRange(windyPoints);
 
   const level: CalendarRiskLevel = thunder || veryHighDust || hardTemperature || snowy || (rainy && event.activityType === 'outdoor')
     ? 'bad'
@@ -406,43 +465,46 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
         : 'unknown';
   const meta = levelMeta(level);
   const reasons = [
-    highDust ? '\uBBF8\uC138\uBA3C\uC9C0 \uC601\uD5A5' : '',
-    thunder ? '\uCC9C\uB465\u00B7\uBC88\uAC1C \uAC00\uB2A5\uC131' : '',
-    rainy ? '\uAC15\uC218 \uAC00\uB2A5\uC131' : '',
-    snowy ? '\uB208 \uC608\uBCF4' : '',
-    strongWind ? '\uAC15\uD55C \uBC14\uB78C' : '',
-    hotOrCold ? '\uAE30\uC628 \uBD80\uB2F4' : '',
+    snowy ? '눈 예보' : '',
+    lowTemperature ? '낮은 기온' : '',
+    thunder ? '천둥·번개 가능성' : '',
+    rainy ? '강수 가능성' : '',
+    strongWind ? '강한 바람' : '',
+    highTemperature ? '높은 기온' : '',
+    highDust ? '미세먼지 영향' : '',
   ].filter(Boolean);
-  const reasonText = reasons.length > 0 ? reasons.join(', ') : '\uB0A0\uC528\uC640 \uACF5\uAE30';
+  const reasonText = reasons.length > 0 ? reasons.join(', ') : '날씨와 공기';
   const thunderNote = thunder
-    ? '\uCC9C\uB465\u00B7\uBC88\uAC1C \uAC00\uB2A5\uC131\uC774 \uC788\uC5B4\uC694. \uC57C\uC678 \uD65C\uB3D9\uC740 \uD53C\uD558\uACE0 \uC2E4\uB0B4\uB85C \uC774\uB3D9\uD558\uB294 \uAC8C \uC88B\uC544\uC694.'
+    ? '천둥·번개 소식이 있어요. 야외 활동은 피하는 게 좋겠어요.'
     : undefined;
   const heatNote = highTemperature
-    ? '\uC624\uB298 \uB9CE\uC774 \uB354\uC6CC\uC694. \uBB3C\uC744 \uCC59\uAE30\uACE0 \uD55C\uB0AE \uC57C\uC678\uD65C\uB3D9\uC740 \uC904\uC774\uB294 \uAC8C \uC88B\uC544\uC694.'
+    ? '오늘은 물을 꼭 챙기세요. 햇볕이 강한 시간에는 중간중간 쉬어가세요.'
     : undefined;
-  const rainNote = rainSummary ? rainSummary.text + '. \uC6B0\uC0B0\uC744 \uCC59\uACA8\uC8FC\uC138\uC694.' : undefined;
-  const coldOrSnowNote = snowy || (typeof temperature === 'number' && temperature <= 0)
-    ? '\uAE30\uC628\uC774 \uB0AE\uAC70\uB098 \uB208\uC774 \uC608\uC815\uB418\uC5B4 \uC788\uC5B4\uC694. \uC637\uC744 \uB530\uB73B\uD558\uAC8C \uC785\uC5B4\uC8FC\uC138\uC694.'
+  const rainNote = rainSummary ? rainSummary.text + '. 우산 챙기셨나요?' : undefined;
+  const coldOrSnowNote = snowy || lowTemperature
+    ? '나갈 때 생각보다 춥거나 눈이 올 수 있어요. 따뜻하게 입으세요.'
     : undefined;
-  const windNote = strongWind ? '\uBC14\uB78C\uC774 \uC138\uAC8C \uBD88\uC5B4\uC694. \uC57C\uC678\uD65C\uB3D9\uC740 \uC720\uC758\uD574 \uC8FC\uC138\uC694.' : undefined;
-  const activityNote = event.activityType === 'transit' ? '\uC774\uB3D9 \uC2DC\uAC04\uC744 \uD655\uC778\uD558\uC138\uC694.' : '';
-  const sensitiveNote = event.sensitive ? '\uC544\uC774\uB098 \uC5B4\uB978 \uAE30\uC900\uC73C\uB85C \uC870\uAE08 \uB354 \uC870\uC2EC\uD574\uC11C \uBCF4\uC138\uC694.' : '';
+  const windNote = strongWind
+    ? `${windTimeRange ? `${windTimeRange} ` : ''}바람이 강해요. 바람막이가 있으면 좋겠어요.`
+    : undefined;
+  const activityNote = event.activityType === 'transit' ? '출발 전에 이동 시간을 확인해 주세요.' : '';
+  const sensitiveNote = event.sensitive ? '대기질에 민감하다면 조금 더 조심하세요.' : '';
   const desc = level === 'unknown'
     ? buildAdviceLines([
-      '\uC544\uC9C1 \uD574\uB2F9 \uC2DC\uAC04\uB300 \uC608\uBCF4\uAC00 \uBD80\uC871\uD574\uC694.',
-      '\uAC00\uAE4C\uC6B4 \uB0A0\uC5D0 \uB2E4\uC2DC \uD655\uC778\uD558\uC138\uC694.',
+      '아직 이 시간의 예보가 없어요.',
+      '일정이 가까워지면 다시 확인해 주세요.',
       outingIndexLine.trim(),
     ])
     : level === 'good'
       ? buildAdviceLines([
-        '\uC9C0\uAE08 \uAE30\uC900\uC73C\uB85C\uB294 \uBB34\uB09C\uD574 \uBCF4\uC5EC\uC694.',
+        '예정대로 나가도 괜찮겠어요.',
         activityNote.trim() || undefined,
         sensitiveNote.trim() || undefined,
         outingIndexLine.trim(),
       ])
       : level === 'bad'
         ? buildAdviceLines([
-          reasonText + ' \uB54C\uBB38\uC5D0 \uC870\uC2EC\uD558\uB294 \uAC8C \uC88B\uC544\uC694.',
+          reasonText + ' 영향이 있어요. 나가기 전에 준비물을 확인해 주세요.',
           thunderNote,
           heatNote,
           rainNote,
@@ -453,7 +515,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
           outingIndexLine.trim(),
         ])
         : buildAdviceLines([
-          reasonText + ' \uB54C\uBB38\uC5D0 \uC77C\uC815 \uAC15\uB3C4\uB098 \uC2DC\uAC04\uC744 \uC870\uAE08 \uC870\uC808\uD574\uBCF4\uC138\uC694.',
+          reasonText + ' 영향이 있어요. 외출 시간이나 준비물을 조정해 보세요.',
           thunderNote,
           heatNote,
           rainNote,
@@ -476,7 +538,10 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
     rainProbability,
     rainTimeRange: rainSummary?.timeRange,
     temperature,
+    temperatureMax,
+    temperatureMin,
     weatherLabel,
     windSpeed,
+    windTimeRange,
   };
 }

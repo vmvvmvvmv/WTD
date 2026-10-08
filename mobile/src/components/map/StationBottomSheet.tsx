@@ -180,7 +180,7 @@ function DustStationContent({
           <StationMetric label="미세먼지" value={station.pm10} unit="µg/m³" tone={getPm10Tone(pm10)} grade={getPm10Label(pm10)} />
           <StationMetric label="초미세먼지" value={station.pm25} unit="µg/m³" tone={getPm25Tone(pm25)} grade={getPm25Label(pm25)} />
           <StationMetric label="오존" value={station.o3} unit="ppm" tone={getO3Tone(o3)} grade={getO3Label(o3)} />
-          <StationMetric label="이산화질소" value={station.no2} unit="ppm" tone="#687180" />
+          <StationMetric label="이산화질소" last value={station.no2} unit="ppm" tone="#687180" />
         </View>
       )}
     </>
@@ -213,7 +213,7 @@ function WeatherStationContent({
         </View>
         <View style={styles.stationWeatherHeroText}>
           <Text style={styles.stationWeatherHeroTitle}>
-            {typeof temperature === 'number' ? `${Math.round(temperature)}°` : '--°'}
+            {typeof temperature === 'number' ? Math.round(temperature) : '--'}
             <Text style={styles.stationWeatherHeroCondition}> {label}</Text>
           </Text>
           <Text style={styles.stationWeatherHeroMeta}>{measuredLabel || '최신 저장 날씨'}</Text>
@@ -223,10 +223,10 @@ function WeatherStationContent({
 
       {expanded && (
         <View style={styles.stationMetricGrid}>
-          <StationMetric label="기온" value={temperature} unit="°C" tone={tone} grade={getTemperatureGrade(temperature)} />
+          <StationMetric label="기온" value={temperature} unit="" tone={tone} grade={getTemperatureGrade(temperature)} />
           <StationMetric label="습도" value={humidity} unit="%" tone={bauhausColors.blue} />
           <StationMetric label="풍속" value={windSpeed} unit="m/s" tone="#687180" />
-          <StationMetric label="강수량" value={rainMm} unit="mm" tone={bauhausColors.blue} />
+          <StationMetric label="강수량" last value={rainMm} unit="mm" tone={bauhausColors.blue} />
         </View>
       )}
     </>
@@ -236,21 +236,23 @@ function WeatherStationContent({
 function StationMetric({
   grade,
   label,
+  last = false,
   tone,
   unit,
   value,
 }: {
   grade?: string;
   label: string;
+  last?: boolean;
   tone: string;
   unit: string;
   value?: string | number | null;
 }) {
   return (
-    <View style={styles.stationMetric}>
+    <View style={[styles.stationMetric, last && styles.stationMetricLast]}>
       <Text style={styles.stationMetricLabel}>{label}</Text>
       <Text style={styles.stationMetricValue}>{formatMapValue(value)}</Text>
-      <Text style={styles.stationMetricUnit}>{unit}</Text>
+      {!!unit && <Text style={styles.stationMetricUnit}>{unit}</Text>}
       {!!grade && <Text style={[styles.stationMetricGrade, { color: tone }]}>{grade}</Text>}
     </View>
   );

@@ -2,7 +2,7 @@
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
-import { ScrollView, useWindowDimensions } from 'react-native';
+import { Alert, ScrollView, useWindowDimensions } from 'react-native';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
@@ -15,7 +15,7 @@ import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../cale
 import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
-import { OutfitCardContainer } from '../outfit/OutfitCard';
+import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
 
 type HomeCircularGaugeProps = {
   gaugeSize?: number;
@@ -56,6 +56,9 @@ const HOME_WIND_CLOUDS = {
 const HOME_WIND_STREAK_OVERLAY = require('../../../assets/home-wind-streak-overlay-v2.png');
 
 const HOME_PRECIPITATION_LAYER_HEIGHT = 260;
+const HOME_PRECIPITATION_HORIZONTAL_DRIFT = Math.round(
+  HOME_PRECIPITATION_LAYER_HEIGHT * Math.tan(Math.PI / 6),
+);
 
 function getHomeWeatherMotionKind(label?: string | null, windSpeed?: number | string | null): HomeWeatherMotionKind {
   const weatherKind = getWeatherVisualKind(label ?? undefined);
@@ -148,27 +151,39 @@ function HomeFallingWeatherOverlay({ kind }: { kind: 'rain' | 'snow' }) {
     inputRange: [0, 1],
     outputRange: [0, HOME_PRECIPITATION_LAYER_HEIGHT],
   });
+  const diagonalDistance = fall.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -HOME_PRECIPITATION_HORIZONTAL_DRIFT],
+  });
   const swayDistance = sway.interpolate({ inputRange: [-1, 1], outputRange: [-9, 9] });
 
   return (
     <>
-      {[0, 1].map((layerIndex) => (
-        <Animated.Image
-          key={layerIndex}
-          resizeMode="cover"
-          source={HOME_PRECIPITATION_OVERLAYS[kind]}
-          style={[
-            styles.homeFallingWeatherLayer,
-            {
-              opacity: kind === 'rain' ? 0.44 : 0.4,
-              transform: [
-                { translateX: kind === 'snow' ? swayDistance : 0 },
-                { translateY: Animated.add(fallDistance, layerIndex === 0 ? -HOME_PRECIPITATION_LAYER_HEIGHT : 0) },
-              ],
-            },
-          ]}
-        />
-      ))}
+      {[0, 1].map((layerIndex) => {
+        const layerOffsetX = layerIndex === 0 ? HOME_PRECIPITATION_HORIZONTAL_DRIFT : 0;
+        const diagonalTranslateX = Animated.add(diagonalDistance, layerOffsetX);
+        const translateX = kind === 'snow'
+          ? Animated.add(diagonalTranslateX, swayDistance)
+          : diagonalTranslateX;
+
+        return (
+          <Animated.Image
+            key={layerIndex}
+            resizeMode="cover"
+            source={HOME_PRECIPITATION_OVERLAYS[kind]}
+            style={[
+              styles.homeFallingWeatherLayer,
+              {
+                opacity: kind === 'rain' ? 0.44 : 0.4,
+                transform: [
+                  { translateX },
+                  { translateY: Animated.add(fallDistance, layerIndex === 0 ? -HOME_PRECIPITATION_LAYER_HEIGHT : 0) },
+                ],
+              },
+            ]}
+          />
+        );
+      })}
     </>
   );
 }
@@ -372,10 +387,12 @@ export function HomePanel({
   accentTone,
   calendarEvents,
   eventLocationForecasts,
+  onDeleteCalendarEvent,
   onOpenCalendar,
   onOpenDetail,
   onOpenMap,
   outfitEnabled,
+  outfitFallbackLocation,
   outfitFigure,
   outfitSensitivity,
   mapPreviewUrl,
@@ -395,10 +412,12 @@ export function HomePanel({
   accentTone: string;
   calendarEvents?: CalendarEvent[];
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
+  onDeleteCalendarEvent?: (eventId: string) => void;
   onOpenCalendar?: () => void;
   onOpenDetail: () => void;
   onOpenMap: () => void;
   outfitEnabled: boolean;
+  outfitFallbackLocation?: OutfitFallbackLocation;
   outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
   mapPreviewUrl: string;
@@ -416,13 +435,24 @@ export function HomePanel({
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
   const [carouselIndex, setCarouselIndex] = useState(1);
   const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
+  const [mapPreviewRetryCount, setMapPreviewRetryCount] = useState(0);
   const [selectedOutfitEventId, setSelectedOutfitEventId] = useState<string | null>(null);
   const infoSlideWidth = windowWidth;
   const infoSlideHeight = Math.max(146, Math.ceil(146 * fontScale));
   const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
   useEffect(() => {
     setMapPreviewFailed(false);
+    setMapPreviewRetryCount(0);
   }, [mapPreviewUrl]);
+  useEffect(() => {
+    if (!mapPreviewFailed || mapPreviewRetryCount >= 3) return;
+    const retryDelays = [1200, 3000, 6000];
+    const timer = setTimeout(() => {
+      setMapPreviewFailed(false);
+      setMapPreviewRetryCount((count) => count + 1);
+    }, retryDelays[mapPreviewRetryCount]);
+    return () => clearTimeout(timer);
+  }, [mapPreviewFailed, mapPreviewRetryCount]);
   const infoSlides = useMemo(() => buildHomeMetricSlides({
     currentO3,
     currentPm10,
@@ -483,13 +513,20 @@ export function HomePanel({
   const weatherVisualKind = getWeatherVisualKind(weather?.label);
   const weatherMotionKind = getHomeWeatherMotionKind(weather?.label, weather?.windSpeed);
   const weatherBackgroundKind = weatherMotionKind === 'wind' ? 'cloudy' : weatherVisualKind;
-  const activityGuideRows = useMemo(
-    () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent),
-    [activityGuideRiskByEvent, todayCalendarEvents],
-  );
   const currentTimeLabel = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  const defaultOutfitEvent = todayCalendarEvents.find((event) => event.time >= currentTimeLabel) ?? todayCalendarEvents[0];
-  const activeOutfitEvent = todayCalendarEvents.find((event) => event.id === selectedOutfitEventId) ?? defaultOutfitEvent;
+  const activityGuideRows = useMemo(
+    () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent, todayDateLabel, currentTimeLabel),
+    [activityGuideRiskByEvent, currentTimeLabel, todayCalendarEvents, todayDateLabel],
+  );
+  const remainingOutfitEvents = useMemo(() => todayCalendarEvents.filter((event) => {
+    const endTime = event.endTime || event.time;
+    return event.date > todayDateLabel || endTime >= currentTimeLabel;
+  }), [currentTimeLabel, todayCalendarEvents, todayDateLabel]);
+  const selectedOutfitEvent = remainingOutfitEvents.find((event) => event.id === selectedOutfitEventId);
+  const outfitEvents = useMemo(() => selectedOutfitEvent
+    ? [selectedOutfitEvent, ...remainingOutfitEvents.filter((event) => event.id !== selectedOutfitEvent.id)]
+    : remainingOutfitEvents, [remainingOutfitEvents, selectedOutfitEvent]);
+  const activeOutfitEvent = outfitEvents[0];
   return (
     <View>
       <View style={styles.homeHeroBanner}>
@@ -610,35 +647,57 @@ export function HomePanel({
           )}
           {activityGuideRows.map((item) => {
             const selected = activeOutfitEvent?.id === item.id;
+            const completed = item.isCompleted;
             return (
               <View key={item.id} style={styles.activityGuideItemGroup}>
                 <Pressable
-                  accessibilityLabel={`${item.title} 옷차림 추천 보기`}
+                  accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''} 옷차림 추천 보기`}
                   accessibilityState={{ selected }}
                   onPress={() => setSelectedOutfitEventId(item.id)}
-                  style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
+                  style={({ pressed }) => [styles.activityGuideRow, completed && styles.activityGuideRowCompleted, pressed && styles.pressedFeedback]}
                 >
-                  <View style={[styles.activityGuideIconBox, { backgroundColor: '#E8F1FE' }]}>
+                  <View style={[styles.activityGuideIconBox, completed ? styles.activityGuideIconBoxCompleted : { backgroundColor: '#E8F1FE' }]}>
                     <AppActionIcon
                       name={item.activityType === 'indoor' ? 'activityIndoor' : item.activityType === 'transit' ? 'activityTransit' : 'activityOutdoor'}
                       size={34}
+                      style={completed && styles.activityGuideIconCompleted}
                     />
                   </View>
                   <View style={styles.activityGuideTextGroup}>
                     <View style={styles.activityGuideTitleRow}>
-                      <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{item.title}</Text>
-                      <View style={[styles.activityGuideRiskBadge, { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone }]}>
-                        <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
-                        <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
-                      </View>
+                      <Text numberOfLines={1} style={[styles.activityGuideRowTitle, completed && styles.activityGuideRowTitleCompleted]}>{item.title}</Text>
+                      {completed ? (
+                        <View style={styles.activityGuideCompletedBadge}>
+                          <Ionicons color="#63748A" name="checkmark" size={11} />
+                          <Text style={styles.activityGuideCompletedBadgeText}>완료</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.activityGuideRiskBadge, { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone }]}>
+                          <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
+                          <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
+                        </View>
+                      )}
                     </View>
                     <View style={styles.activityGuideMetaRow}>
-                      <Text style={styles.activityGuideTimeText}>{item.timeLabel}</Text>
-                      {!!item.locationLabel && <><View style={styles.activityGuideMetaDivider} /><Text numberOfLines={1} style={styles.activityGuideRowLocation}>{item.locationLabel}</Text></>}
+                      <Text style={[styles.activityGuideTimeText, completed && styles.activityGuideMetaCompleted]}>{item.timeLabel}</Text>
+                      {!!item.locationLabel && <><View style={styles.activityGuideMetaDivider} /><Text numberOfLines={1} style={[styles.activityGuideRowLocation, completed && styles.activityGuideMetaCompleted]}>{item.locationLabel}</Text></>}
                     </View>
-                    <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{item.advice}</Text>
+                    <Text numberOfLines={2} style={[styles.activityGuideRowDesc, completed && styles.activityGuideMetaCompleted]}>{completed ? '완료한 일정이에요.' : item.advice}</Text>
                   </View>
-                  <Ionicons color={selected ? accentTone : '#8CA0BA'} name={selected ? 'checkmark-circle' : 'chevron-forward'} size={17} style={styles.activityGuideRowChevron} />
+                  <Pressable
+                    accessibilityLabel={`${item.title} 일정 삭제`}
+                    hitSlop={8}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      Alert.alert('일정 삭제', `'${item.title}' 일정을 삭제할까요?`, [
+                        { style: 'cancel', text: '취소' },
+                        { onPress: () => onDeleteCalendarEvent?.(item.id), style: 'destructive', text: '삭제' },
+                      ]);
+                    }}
+                    style={({ pressed }) => [styles.activityGuideDeleteButton, pressed && styles.pressedFeedback]}
+                  >
+                    <AppActionIcon name="delete" size={22} />
+                  </Pressable>
                 </Pressable>
               </View>
             );
@@ -665,13 +724,17 @@ export function HomePanel({
           <View style={styles.homeOutfitSectionTitleGroup}>
             <Text style={styles.homeOutfitSectionTitle}>오늘 옷차림</Text>
             <Text numberOfLines={1} style={styles.homeOutfitSectionMeta}>
-              {activeOutfitEvent ? `${activeOutfitEvent.time} · ${activeOutfitEvent.title}` : '일정 시간과 장소에 맞춰 추천해드려요'}
+              {outfitEvents.length > 1
+                ? `${outfitEvents.length}개 일정의 날씨를 함께 반영했어요`
+                : activeOutfitEvent ? `${activeOutfitEvent.time} · ${activeOutfitEvent.title}` : '일정 시간과 장소에 맞춰 추천해드려요'}
             </Text>
           </View>
-          <Ionicons color={accentTone} name="shirt-outline" size={24} />
+          <View style={[styles.homeOutfitHeaderIcon, { backgroundColor: accentSoftTone }]}>
+            <HomeMotionActionIcon name="outfit" size={25} />
+          </View>
         </View>
         {activeOutfitEvent ? (
-          <OutfitCardContainer enabled={outfitEnabled} event={activeOutfitEvent} figure={outfitFigure} sensitivity={outfitSensitivity} />
+          <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={outfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
         ) : (
           <Pressable
             accessibilityLabel="옷차림 추천을 위한 일정 추가"
@@ -704,11 +767,15 @@ export function HomePanel({
             </View>
           ) : (
             <WebView
+              key={`${mapPreviewUrl}-${mapPreviewRetryCount}`}
               source={{ uri: mapPreviewUrl }}
               javaScriptEnabled
               domStorageEnabled
               androidLayerType="hardware"
               mixedContentMode="always"
+              onLoad={() => {
+                setMapPreviewFailed(false);
+              }}
               onError={() => setMapPreviewFailed(true)}
               onHttpError={() => setMapPreviewFailed(true)}
               originWhitelist={['*']}

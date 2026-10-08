@@ -21,9 +21,11 @@ OUTPUT_SCHEMA = {
             "type": "object",
             "properties": {
                 "umbrella": {"type": "string"},
+                "sun_parasol": {"type": "string"},
                 "mask": {"type": "string"},
                 "windbreaker": {"type": "string"},
                 "scarf_gloves": {"type": "string"},
+                "waterproof_shoes": {"type": "string"},
             },
         },
     },
@@ -94,16 +96,19 @@ def build_llm_client() -> LLMClient | None:
     return GeminiLLMClient(api_key=api_key, model=os.getenv("LLM_MODEL", DEFAULT_GEMINI_MODEL), timeout=timeout)
 
 
-def llm_input_for(rule_result: dict, request) -> dict:
+def llm_input_for(rule_result: dict, request, *, activities: list[dict] | None = None) -> dict:
     snapshot = rule_result["weather_snapshot"]
-    return {
+    result = {
         "locale": "ko-KR",
         "occasion": rule_result["occasion"],
         "activity_type": rule_result["activity_type"],
         "time_window": {"start_hour": request.start.hour, "end_hour": request.end.hour},
-        "weather": {key: snapshot.get(key) for key in ("feels_min", "feels_max", "feels_avg", "temp_range", "rain_prob_max", "wind_max")},
+        "weather": {key: snapshot.get(key) for key in ("feels_min", "feels_max", "feels_avg", "temp_range", "rain_prob_max", "rain_mm_max", "wind_max", "has_snow", "has_rain", "weather_condition")},
         "air": {"pm10_max": snapshot.get("pm10_max"), "pm25_max": snapshot.get("pm25_max")},
         "sensitivity": request.sensitivity,
         "base_outfit": {key: rule_result["outfit"][key] for key in ("band", "top", "bottom", "outer")},
         "must_have": [{"type": item["type"], "level": item["level"], "label": item["label"]} for item in rule_result["must_have"]],
     }
+    if activities is not None:
+        result["activities"] = activities
+    return result

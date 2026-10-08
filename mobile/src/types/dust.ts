@@ -193,7 +193,7 @@ export type OutfitRecommendation = {
     label: string;
     level: 'required' | 'recommended';
     reason: string;
-    type: 'umbrella' | 'mask' | 'windbreaker' | 'scarf_gloves' | string;
+    type: 'umbrella' | 'mask' | 'windbreaker' | 'scarf_gloves' | 'waterproof_shoes' | string;
   }>;
   outfit: {
     accessories: string[];
@@ -204,6 +204,16 @@ export type OutfitRecommendation = {
   };
   outfit_note: string;
   source: 'llm' | 'rule';
+  schedule_tips?: Array<{
+    items: string[];
+    message: string;
+    schedule_id: string;
+    severity: number;
+    time: string;
+    title: string;
+    weather_condition: 'normal' | 'rain' | 'snow' | 'strong_wind' | string;
+  }>;
+  total_schedules?: number;
   summary: string;
   valid_until: string;
   weather_snapshot: {
@@ -211,9 +221,15 @@ export type OutfitRecommendation = {
     feels_max?: number | null;
     feels_min?: number | null;
     pm10_max?: number | null;
+    rain_mm_max?: number | null;
     rain_prob_max?: number | null;
     temp_range?: number | null;
+    wind_max?: number | null;
+    has_rain?: boolean;
+    has_snow?: boolean;
+    weather_condition?: 'normal' | 'rain' | 'snow' | 'strong_wind' | string;
   };
+  weather_condition?: 'normal' | 'rain' | 'snow' | 'strong_wind' | string;
 };
 
 

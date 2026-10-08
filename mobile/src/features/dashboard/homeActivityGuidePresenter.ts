@@ -6,6 +6,7 @@ export type HomeActivityGuideItem = {
   activityType: CalendarEvent['activityType'];
   advice: string;
   id: string;
+  isCompleted: boolean;
   locationLabel: string;
   riskBorderTone: string;
   riskLabel: string;
@@ -29,30 +30,41 @@ function includesWeather(label: string | undefined, words: string[]) {
 }
 
 function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult) {
-  if (risk.level === 'unknown') return '해당 시간대 예보를 확인하고 있어요.';
+  if (risk.level === 'unknown') return '아직 예보가 없어요. 가까운 날 다시 확인해 주세요.';
 
   const hasSnow = includesWeather(risk.weatherLabel, ['눈', 'snow']);
   if (hasSnow || (risk.temperature !== undefined && risk.temperature <= 0)) {
-    return '방한용품을 챙기고 미끄러운 길에 주의하세요.';
+    return '눈길이 미끄러울 수 있어요. 따뜻하게 입고 조심히 이동하세요.';
   }
 
   const hasRain = includesWeather(risk.weatherLabel, ['비', '소나기', 'rain', 'shower'])
     || Boolean(risk.rainTimeRange)
     || (risk.rainProbability ?? 0) >= 60
     || (risk.rainMm ?? 0) > 0;
-  if (hasRain) return '우산을 챙기고 이동 시간을 여유 있게 잡으세요.';
+  if (hasRain) return '우산 챙기셨나요? 이동 시간도 조금 여유 있게 잡으세요.';
 
-  if ((risk.windSpeed ?? 0) >= 8) return '강한 바람에 주의하고 야외 활동을 줄이세요.';
-  if ((risk.pm10 ?? 0) > (event.sensitive ? 30 : 80)) return '마스크를 챙기고 장시간 야외 활동을 줄이세요.';
-  if (risk.level === 'bad') return '가능하면 외출 시간이나 일정을 조정하세요.';
-  if (risk.level === 'adjust') return '외출 전 날씨와 대기질을 한 번 더 확인하세요.';
-  if (event.activityType === 'indoor') return '실내 일정이라 날씨 영향이 크지 않아요.';
-  return '예정대로 활동하기 좋은 상태예요.';
+  if ((risk.windSpeed ?? 0) >= 8) return '바람이 강해요. 바람막이가 있으면 좋겠어요.';
+  if ((risk.pm10 ?? 0) > (event.sensitive ? 30 : 80)) return '오늘은 마스크를 챙기고 오래 밖에 있지 마세요.';
+  if (risk.level === 'bad') return '가능하면 외출 시간을 조금 조정해 보세요.';
+  if (risk.level === 'adjust') return '나가기 전에 날씨와 공기를 한 번 더 확인해 주세요.';
+  if (event.activityType === 'indoor') return '실내 일정이라 날씨 걱정은 덜어도 되겠어요.';
+  return '예정대로 나가도 괜찮겠어요.';
+}
+
+function isEventCompleted(event: CalendarEvent, currentDate: string, currentTime: string) {
+  const spansMultipleDays = Boolean(event.endDate && event.endDate !== event.date);
+  const completionDate = spansMultipleDays ? event.endDate! : event.date;
+  const completionTime = spansMultipleDays ? event.endTime ?? '23:59' : event.time;
+  if (completionDate < currentDate) return true;
+  if (completionDate > currentDate) return false;
+  return completionTime.slice(0, 5) <= currentTime;
 }
 
 export function buildHomeActivityGuideItems(
   events: CalendarEvent[],
   riskByEvent: Record<string, CalendarRiskResult>,
+  currentDate: string,
+  currentTime: string,
 ): HomeActivityGuideItem[] {
   return events.flatMap((event) => {
     const risk = riskByEvent[event.id];
@@ -64,6 +76,7 @@ export function buildHomeActivityGuideItems(
       activityType: event.activityType,
       advice: buildAdvice(event, risk),
       id: event.id,
+      isCompleted: isEventCompleted(event, currentDate, currentTime),
       locationLabel: location ? `${location} 기준` : '',
       riskBorderTone: presentation.tone.border,
       riskLabel: presentation.label,

@@ -206,30 +206,50 @@ export function registerNotificationDevice(params: {
   });
 }
 
+function outfitSchedulePayload(event: CalendarEvent) {
+  return {
+    schedule_id: event.id,
+    title: event.title,
+    start: `${event.date}T${event.time || '00:00'}:00+09:00`,
+    end: event.endTime ? `${event.endDate ?? event.date}T${event.endTime}:00+09:00` : undefined,
+    activity_type: event.activityType,
+    lat: event.locationLat,
+    lng: event.locationLng,
+    city: event.locationCity,
+    region: event.locationRegion,
+  };
+}
+
 export function postOutfitRecommendation(params: {
   event: CalendarEvent;
   mode: 'rule' | 'full';
   sensitivity: OutfitSensitivity;
   signal?: AbortSignal;
 }) {
-  const start = `${params.event.date}T${params.event.time || '00:00'}:00+09:00`;
-  const end = params.event.endTime
-    ? `${params.event.endDate ?? params.event.date}T${params.event.endTime}:00+09:00`
-    : undefined;
   return fetchJson<OutfitRecommendation>('/outfit/recommend/', undefined, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     signal: params.signal,
     body: JSON.stringify({
-      schedule_id: params.event.id,
-      title: params.event.title,
-      start,
-      end,
-      activity_type: params.event.activityType,
-      lat: params.event.locationLat,
-      lng: params.event.locationLng,
-      city: params.event.locationCity,
-      region: params.event.locationRegion,
+      ...outfitSchedulePayload(params.event),
+      sensitivity: params.sensitivity,
+      mode: params.mode,
+    }),
+  });
+}
+
+export function postDailyOutfitRecommendation(params: {
+  events: CalendarEvent[];
+  mode: 'rule' | 'full';
+  sensitivity: OutfitSensitivity;
+  signal?: AbortSignal;
+}) {
+  return fetchJson<OutfitRecommendation>('/outfit/daily/', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    signal: params.signal,
+    body: JSON.stringify({
+      schedules: params.events.map(outfitSchedulePayload),
       sensitivity: params.sensitivity,
       mode: params.mode,
     }),

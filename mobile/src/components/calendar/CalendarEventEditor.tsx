@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
@@ -31,6 +31,8 @@ const pickerUnits = [
   { key: 'minute', label: '분' },
 ] as const;
 
+const datePickerUnits = pickerUnits.filter((unit) => unit.key !== 'hour' && unit.key !== 'minute');
+
 const repeatOptions: Array<{ label: string; value: CalendarRepeatMode }> = [
   { label: '안 함', value: 'none' },
   { label: '매년', value: 'yearly' },
@@ -40,7 +42,6 @@ const repeatOptions: Array<{ label: string; value: CalendarRepeatMode }> = [
 ];
 
 type DateTimeUnit = typeof pickerUnits[number]['key'];
-type DateTarget = 'start' | 'end';
 export type CalendarActivityInput = CalendarEvent['activityType'];
 
 const activityOptions: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; value: CalendarActivityInput }> = [
@@ -51,17 +52,17 @@ const activityOptions: Array<{ icon: keyof typeof Ionicons.glyphMap; label: stri
 
 const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon: AppActionIconName; title: string }> = {
   indoor: {
-    desc: '실내 일정은 환기 시간과 바깥 공기 상태를 함께 확인해요.',
+    desc: '실내 일정이라도 가는 길의 공기는 확인해 보세요.',
     icon: 'activityIndoor',
     title: '실내 활동 가이드',
   },
   outdoor: {
-    desc: '실외 일정은 미세먼지, 강수와 체감 기온을 우선 확인해요.',
+    desc: '나가기 전에 비, 기온, 미세먼지를 확인해 보세요.',
     icon: 'activityOutdoor',
     title: '실외 활동 가이드',
   },
   transit: {
-    desc: '이동 일정은 출발 시간의 날씨와 대기 상태를 확인해요.',
+    desc: '출발할 때 날씨와 공기 상태를 확인해 보세요.',
     icon: 'activityTransit',
     title: '이동 활동 가이드',
   },
@@ -69,11 +70,9 @@ const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon:
 
 const notificationLeadOptions: Array<{ label: string; value: number | null }> = [
   { label: '\uC5C6\uC74C', value: null },
+  { label: '30\uBD84 \uC804', value: 0.5 },
   { label: '1\uC2DC\uAC04 \uC804', value: 1 },
   { label: '3\uC2DC\uAC04 \uC804', value: 3 },
-  { label: '6\uC2DC\uAC04 \uC804', value: 6 },
-  { label: '12\uC2DC\uAC04 \uC804', value: 12 },
-  { label: '24\uC2DC\uAC04 \uC804', value: 24 },
 ];
 
 type Props = {
@@ -151,13 +150,106 @@ function stepRepeatEndDate(value: string, unit: DateTimeUnit, direction: 1 | -1)
   return stepDatePart(value, unit, direction);
 }
 
+const TIME_WHEEL_ITEM_HEIGHT = 56;
+
+function TimeWheelColumn({ labels, onSelect, selectedIndex }: {
+  labels: string[];
+  onSelect: (index: number) => void;
+  selectedIndex: number;
+}) {
+  const scrollRef = useRef<ScrollView>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(selectedIndex);
+
+  useEffect(() => {
+    setHighlightedIndex(selectedIndex);
+    scrollRef.current?.scrollTo({ animated: false, y: selectedIndex * TIME_WHEEL_ITEM_HEIGHT });
+  }, [selectedIndex]);
+
+  const indexFromOffset = (offsetY: number) => (
+    Math.max(0, Math.min(labels.length - 1, Math.round(offsetY / TIME_WHEEL_ITEM_HEIGHT)))
+  );
+
+  const highlightFromOffset = (offsetY: number) => {
+    const index = indexFromOffset(offsetY);
+    setHighlightedIndex((current) => current === index ? current : index);
+  };
+
+  const selectFromOffset = (offsetY: number) => {
+    const index = indexFromOffset(offsetY);
+    setHighlightedIndex(index);
+    onSelect(index);
+  };
+
+  return (
+    <ScrollView
+      ref={scrollRef}
+      contentContainerStyle={styles.calendarTimeWheelColumnContent}
+      decelerationRate="fast"
+      nestedScrollEnabled
+      onScroll={(event) => highlightFromOffset(event.nativeEvent.contentOffset.y)}
+      onScrollEndDrag={(event) => selectFromOffset(event.nativeEvent.contentOffset.y)}
+      onMomentumScrollEnd={(event) => selectFromOffset(event.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={16}
+      showsVerticalScrollIndicator={false}
+      snapToInterval={TIME_WHEEL_ITEM_HEIGHT}
+      style={styles.calendarTimeWheelColumn}
+    >
+      {labels.map((label, index) => (
+        <Pressable
+          key={label}
+          onPress={() => {
+            setHighlightedIndex(index);
+            scrollRef.current?.scrollTo({ animated: true, y: index * TIME_WHEEL_ITEM_HEIGHT });
+            onSelect(index);
+          }}
+          style={styles.calendarTimeWheelItem}
+        >
+          <Text style={[styles.calendarTimeWheelItemText, index === highlightedIndex && styles.calendarTimeWheelItemTextSelected]}>{label}</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+function TimeWheelPicker({ accentSoftTone, accentTone, onChange, value }: {
+  accentSoftTone: string;
+  accentTone: string;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  const parts = parseTimeParts(value);
+  const hour24 = Number(parts.hour);
+  const minute = Number(parts.minute);
+  const isPm = hour24 >= 12;
+  const selectedHour = hour24 % 12 || 12;
+  const periods = ['오전', '오후'];
+  const hours = Array.from({ length: 12 }, (_, index) => `${index + 1}시`);
+  const minutes = Array.from({ length: 60 }, (_, index) => `${String(index).padStart(2, '0')}분`);
+
+  const updateTime = (nextHour: number, nextMinute: number, pm: boolean) => {
+    const nextHour24 = (nextHour % 12) + (pm ? 12 : 0);
+    onChange(`${String(nextHour24).padStart(2, '0')}:${String(nextMinute).padStart(2, '0')}`);
+  };
+
+  return (
+    <View accessibilityLabel={`선택한 일정 시간 ${value}`} style={styles.calendarTimeWheelSection}>
+      <View style={styles.calendarTimeWheelViewport}>
+        <View pointerEvents="none" style={[styles.calendarTimeWheelSelection, { borderColor: accentTone }]} />
+        <TimeWheelColumn labels={periods} onSelect={(index) => updateTime(selectedHour, minute, index === 1)} selectedIndex={isPm ? 1 : 0} />
+        <TimeWheelColumn labels={hours} onSelect={(index) => updateTime(index + 1, minute, isPm)} selectedIndex={selectedHour - 1} />
+        <TimeWheelColumn labels={minutes} onSelect={(index) => updateTime(selectedHour, index, isPm)} selectedIndex={minute} />
+        <View pointerEvents="none" style={styles.calendarTimeWheelFadeTop} />
+        <View pointerEvents="none" style={styles.calendarTimeWheelFadeBottom} />
+      </View>
+    </View>
+  );
+}
+
 function DateTimePicker({
   accentSoftTone,
   accentTone,
-  activeTarget,
   endDate,
   endTime,
-  onChangeActiveTarget,
   onChangeEndDate,
   onChangeEndTime,
   onChangeStartDate,
@@ -167,10 +259,8 @@ function DateTimePicker({
 }: {
   accentSoftTone: string;
   accentTone: string;
-  activeTarget: DateTarget | null;
   endDate: string;
   endTime: string;
-  onChangeActiveTarget: (target: DateTarget | null) => void;
   onChangeEndDate: (value: string) => void;
   onChangeEndTime: (value: string) => void;
   onChangeStartDate: (value: string) => void;
@@ -178,13 +268,11 @@ function DateTimePicker({
   startDate: string;
   startTime: string;
 }) {
-  const progress = useRef(new Animated.Value(0)).current;
-  const activeDate = activeTarget === 'end' ? endDate : startDate;
-  const activeTime = activeTarget === 'end' ? endTime : startTime;
-  const dateParts = parseDateParts(activeDate);
-  const timeParts = parseTimeParts(activeTime);
+  const [showDateWheel, setShowDateWheel] = useState(false);
+  const dateParts = parseDateParts(startDate);
+  const timeParts = parseTimeParts(startTime);
   const values: Record<DateTimeUnit, string> = {
-    day: formatWheelDay(activeDate),
+    day: formatWheelDay(startDate),
     hour: timeParts.hour,
     minute: timeParts.minute,
     month: `${dateParts.month + 1}월`,
@@ -194,93 +282,51 @@ function DateTimePicker({
   const setStartDateTime = (nextDate: string, nextTime: string) => {
     onChangeStartDate(nextDate);
     onChangeStartTime(nextTime);
-    if (compareDateTime(nextDate, nextTime, endDate, endTime) >= 0) {
-      const shifted = addMinutesToDateTime(nextDate, nextTime, 60);
-      onChangeEndDate(shifted.date);
-      onChangeEndTime(shifted.time);
-    }
-  };
-
-  const setEndDateTime = (nextDate: string, nextTime: string) => {
-    if (compareDateTime(startDate, startTime, nextDate, nextTime) >= 0) {
-      const shifted = addMinutesToDateTime(startDate, startTime, 60);
-      onChangeEndDate(shifted.date);
-      onChangeEndTime(shifted.time);
-      return;
-    }
-    onChangeEndDate(nextDate);
-    onChangeEndTime(nextTime);
+    const shifted = addMinutesToDateTime(nextDate, nextTime, 60);
+    onChangeEndDate(shifted.date);
+    onChangeEndTime(shifted.time);
   };
 
   const stepActiveValue = (unit: DateTimeUnit, direction: 1 | -1) => {
     if (unit === 'hour' || unit === 'minute') {
-      const nextTime = stepTime(activeTime, unit, direction);
-      if (activeTarget === 'end') setEndDateTime(activeDate, nextTime);
-      else setStartDateTime(activeDate, nextTime);
+      const nextTime = stepTime(startTime, unit, direction);
+      setStartDateTime(startDate, nextTime);
       return;
     }
 
-    const nextDate = stepDatePart(activeDate, unit, direction);
-    if (activeTarget === 'end') setEndDateTime(nextDate, activeTime);
-    else setStartDateTime(nextDate, activeTime);
+    const nextDate = stepDatePart(startDate, unit, direction);
+    setStartDateTime(nextDate, startTime);
   };
 
-  const selectTarget = (target: DateTarget) => {
-    animatePickerLayout();
-    onChangeActiveTarget(target);
+  const setActiveTime = (nextTime: string) => {
+    setStartDateTime(startDate, nextTime);
   };
-
-  useEffect(() => {
-    if (!activeTarget) {
-      progress.setValue(0);
-      return;
-    }
-    progress.setValue(0);
-    Animated.timing(progress, { duration: 180, toValue: 1, useNativeDriver: true }).start();
-  }, [activeTarget, progress]);
 
   return (
     <View style={styles.calendarDateTimePickerGroup}>
-      <View style={styles.calendarDateTimeSummaryRow}>
-        <Pressable
-          onPress={() => selectTarget('start')}
-          style={({ pressed }) => [
-            styles.calendarDateTimeSummaryCard,
-            activeTarget === 'start' && { backgroundColor: accentSoftTone, borderColor: accentTone },
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          <Text style={[styles.calendarDateTimeSummaryLabel, activeTarget === 'start' && { color: accentTone }]}>시작</Text>
-          <Text style={styles.calendarDateTimeSummaryDate}>{formatDateDisplay(startDate)}</Text>
-          <Text style={[styles.calendarDateTimeSummaryTime, activeTarget === 'start' && { color: accentTone }]}>{startTime}</Text>
-        </Pressable>
-        <Ionicons color="#8a94a3" name="chevron-forward" size={22} />
-        <Pressable
-          onPress={() => selectTarget('end')}
-          style={({ pressed }) => [
-            styles.calendarDateTimeSummaryCard,
-            activeTarget === 'end' && { backgroundColor: accentSoftTone, borderColor: accentTone },
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          <Text style={[styles.calendarDateTimeSummaryLabel, activeTarget === 'end' && { color: accentTone }]}>종료</Text>
-          <Text style={styles.calendarDateTimeSummaryDate}>{formatDateDisplay(endDate)}</Text>
-          <Text style={[styles.calendarDateTimeSummaryTime, activeTarget === 'end' && { color: accentTone }]}>{endTime}</Text>
-        </Pressable>
-      </View>
-
-      {!!activeTarget && (
-        <Animated.View
-          style={[
-            styles.calendarDateWheel,
-            {
-              opacity: progress,
-              transform: [{ translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-6, 0] }) }],
-            },
-          ]}
-        >
+      <TimeWheelPicker
+        accentSoftTone={accentSoftTone}
+        accentTone={accentTone}
+        onChange={setActiveTime}
+        value={startTime}
+      />
+      <Pressable
+        accessibilityLabel="일정 날짜 선택"
+        onPress={() => {
+          animatePickerLayout();
+          setShowDateWheel((current) => !current);
+        }}
+        style={({ pressed }) => [styles.calendarDateSummaryRow, pressed && styles.pressedFeedback]}
+      >
+        <View style={styles.calendarDateSummaryTextGroup}>
+          <Text style={styles.calendarDateSummaryValue}>{formatDateDisplay(startDate)}</Text>
+          <Text style={styles.calendarDateSummaryHint}>종료 {endDate === startDate ? endTime : `${formatDateDisplay(endDate)} ${endTime}`} · 1시간 일정</Text>
+        </View>
+        <Ionicons color={accentTone} name="calendar-outline" size={22} />
+      </Pressable>
+      {showDateWheel && <View style={styles.calendarDateWheel}>
           <View style={[styles.calendarDateWheelHighlight, { backgroundColor: accentSoftTone }]} />
-          {pickerUnits.map((unit) => {
+          {datePickerUnits.map((unit) => {
             const dragHandlers = buildDragHandlers((direction) => stepActiveValue(unit.key, direction));
             return (
               <View key={unit.key} style={styles.calendarDateWheelColumn}>
@@ -301,8 +347,7 @@ function DateTimePicker({
               </View>
             );
           })}
-        </Animated.View>
-      )}
+      </View>}
     </View>
   );
 }
@@ -506,14 +551,39 @@ function NotificationLeadSelector({
   notificationHoursBefore?: number | null;
   onChangeNotificationHoursBefore: (value: number | null) => void;
 }) {
+  const isQuickOption = notificationLeadOptions.some((option) => option.value === notificationHoursBefore);
+  const [showCustomInput, setShowCustomInput] = useState(typeof notificationHoursBefore === 'number' && !isQuickOption);
+  const [customMinutes, setCustomMinutes] = useState(() => (
+    typeof notificationHoursBefore === 'number' ? String(Math.max(1, Math.round(notificationHoursBefore * 60))) : '60'
+  ));
+
+  useEffect(() => {
+    if (typeof notificationHoursBefore !== 'number') return;
+    setCustomMinutes(String(Math.max(1, Math.round(notificationHoursBefore * 60))));
+    if (!notificationLeadOptions.some((option) => option.value === notificationHoursBefore)) setShowCustomInput(true);
+  }, [notificationHoursBefore]);
+
+  const applyCustomMinutes = (text: string) => {
+    const digits = text.replace(/[^0-9]/g, '').slice(0, 5);
+    const minutes = Number(digits);
+    const normalizedText = Number.isFinite(minutes) && minutes > 10080 ? '10080' : digits;
+    setCustomMinutes(normalizedText);
+    if (Number.isFinite(minutes) && minutes > 0) {
+      onChangeNotificationHoursBefore(Math.min(minutes, 10080) / 60);
+    }
+  };
+
   return (
     <View style={styles.calendarActivityOptionGrid}>
       {notificationLeadOptions.map((option) => {
-        const active = notificationHoursBefore === option.value;
+        const active = !showCustomInput && notificationHoursBefore === option.value;
         return (
           <Pressable
             key={option.value ?? 'none'}
-            onPress={() => onChangeNotificationHoursBefore(option.value)}
+            onPress={() => {
+              setShowCustomInput(false);
+              onChangeNotificationHoursBefore(option.value);
+            }}
             style={({ pressed }) => [
               styles.calendarActivityOption,
               active && { backgroundColor: accentSoftTone, borderColor: accentTone },
@@ -524,6 +594,43 @@ function NotificationLeadSelector({
           </Pressable>
         );
       })}
+      <Pressable
+        accessibilityLabel="알림 시간 직접 설정"
+        accessibilityState={{ selected: showCustomInput }}
+        onPress={() => {
+          setShowCustomInput(true);
+          const minutes = Math.max(1, Number(customMinutes) || 60);
+          setCustomMinutes(String(minutes));
+          onChangeNotificationHoursBefore(Math.min(minutes, 10080) / 60);
+        }}
+        style={({ pressed }) => [
+          styles.calendarActivityOption,
+          showCustomInput && { backgroundColor: accentSoftTone, borderColor: accentTone },
+          pressed && styles.pressedFeedback,
+        ]}
+      >
+        <Text style={[styles.calendarActivityOptionText, showCustomInput && { color: accentTone }]}>직접 설정</Text>
+      </Pressable>
+      {showCustomInput && (
+        <View style={styles.calendarNotificationCustomRow}>
+          <TextInput
+            accessibilityLabel="일정 알림을 몇 분 전에 받을지 입력"
+            keyboardType="number-pad"
+            maxLength={5}
+            onBlur={() => {
+              if (Number(customMinutes) > 0) return;
+              setCustomMinutes('60');
+              onChangeNotificationHoursBefore(1);
+            }}
+            onChangeText={applyCustomMinutes}
+            selectTextOnFocus
+            style={[styles.calendarNotificationCustomInput, { borderColor: accentTone }]}
+            value={customMinutes}
+          />
+          <Text style={styles.calendarNotificationCustomUnit}>분 전</Text>
+          <Text style={styles.calendarNotificationCustomHint}>최대 7일 전까지 설정할 수 있어요</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -564,7 +671,6 @@ export function CalendarEventEditor({
   title,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const [activeTarget, setActiveTarget] = useState<DateTarget | null>(null);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [isMapPickerOpen, setIsMapPickerOpen] = useState(false);
   const [isMapPickerSearchOpen, setIsMapPickerSearchOpen] = useState(false);
@@ -751,14 +857,11 @@ export function CalendarEventEditor({
             </View>
             <View style={styles.calendarSheetDivider} />
             <View style={styles.calendarSheetDateTimeBlock}>
-              <Ionicons color="#8a94a3" name="time-outline" size={20} />
               <DateTimePicker
                 accentSoftTone={accentSoftTone}
                 accentTone={accentTone}
-                activeTarget={activeTarget}
                 endDate={endDate}
                 endTime={endTime}
-                onChangeActiveTarget={setActiveTarget}
                 onChangeEndDate={onChangeEndDate}
                 onChangeEndTime={onChangeEndTime}
                 onChangeStartDate={onChangeStartDate}

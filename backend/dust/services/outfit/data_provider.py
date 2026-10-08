@@ -2,10 +2,14 @@ import math
 from datetime import timedelta
 
 from dust.current_dust_service import canonical_sido_name
+
 from dust.models import AirQualityStation, HourlyDustPrediction, RealtimeDustMeasurement, WeatherHourlyMeasurement
 
 from .aggregation import AirPoint, WeatherPoint, aggregate_schedule_window
 from .context_builder import OutfitRequest
+
+
+WEATHER_FALLBACK_HOURS = 36
 
 
 def _dfs_grid(lat: float, lng: float) -> tuple[int, int]:
@@ -41,20 +45,75 @@ def _station_for_request(request: OutfitRequest):
     return next((station for station in city_stations if station.name and station.name in request.region), None)
 
 
-def load_schedule_snapshot(request: OutfitRequest) -> dict:
-    weather_points: list[WeatherPoint] = []
+def _weather_point(row: WeatherHourlyMeasurement) -> WeatherPoint:
+    return WeatherPoint(
+        temperature=row.temperature,
+        wind_speed=row.wind_speed,
+        rain_mm=row.rain_mm,
+        rain_probability=row.rain_probability,
+        precipitation_type=row.precipitation_type,
+        label=row.label,
+    )
+
+
+def _weather_grid_candidates(request: OutfitRequest, station: AirQualityStation | None) -> list[tuple[int, int]]:
+    candidates = []
     if request.lat is not None and request.lng is not None:
-        nx, ny = _dfs_grid(request.lat, request.lng)
-        rows = WeatherHourlyMeasurement.objects.filter(
+        candidates.append(_dfs_grid(request.lat, request.lng))
+    if station is not None:
+        station_grid = _dfs_grid(station.lat, station.lng)
+        if station_grid not in candidates:
+            candidates.append(station_grid)
+    return candidates
+
+
+def _weather_rows_in_schedule_window(nx: int, ny: int, request: OutfitRequest) -> list[WeatherHourlyMeasurement]:
+    return list(
+        WeatherHourlyMeasurement.objects.filter(
             nx=nx,
             ny=ny,
             measured_at__gte=request.start - timedelta(hours=1),
             measured_at__lte=request.end + timedelta(hours=1),
+            temperature__isnull=False,
         ).order_by("measured_at")
-        weather_points = [WeatherPoint(row.temperature, row.wind_speed, row.rain_mm, row.rain_probability) for row in rows]
+    )
+
+
+def _nearest_weather_row(nx: int, ny: int, request: OutfitRequest) -> WeatherHourlyMeasurement | None:
+    rows = WeatherHourlyMeasurement.objects.filter(
+        nx=nx,
+        ny=ny,
+        measured_at__gte=request.start - timedelta(hours=WEATHER_FALLBACK_HOURS),
+        measured_at__lte=request.end + timedelta(hours=WEATHER_FALLBACK_HOURS),
+        temperature__isnull=False,
+    )
+    return min(rows, key=lambda row: abs(row.measured_at - request.start), default=None)
+
+
+def load_schedule_snapshot(request: OutfitRequest) -> dict:
+    station = _station_for_request(request)
+    weather_points: list[WeatherPoint] = []
+    weather_grids = _weather_grid_candidates(request, station)
+    for nx, ny in weather_grids:
+        rows = _weather_rows_in_schedule_window(nx, ny, request)
+        if rows:
+            weather_points = [_weather_point(row) for row in rows]
+            break
+
+    # An arbitrary place coordinate can belong to a grid that the local collector
+    # has not stored yet. Fall back to the selected region's station grid and then
+    # to its nearest recent/forecast row instead of rejecting the recommendation.
+    if not weather_points:
+        nearest_rows = [
+            row
+            for nx, ny in weather_grids
+            if (row := _nearest_weather_row(nx, ny, request)) is not None
+        ]
+        nearest = min(nearest_rows, key=lambda row: abs(row.measured_at - request.start), default=None)
+        if nearest is not None:
+            weather_points = [_weather_point(nearest)]
 
     air_points: list[AirPoint] = []
-    station = _station_for_request(request)
     if station:
         dust_rows = RealtimeDustMeasurement.objects.filter(
             station=station,

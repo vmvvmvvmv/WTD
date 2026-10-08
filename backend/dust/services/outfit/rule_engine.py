@@ -21,12 +21,25 @@ def _band_index(feels_avg: float, sensitivity: str) -> int:
     return next(index for index, band in enumerate(BANDS) if adjusted >= band["minimum"])
 
 
-def _must_have(snapshot: dict) -> list[dict]:
+def _weather_condition(snapshot: dict) -> str:
+    if snapshot.get("has_snow"):
+        return "snow"
+    rain_probability, rain_mm = snapshot.get("rain_prob_max"), snapshot.get("rain_mm_max")
+    if snapshot.get("has_rain") or (rain_probability is not None and rain_probability >= 60) or (rain_mm is not None and rain_mm >= 1):
+        return "rain"
+    if snapshot.get("wind_max") is not None and snapshot["wind_max"] >= 9:
+        return "strong_wind"
+    return "normal"
+
+
+def _must_have(snapshot: dict, weather_condition: str, activity_type: str) -> list[dict]:
     result = []
     rain_probability, rain_mm = snapshot.get("rain_prob_max"), snapshot.get("rain_mm_max")
     pm10, pm25 = snapshot.get("pm10_max"), snapshot.get("pm25_max")
     wind, feels_min = snapshot.get("wind_max"), snapshot.get("feels_min")
-    if (rain_probability is not None and rain_probability >= 60) or (rain_mm is not None and rain_mm >= 1):
+    if weather_condition == "snow":
+        result.append({"type": "waterproof_shoes", "label": "미끄럼 방지 방수 신발", "level": "required", "reason": "젖거나 미끄러운 눈길에 대비해요"})
+    elif (rain_probability is not None and rain_probability >= 60) or (rain_mm is not None and rain_mm >= 1) or weather_condition == "rain":
         result.append({"type": "umbrella", "label": "우산", "level": "required", "reason": "비에 대비해 챙겨요"})
     elif rain_probability is not None and rain_probability >= 30:
         result.append({"type": "umbrella", "label": "접이식 우산", "level": "recommended", "reason": "비 가능성에 대비해요"})
@@ -38,7 +51,24 @@ def _must_have(snapshot: dict) -> list[dict]:
         result.append({"type": "windbreaker", "label": "바람막이", "level": "recommended", "reason": "강한 바람을 막아줘요"})
     if feels_min is not None and feels_min <= 4:
         result.append({"type": "scarf_gloves", "label": "목도리·장갑", "level": "recommended", "reason": "낮은 체감온도에 대비해요"})
+    feels_max = snapshot.get("feels_max")
+    if activity_type != "indoor" and weather_condition == "normal" and feels_max is not None and feels_max >= 30:
+        result.append({"type": "sun_parasol", "label": "양산", "level": "recommended", "reason": "강한 햇빛과 더위에 대비해요"})
     return result
+
+
+def _apply_weather_outer(band: dict, weather_condition: str, occasion: str) -> None:
+    if weather_condition == "normal":
+        return
+    cold_band = band["band"] in {"B6", "B7", "B8", "B9"}
+    is_sport = occasion in {"running", "sport"}
+    if weather_condition == "snow":
+        outer = "방수·방풍 보온 운동 재킷" if is_sport and cold_band else "방수·방풍 운동 재킷" if is_sport else "방수·방풍 보온 겉옷" if cold_band else "방수·방풍 재킷"
+    elif weather_condition == "rain":
+        outer = "경량 방수 바람막이" if is_sport else "방수 기능 겉옷" if cold_band else "생활 방수 재킷"
+    else:
+        outer = "방풍 보온 운동 재킷" if is_sport and cold_band else "방풍 운동 재킷" if is_sport else "방풍 보온 겉옷" if cold_band else "방풍 재킷"
+    band["outer"] = [outer]
 
 
 def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, occasion: str) -> dict:
@@ -60,18 +90,27 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
         band.update(deepcopy(SPORT_OUTFITS[band["band"]]))
     if resolved_activity == "indoor":
         band["outer"] = ["들고 다닐 수 있는 가벼운 겉옷"]
+    weather_condition = _weather_condition(snapshot)
+    if resolved_activity != "indoor":
+        _apply_weather_outer(band, weather_condition, occasion)
 
-    must_have = _must_have(snapshot)
+    must_have = _must_have(snapshot, weather_condition, resolved_activity)
     temp_range = snapshot.get("temp_range")
-    layering_tip = "겉옷을 벗고 입기 쉬운 구성으로 준비하세요." if temp_range is not None and temp_range >= 8 else ""
+    layering_tip = "겉옷은 벗고 입기 쉬운 걸로 챙기세요." if temp_range is not None and temp_range >= 8 else ""
     if resolved_activity == "transit":
-        layering_tip = "대중교통에서 쉽게 벗고 입을 수 있도록 겹쳐 입으세요."
+        layering_tip = "대중교통 안에서는 벗기 쉬운 겉옷이 편해요."
     main_outer = band["outer"][0] if band["outer"] else band["top"][0]
     required_labels = [item["label"] for item in must_have if item["level"] == "required"]
     summary = f"{main_outer} 차림이 좋아요."
-    if occasion in {"running", "sport"} and band["outer"]:
-        summary = f"운동할 땐 {band['top'][0]}, 전후엔 {band['outer'][0]}를 챙겨요."
-    if required_labels:
+    if weather_condition == "snow":
+        summary = f"눈길 조심하세요. {main_outer}과 방수 신발이 좋아요."
+    elif weather_condition == "rain":
+        summary = f"우산 챙기셨나요? {main_outer}도 잘 맞아요."
+    elif weather_condition == "strong_wind":
+        summary = f"강한 바람에는 {main_outer} 차림이 좋아요."
+    elif occasion in {"running", "sport"} and band["outer"]:
+        summary = f"운동할 때는 {band['top'][0]}, 전후에는 {band['outer'][0]}도 챙기세요."
+    if required_labels and weather_condition == "normal":
         summary = f"{main_outer}에 {'·'.join(required_labels)}도 챙기세요."
     outfit_note = f"{band['top'][0]}과 {band['bottom'][0]}"
     outfit_note += f", {band['outer'][0]}을 추천해요." if band["outer"] else " 조합을 추천해요."
@@ -81,9 +120,10 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
         "outfit_note": outfit_note[:80],
         "layering_tip": layering_tip,
         "must_have": must_have,
-        "weather_snapshot": {key: snapshot.get(key) for key in ("feels_min", "feels_max", "feels_avg", "temp_range", "rain_prob_max", "rain_mm_max", "wind_max", "pm10_max", "pm25_max")},
+        "weather_snapshot": {key: snapshot.get(key) for key in ("feels_min", "feels_max", "feels_avg", "temp_range", "rain_prob_max", "rain_mm_max", "wind_max", "pm10_max", "pm25_max", "has_snow", "has_rain", "weather_condition")},
         "data_gaps": list(dict.fromkeys(data_gaps)),
         "occasion": occasion,
         "activity_type": resolved_activity,
         "sensitivity": sensitivity,
+        "weather_condition": weather_condition,
     }

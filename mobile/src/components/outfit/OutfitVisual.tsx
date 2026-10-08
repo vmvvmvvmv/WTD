@@ -1,13 +1,17 @@
-import { Image, type ImageSourcePropType } from 'react-native';
+import { Image, type ImageSourcePropType, type ImageStyle, type StyleProp } from 'react-native';
 
 import type { OutfitFigure, OutfitRecommendation } from '../../types/dust';
 import { outfitStyles } from './outfitStyles';
 
-export type OutfitVisualKey = 'running' | 'hot' | 'warm' | 'mild' | 'cool' | 'cold' | 'freezing';
+export type OutfitVisualKey = 'sport' | 'rain' | 'snow' | 'wind' | 'heatwave' | 'hot' | 'warm' | 'mild' | 'cool' | 'cold' | 'freezing';
 
 const OUTFIT_VISUALS: Record<OutfitFigure, Record<OutfitVisualKey, ImageSourcePropType>> = {
   male: {
-    running: require('../../../assets/outfit/outfit-running.png'),
+    sport: require('../../../assets/outfit/outfit-running.png'),
+    rain: require('../../../assets/outfit/outfit-rain.png'),
+    snow: require('../../../assets/outfit/outfit-snow.png'),
+    wind: require('../../../assets/outfit/outfit-wind.png'),
+    heatwave: require('../../../assets/outfit/outfit-heatwave.png'),
     hot: require('../../../assets/outfit/outfit-hot.png'),
     warm: require('../../../assets/outfit/outfit-warm.png'),
     mild: require('../../../assets/outfit/outfit-mild.png'),
@@ -16,7 +20,11 @@ const OUTFIT_VISUALS: Record<OutfitFigure, Record<OutfitVisualKey, ImageSourcePr
     freezing: require('../../../assets/outfit/outfit-freezing.png'),
   },
   female: {
-    running: require('../../../assets/outfit/outfit-female-running.png'),
+    sport: require('../../../assets/outfit/outfit-female-running.png'),
+    rain: require('../../../assets/outfit/outfit-female-rain.png'),
+    snow: require('../../../assets/outfit/outfit-female-snow.png'),
+    wind: require('../../../assets/outfit/outfit-female-wind.png'),
+    heatwave: require('../../../assets/outfit/outfit-female-heatwave.png'),
     hot: require('../../../assets/outfit/outfit-female-hot.png'),
     warm: require('../../../assets/outfit/outfit-female-warm.png'),
     mild: require('../../../assets/outfit/outfit-female-mild.png'),
@@ -27,7 +35,12 @@ const OUTFIT_VISUALS: Record<OutfitFigure, Record<OutfitVisualKey, ImageSourcePr
 };
 
 export function resolveOutfitVisual(result: OutfitRecommendation): OutfitVisualKey {
-  if (result.occasion === 'running') return 'running';
+  const weatherCondition = result.weather_condition ?? result.weather_snapshot.weather_condition;
+  if (weatherCondition === 'snow') return 'snow';
+  if (weatherCondition === 'rain') return 'rain';
+  if (weatherCondition === 'strong_wind') return 'wind';
+  if (result.must_have.some((item) => item.type === 'sun_parasol')) return 'heatwave';
+  if (result.occasion === 'running' || result.occasion === 'sport') return 'sport';
   switch (result.outfit.band) {
     case 'B1':
     case 'B2':
@@ -49,15 +62,19 @@ export function resolveOutfitVisual(result: OutfitRecommendation): OutfitVisualK
   }
 }
 
-export function OutfitVisual({ figure, result }: { figure: OutfitFigure; result: OutfitRecommendation }) {
+export function OutfitVisual({ figure, imageStyle, result }: {
+  figure: OutfitFigure;
+  imageStyle?: StyleProp<ImageStyle>;
+  result: OutfitRecommendation;
+}) {
   const visualKey = resolveOutfitVisual(result);
   return (
     <Image
-      accessibilityLabel={`${result.outfit.band} 옷차림 이미지`}
+      accessibilityLabel={`${figure === 'male' ? '남성' : '여성'} ${result.outfit.band} 옷차림 이미지`}
       fadeDuration={0}
       resizeMode="contain"
       source={OUTFIT_VISUALS[figure][visualKey]}
-      style={outfitStyles.visualImage}
+      style={[outfitStyles.visualImage, imageStyle]}
     />
   );
 }

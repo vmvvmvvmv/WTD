@@ -73,7 +73,7 @@ import {
   saveNotificationToken,
   saveSelectedRegion,
 } from '../storage/appStorage';
-import { cancelCalendarEventNotifications, configureDustNotifications, requestDustPushToken, scheduleCalendarEventNotifications } from '../notifications/expoPush';
+import { cancelCalendarEventNotifications, configureDustNotifications, requestDustPushToken, scheduleCalendarEventNotifications, scheduleTestNotification } from '../notifications/expoPush';
 import type {
   BriefingMessage,
   CalendarEvent,
@@ -193,7 +193,7 @@ export function AppContent() {
   const [mapSearchText, setMapSearchText] = useState('');
   const [mapSearchMessage, setMapSearchMessage] = useState('');
   const [isMapSearchFocused, setIsMapSearchFocused] = useState(false);
-  const [mapMarkerMode, setMapMarkerMode] = useState<'dust' | 'weather'>('dust');
+  const [mapMarkerMode, setMapMarkerMode] = useState<'dust' | 'weather'>('weather');
   const [mapRecentSearches, setMapRecentSearches] = useState<StationDustItem[]>([]);
   const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
   const [selectedStation, setSelectedStation] = useState<StationDustItem | null>(null);
@@ -235,6 +235,7 @@ export function AppContent() {
   const [notificationMessage, setNotificationMessage] = useState('');
   const [serverPushToken, setServerPushToken] = useState<string | null>(null);
   const [isSavingNotificationSettings, setIsSavingNotificationSettings] = useState(false);
+  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [isRegionTransitioning, setIsRegionTransitioning] = useState(false);
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
@@ -496,7 +497,11 @@ export function AppContent() {
     } else {
       setIsLoading(true);
     }
-      setError('');
+    setError('');
+    const weatherPromise = fetchDashboardWeather(region, todayDateLabel, stationItems).then(
+      (value) => ({ ok: true as const, value }),
+      (error: unknown) => ({ error, ok: false as const }),
+    );
     try {
       const {
         currentItem: currentDustItem,
@@ -515,7 +520,9 @@ export function AppContent() {
       setIsLoading(false);
       finishRegionTransition();
       try {
-        const storedWeather = await fetchDashboardWeather(region, todayDateLabel, stationItems);
+        const weatherResult = await weatherPromise;
+        if (!weatherResult.ok) throw weatherResult.error;
+        const storedWeather = weatherResult.value;
         if (isStale()) return;
         const nextWeatherHourlyItems = storedWeather.hourlyItems;
         const nextWeatherMidTermItems = storedWeather.midTermItems;
@@ -597,7 +604,7 @@ export function AppContent() {
     });
   };
 
-  // 지도 검색 결과나 최근 검색 항목을 선택했을 때 WebView 지도를 해당 측정소로 이동합니다.
+  // 지도 검색 결과를 선택했을 때 WebView 지도를 해당 측정소로 이동합니다.
   const focusMapStation = (station?: StationDustItem) => {
     const coords = normalizeLatLng(station?.lat, station?.lng);
     if (!station || !coords) {
@@ -684,17 +691,17 @@ export function AppContent() {
   const homeMapPreviewStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
   const homeMapPreviewCoords = normalizeLatLng(homeMapPreviewStation?.lat, homeMapPreviewStation?.lng);
   const homeMapPreviewUrl = homeMapPreviewCoords
-    ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, zoom: 11, view: 'preview' })
-    : buildMobileMapUrl({ view: 'preview' });
+    ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: 'weather', zoom: 11, view: 'preview' })
+    : buildMobileMapUrl({ mode: 'weather', view: 'preview' });
   const fullMapUrlRef = useRef<string | null>(null);  
   if (activeTab === 'map' && !fullMapUrlRef.current) {
       fullMapUrlRef.current = homeMapPreviewCoords
-        ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, zoom: 11, view: 'full' })
-        : buildMobileMapUrl({ view: 'full' });
+        ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: mapMarkerMode, zoom: 11, view: 'full' })
+        : buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
     } else if (activeTab !== 'map') {
       fullMapUrlRef.current = null;
     }
-    const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ view: 'full' });
+    const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
   const calendarMapPickerUrl = calendarMapPickerCoords
     ? buildMobileMapUrl({ lat: calendarMapPickerCoords.lat, lng: calendarMapPickerCoords.lng, zoom: 15, view: 'picker' })
     : buildMobileMapUrl({ view: 'picker' });
@@ -775,7 +782,6 @@ export function AppContent() {
     setShowSearchSuggestions(false);
   };
 
-  // 지도 검색 화면의 최근 검색 항목을 하나 삭제합니다.
   const removeMapRecentSearch = (station: StationDustItem) => {
     setMapRecentSearches((items) => items.filter((item) => !(item.sido === station.sido && item.name === station.name && item.city === station.city)));
   };
@@ -888,7 +894,7 @@ export function AppContent() {
   // 설정 탭의 알림 토글 변경을 저장 상태에 반영합니다.
   const updateNotificationSetting = (key: keyof NotificationSettings, value: boolean | number) => {
     if (key === 'enabled' && value && IS_EXPO_GO) {
-      setNotificationMessage('Expo Go에서는 알림을 켤 수 없습니다. 앱 테스트는 그대로 가능하고, 알림은 개발 빌드에서 확인해야 합니다.');
+      setNotificationMessage('Expo Go에서는 알림을 사용할 수 없어요. 개발 빌드에서 확인해 주세요.');
       return;
     }
     const nextSettings = { ...notificationSettings, [key]: value } as NotificationSettings;
@@ -896,11 +902,31 @@ export function AppContent() {
     setNotificationMessage('');
     setNotificationSettings(nextSettings);
     if (key === 'calendarReminders') {
-      setNotificationMessage(value ? '일정 알림이 켜졌습니다.' : '일정 알림이 꺼졌습니다.');
+      setNotificationMessage(value ? '일정 알림을 켰어요.' : '일정 알림을 껐어요.');
+    } else if (key === 'weatherMorningAlerts') {
+      setNotificationMessage(value ? '아침 날씨 알림을 켰어요.' : '아침 날씨 알림을 껐어요.');
     } else {
-      setNotificationMessage(value ? '알림 설정이 저장되었습니다.' : '알림이 꺼졌습니다.');
+      setNotificationMessage(value ? '알림을 켰어요.' : '알림을 껐어요.');
     }
     setIsSavingNotificationSettings(false);
+  };
+
+  const sendTestNotification = async () => {
+    if (IS_EXPO_GO) {
+      setNotificationMessage('테스트 알림은 개발 빌드에서 확인할 수 있어요.');
+      return;
+    }
+    setIsSendingTestNotification(true);
+    try {
+      const scheduled = await scheduleTestNotification();
+      setNotificationMessage(scheduled
+        ? '3초 뒤 알림이 도착해요.'
+        : '알림 권한을 허용하고 다시 시도해 주세요.');
+    } catch {
+      setNotificationMessage('알림을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
+    } finally {
+      setIsSendingTestNotification(false);
+    }
   };
 
   const updateOutfitSetting = <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => {
@@ -980,14 +1006,22 @@ export function AppContent() {
   // 홈 상단 지역명을 눌렀을 때 즐겨찾기 선택 패널을 여닫습니다.
   const toggleFavoritePicker = () => {
     if (favoriteRegions.length === 0) return;
-    setShowFavoritePicker((visible) => !visible);
+    const willOpen = !showFavoritePicker;
+    setShowFavoritePicker(willOpen);
     setShowHomeRegionSearch(false);
+    if (willOpen) {
+      requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ animated: true, y: 0 }));
+    }
   };
 
   // 홈에서 지역 검색 패널을 열고, 필요하면 측정소 목록을 먼저 불러옵니다.
   const openHomeRegionSearch = () => {
-    setShowHomeRegionSearch((visible) => !visible);
+    const willOpen = !showHomeRegionSearch;
+    setShowHomeRegionSearch(willOpen);
     setShowFavoritePicker(false);
+    if (willOpen) {
+      requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ animated: true, y: 0 }));
+    }
     if (stationItems.length === 0) loadStations();
   };
 
@@ -1190,7 +1224,7 @@ export function AppContent() {
       if (notificationSettings.calendarReminders) {
         for (const event of calendarEvents) {
           if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
-          const notificationIdsForEvent = await scheduleCalendarEventNotifications(event, riskByEvent[event.id], todayDateLabel).catch(() => []);
+          const notificationIdsForEvent = await scheduleCalendarEventNotifications(event, riskByEvent[event.id]).catch(() => []);
           if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
           nextIds.push(...notificationIdsForEvent);
         }
@@ -1246,13 +1280,11 @@ export function AppContent() {
     };
   }, [selectedStation?.lat, selectedStation?.lng, selectedStation?.name, selectedStation?.weatherTime]);
 
-  // 지도 검색의 최근 검색 목록을 저장합니다.
   useEffect(() => {
     if (!hasLoadedRegionStore) return;
     saveFavoriteRegions(favoriteRegions);
   }, [favoriteRegions, hasLoadedRegionStore]);
 
-  // 알림 설정 토글과 기준값을 저장합니다.
   useEffect(() => {
     if (!hasLoadedRegionStore) return;
     saveMapRecentSearches(mapRecentSearches);
@@ -2036,6 +2068,7 @@ export function AppContent() {
             accentTone={accentTone}
             calendarEvents={calendarEvents}
             eventLocationForecasts={calendarLocationForecasts}
+            onDeleteCalendarEvent={removeCalendarEvent}
             onOpenCalendar={() => setActiveTab('calendar')}
             onOpenDetail={openSelectedRegionDetail}
             onOpenMap={() => {
@@ -2044,6 +2077,7 @@ export function AppContent() {
               setActiveTab('map');
             }}
             outfitEnabled={outfitSettings.enabled}
+            outfitFallbackLocation={selectedRegion}
             outfitFigure={outfitSettings.figure}
             outfitSensitivity={outfitSettings.sensitivity}
             mapPreviewUrl={homeMapPreviewUrl}
@@ -2066,11 +2100,13 @@ export function AppContent() {
             accentTone={accentTone}
             isLocating={isLocating}
             isSavingNotificationSettings={isSavingNotificationSettings}
+            isSendingTestNotification={isSendingTestNotification}
             locationMessage={locationMessage}
             notificationsUnavailable={IS_EXPO_GO}
             notificationSettings={notificationSettings}
             outfitSettings={outfitSettings}
             onRemoveFavorite={removeFavoriteRegion}
+            onSendTestNotification={sendTestNotification}
             onToggleNotificationSetting={updateNotificationSetting}
             onUpdateOutfitSetting={updateOutfitSetting}
             onUseCurrentLocation={applyNearestGpsRegion}
