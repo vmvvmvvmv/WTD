@@ -11,8 +11,8 @@
 - 백엔드: `C:\Users\goodd\Documents\GitHub\WTD\backend`
 - 모바일 기술: React Native + Expo SDK 54 + TypeScript
 - 백엔드 기술: Django
-- 운영 API: `https://wtd-api.vmv-lab.com`
-- 운영 서버: AWS Lightsail
+- 운영 서버: 현재 없음. AWS Lightsail(`https://wtd-api.vmv-lab.com`)은 2026-06-12 ~ 2026-10 운영 후 종료했다. 지금은 로컬 백엔드(`127.0.0.1:8001`)로 개발한다.
+- 작업 규칙: 저장소 최상위 `AGENTS.md`(Codex·Claude 공통)
 
 ## 2. 모바일 앱 실행 방법
 
@@ -176,7 +176,8 @@ npx expo export --platform android --output-dir .expo-export-check
 
 ## 8. Notion 작업 기록
 
-[WeatherToDo 모바일 개발 작업 기록](https://app.notion.com/p/3d7f7b32dbea81d1bc2ecd79b32798ac?pvs=204)
+[WeatherToDo 개발](https://app.notion.com/p/3f3f7b32dbea812baa3ecc9deb267401) — 릴리즈 노트 데이터베이스(작업 1건 = 페이지 1개), 개발 환경 가이드, 남은 작업 모음.
+2026-10-09에 기존 [WeatherToDo 모바일 개발 작업 기록](https://app.notion.com/p/3d7f7b32dbea81d1bc2ecd79b32798ac?pvs=204)을 이곳으로 옮겼다. 기존 페이지는 보관용이며 더 이상 갱신하지 않는다.
 
 새 채팅 첫 메시지에 다음 문장을 붙여 넣으면 된다.
 
@@ -387,3 +388,40 @@ npx expo export --platform android --output-dir .expo-export-check
 - Reanimated와 Haptics를 추가했다. 카드 Fade-in, Skeleton pulse, 기온 범위 bar, Chip 순차 등장, 우산 흔들림, 마스크 pulse, 코디 항목 slide, 문구 cross-fade/typewriter와 Reduce Motion 대응을 적용했다.
 - Backend 관련 회귀 테스트 26건, Mobile TypeScript 검사가 통과했다. 실제 DB 기준 rule API는 HTTP 200, B3, 우산 추천으로 응답했다.
 - `TODO(확인 필요)`: 최종 LLM Provider/모델/비용 한도, 여름철 체감온도 공식, 일일 상한 초과 응답 정책, `auto` 활동 판정기, 최종 의상/Lottie 디자인 에셋.
+
+## 31. 2026-10-08 ~ 10-09 코드 검수·보안·경량화 (Claude)
+
+다른 에이전트(Claude)가 작업한 내용이다. 지켜야 할 결정은 최상위 `AGENTS.md`에 정리했다.
+
+- 커밋: `b9541e2`(보안) → `684e2ad`(개인정보) → `9c3fedd`(지역 전환·반복 일정) → `a92c0a6`(에어코리아 예보·선택 기능) → 그다음 커밋(ESLint·문서). `git show <해시>`로 확인한다.
+- 이 커밋들에는 Claude 수정분만 담았다. 작업 폴더에 남아 있던 Codex의 미커밋 변경은 그대로 두었다.
+- 예외: Codex의 미커밋 코드 위에서 고친 부분은 커밋하지 않고 작업 폴더에 남겨 두었다. Codex 작업을 커밋할 때 함께 들어간다.
+  - `dust/services/outfit/daily_service.py`(미추적 파일): 하루 단위 캐시에서 `schedule_tips` 제외, 키는 occasion 사용(v3)
+  - `mobile/src/features/outfit/outfitCache.ts`의 `outfitCacheKeyForEvents`에 `event.title` 추가, `outfitCache.test.mjs`
+  - `dust/test_weather_notifications.py`(미추적 파일): 일정 문구 테스트를 시간만 쓰는 동작에 맞춤
+  - `dust/tests.py`의 `DailyOutfitCacheTests`
+
+- 보안
+  - 인증 없이 전체 사용자 질환·지역을 조회·수정·삭제할 수 있던 `/app/app/Info/`(`InfoViewSet`)를 제거했다.
+  - `/dust/mobile-map/`의 `view`, `app_test_token` 반사형 XSS를 `_script_json()`으로 막았다.
+  - 비밀번호가 빈 Google 계정이 `pw=""`로 로그인되던 문제를 `Users.matches_client_password()`로 막았다(`/api/login/`, `/app/login/`).
+  - 옷차림 LLM 호출 상한을 `X-Device-Id` 대신 IP로 계산한다. 프록시 뒤에서는 `TRUSTED_PROXY_COUNT`를 설정한다.
+- 개인정보
+  - 일정 제목을 서버에 저장하지 않는다. 아침 알림용 일정은 `{date, time}`만 보내고 저장하며, 문구도 "09:00 일정이 있어요"처럼 시간만 쓴다. 기존 저장분은 `0013_strip_calendar_event_titles` 마이그레이션으로 지운다(로컬 DB에 아직 미적용).
+  - 하루 단위 옷차림 캐시에서 `schedule_tips`(제목 포함)를 빼고, 캐시 키는 제목 대신 occasion을 쓴다(v3).
+  - Expo가 `DeviceNotRegistered`를 반환하면 기기를 비활성화하고 일정 요약을 지운다.
+- 버그
+  - 지역을 빠르게 바꿀 때 이전 지역 응답이 홈 화면을 덮어쓰던 문제(`loadDashboard`, `loadWeather`).
+  - 매주 반복 일정이 종료일과 관계없이 약 160일 뒤 끊기던 문제(`calendarRepeat.ts`).
+  - 챗봇 경로의 "예측 불가" 결과가 공유 캐시에 1시간 남던 문제. `predict_dust` 중복 로직도 하나로 합쳤다.
+  - 앱 옷차림 메모리 캐시 키에 제목을 넣어 제목 변경 시 다시 요청한다.
+- 서버 경량화
+  - `/dust/predict/`는 Prophet 학습 대신 에어코리아 내일·모레 예보 등급(`dust/airkorea_forecast.py`)을 대표 PM10 값(좋음 15/보통 55/나쁨 115/매우나쁨 180)으로 바꿔 반환한다. 원본 등급은 `grades`. 앱 수정 없음.
+  - Prophet은 지연 import로 바꾸고 `requirements-optional.txt`로 옮겼다. 서버 프로세스 메모리: 기동 129MB → 103MB.
+  - 챗봇·`/analyze/`·기상 상세는 `ENABLE_OPTIONAL_FEATURES`(기본값 `DEBUG`)일 때만 라우팅한다. 코드는 삭제하지 않았다.
+- 개발 환경
+  - 모바일 ESLint(Expo 설정) 추가: `npm run lint`. 현재 오류 0, 경고 57.
+  - 실패하던 `CurrentDustEndpointTests` 2건을 고쳤다(로컬 `APP_TEST_TOKEN` 영향, 누락된 mock).
+  - `test_weather_notifications.py`의 일정 문구 테스트를 시간만 쓰는 동작에 맞게 바꿨다.
+- 검증: 백엔드 `dust`+`app` 테스트 74건 통과, 모바일 `tsc`·`node --test` 통과.
+- 남은 일: 로컬 DB `python manage.py migrate dust`, 홈 화면의 대체 데이터 안내(`currentNotice`)·로딩 표시 연결, 일정 알림 재예약 과다, `calendarRiskEvaluator` 테스트, 커밋 정리. 상세는 Notion "남은 작업 모음".
