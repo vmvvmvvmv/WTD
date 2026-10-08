@@ -464,3 +464,11 @@ npx expo export --platform android --output-dir .expo-export-check
 - 참고: Django 4.2 LTS의 지원은 2026-04에 끝났다. 4.2.30이 4.2의 마지막 패치이므로 이후 보안 수정을 받으려면 5.2 LTS(지원 2028-04까지)로 올려야 한다. 별도 작업으로 남긴다.
 - 실행 가이드를 0장(빠른 실행 순서), 2장(`.env`를 로컬 주소로), 3장, 7장, 8장(Codex 시작 문구)에 반영했다.
 - 커밋: `927cbde`(Pillow), `a1a5574`(venv 문서), `c1cee65`(Django 4.2.30), `ecead6f`(배치 파일 정리), `e52647d`(실행 가이드 갱신).
+
+## 33. 2026-10-09 의상 추천·일정 위험도 작업 마무리 (Codex)
+
+- 기존 미커밋 작업 묶음을 유지한 채 의상 추천, 일정 알림, 홈·지도 UI, 아이콘·에셋 변경을 작업 단위로 정리했다.
+- `calendarRiskEvaluator`의 일정 시간대 최악 기상 선택과 강수 시간 요약을 회귀 테스트로 고정했다. 테스트는 기존 Node 직접 실행 방식에 맞춰 확장자 보정 훅을 사용한다.
+- 개인정보·선택 기능·AirKorea 예보·프록시 신뢰 개수·인라인 스크립트 JSON 직렬화 등 `AGENTS.md`의 결정을 변경하지 않았다.
+- 검증: 백엔드 `dust`+`app` 74건 통과(기존 `backend\build\static` 디렉터리 경고 1건), 모바일 `npm run typecheck` 통과, `npm run lint` 오류 0·경고 57건, `node --test src/**/*.test.mjs` 7건 통과.
+- 커밋: `feat: finish outfit and schedule weather work`.

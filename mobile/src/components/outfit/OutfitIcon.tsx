@@ -15,6 +15,16 @@ export function OutfitIcon({ activityType, size = 30, source = 'svg' }: {
 }
 
 export function MustHaveIcon({ type }: { type: string }) {
-  const icon = type === 'umbrella' ? 'umbrella-outline' : type === 'mask' ? 'shield-checkmark-outline' : type === 'windbreaker' ? 'flag-outline' : 'snow-outline';
+  const icon = type === 'umbrella'
+    ? 'umbrella-outline'
+    : type === 'sun_parasol'
+      ? 'sunny-outline'
+    : type === 'mask'
+      ? 'shield-checkmark-outline'
+      : type === 'windbreaker'
+        ? 'flag-outline'
+        : type === 'waterproof_shoes'
+          ? 'footsteps-outline'
+          : 'snow-outline';
   return <View style={outfitStyles.mustIcon}><Ionicons color="#2F6FD7" name={icon} size={14} /></View>;
 }

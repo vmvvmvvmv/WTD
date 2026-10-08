@@ -257,6 +257,7 @@ export function CalendarPanel({
           onExpandStateChange={setDaySheetExpanded}
           onRemoveEvent={onRemoveEvent}
           outfitEnabled={outfitEnabled}
+          outfitFallbackLocation={defaultLocation ?? undefined}
           outfitFigure={outfitFigure}
           outfitSensitivity={outfitSensitivity}
           pm10={selectedForecast.pm10}

@@ -10,6 +10,7 @@ const actionIconSources = {
   location: require('../../../assets/icons/action-location.png'),
   map: require('../../../assets/icons/action-map.png'),
   notification: require('../../../assets/icons/action-notification.png'),
+  outfit: require('../../../assets/icons/action-outfit.png'),
   schedule: require('../../../assets/icons/action-schedule.png'),
   search: require('../../../assets/icons/action-search.png'),
 } as const;

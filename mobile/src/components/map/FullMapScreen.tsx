@@ -155,13 +155,30 @@ export function FullMapScreen({
           <AppActionIcon name="location" size={25} />
         </Pressable>
       </View>
-      <Pressable
-        accessibilityLabel={mapMarkerMode === 'dust' ? "\uB0A0\uC528 \uAE30\uC900 \uB9C8\uCEE4\uB85C \uBCC0\uACBD" : "\uBBF8\uC138\uBA3C\uC9C0 \uAE30\uC900 \uB9C8\uCEE4\uB85C \uBCC0\uACBD"}
-        onPress={() => switchMapMarkerMode(mapMarkerMode === 'dust' ? 'weather' : 'dust')}
-        style={({ pressed }) => [styles.mapMarkerModeIconButton, { borderColor: accentBorderTone, shadowColor: accentTone }, pressed && styles.pressedFeedback]}
-      >
-        <Ionicons color={mapMarkerMode === 'dust' ? accentTone : '#f3b43f'} name={mapMarkerMode === 'dust' ? 'leaf-outline' : 'partly-sunny-outline'} size={22} />
-      </Pressable>
+      {!showSearchSuggestions && !isMapSearchFocused && (
+        <View style={[styles.mapMarkerModeControl, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
+          {(['weather', 'dust'] as const).map((mode) => {
+            const active = mapMarkerMode === mode;
+            return (
+              <Pressable
+                accessibilityLabel={`${mode === 'weather' ? '기온' : '미세먼지'} 지도 보기`}
+                accessibilityRole="button"
+                accessibilityState={{ selected: active }}
+                key={mode}
+                onPress={() => switchMapMarkerMode(mode)}
+                style={({ pressed }) => [
+                  styles.mapMarkerModeButton,
+                  active && { backgroundColor: accentTone },
+                  pressed && styles.pressedFeedback,
+                ]}
+              >
+                <Ionicons color={active ? '#FFFFFF' : mode === 'weather' ? '#E18B2D' : accentTone} name={mode === 'weather' ? 'thermometer-outline' : 'leaf-outline'} size={16} />
+                <Text style={[styles.mapMarkerModeButtonText, active && styles.mapMarkerModeButtonTextActive]}>{mode === 'weather' ? '기온' : '미세먼지'}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
       {showSearchSuggestions && !isMapSearchFocused && searchSuggestions.length > 0 && (
         <View style={[styles.searchSuggestions, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
           {searchSuggestions.map((station, index) => (
@@ -201,40 +218,42 @@ export function FullMapScreen({
               <AppActionIcon name="location" size={25} />
             </Pressable>
           </View>
-          <View style={styles.mapSearchModeRow}>
-            <Text style={[styles.mapSearchModePill, { backgroundColor: accentTone }, mapSearchText.trim() && styles.mapSearchModePillMuted]}>
-              {mapSearchText.trim() ? "\uAC80\uC0C9 \uACB0\uACFC" : "\uCD5C\uADFC \uAC80\uC0C9"}
-            </Text>
-            {!mapSearchText.trim() && mapRecentSearches.length > 0 && (
-              <Pressable onPress={onClearRecentSearches} style={({ pressed }) => [styles.mapSearchClearButton, pressed && styles.pressedFeedback]}>
-                <Text style={styles.mapSearchClearText}>{"\uC804\uCCB4 \uC0AD\uC81C"}</Text>
-              </Pressable>
-            )}
-          </View>
-          <View style={[styles.mapSearchOverlayList, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
-            {overlayItems.length === 0 ? (
-              <Text style={styles.mapSearchEmptyText}>
-                {mapSearchText.trim() ? "\uC77C\uCE58\uD558\uB294 \uCE21\uC815\uC18C\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4." : "\uCD5C\uADFC \uAC80\uC0C9\uD55C \uC9C0\uC5ED\uC774 \uC5C6\uC2B5\uB2C8\uB2E4."}
+          {(mapSearchText.trim() || mapRecentSearches.length > 0) && (
+            <View style={styles.mapSearchModeRow}>
+              <Text style={[styles.mapSearchModePill, mapSearchText.trim() && styles.mapSearchModePillMuted]}>
+                {mapSearchText.trim() ? "\uAC80\uC0C9 \uACB0\uACFC" : "\uCD5C\uADFC \uAC80\uC0C9"}
               </Text>
-            ) : (
-              overlayItems.map((station, index) => (
-                <View key={stationIdentity(station) + '-' + index + '-overlay'} style={styles.mapSearchOverlayItem}>
-                  <Pressable onPressIn={dismissMapSearchKeyboard} onPress={() => focusMapStation(station)} style={({ pressed }) => [styles.mapSearchOverlaySelect, pressed && styles.pressedFeedback]}>
-                    <AppActionIcon name="location" size={25} />
-                    <View style={styles.mapSearchOverlayTextGroup}>
-                      <Text style={styles.mapSearchOverlayTitle}>{station.sido} {station.city || station.name}</Text>
-                      <Text style={styles.mapSearchOverlayMeta}>{[station.name, station.addr].filter(Boolean).join(' / ')}</Text>
-                    </View>
-                  </Pressable>
-                  {!mapSearchText.trim() && (
-                    <Pressable onPress={() => onRemoveRecentSearch(station)} style={({ pressed }) => [styles.mapSearchRemoveButton, pressed && styles.pressedFeedback]}>
-                      <Ionicons color="#8a94a3" name="close" size={19} />
+              {!mapSearchText.trim() && (
+                <Pressable onPress={onClearRecentSearches} style={({ pressed }) => [styles.mapSearchClearButton, pressed && styles.pressedFeedback]}>
+                  <Text style={styles.mapSearchClearText}>{"\uC804\uCCB4 \uC0AD\uC81C"}</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
+          {(mapSearchText.trim() || mapRecentSearches.length > 0) && (
+            <View style={[styles.mapSearchOverlayList, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
+              {overlayItems.length === 0 ? (
+                <Text style={styles.mapSearchEmptyText}>{"\uC77C\uCE58\uD558\uB294 \uCE21\uC815\uC18C\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4."}</Text>
+              ) : (
+                overlayItems.map((station, index) => (
+                  <View key={stationIdentity(station) + '-' + index + '-overlay'} style={styles.mapSearchOverlayItem}>
+                    <Pressable onPressIn={dismissMapSearchKeyboard} onPress={() => focusMapStation(station)} style={({ pressed }) => [styles.mapSearchOverlaySelect, pressed && styles.pressedFeedback]}>
+                      <AppActionIcon name="location" size={25} />
+                      <View style={styles.mapSearchOverlayTextGroup}>
+                        <Text style={styles.mapSearchOverlayTitle}>{station.sido} {station.city || station.name}</Text>
+                        <Text style={styles.mapSearchOverlayMeta}>{[station.name, station.addr].filter(Boolean).join(' / ')}</Text>
+                      </View>
                     </Pressable>
-                  )}
-                </View>
-              ))
-            )}
-          </View>
+                    {!mapSearchText.trim() && (
+                      <Pressable accessibilityLabel="최근 검색 삭제" onPress={() => onRemoveRecentSearch(station)} style={({ pressed }) => [styles.mapSearchRemoveButton, pressed && styles.pressedFeedback]}>
+                        <Ionicons color="#8a94a3" name="close" size={19} />
+                      </Pressable>
+                    )}
+                  </View>
+                ))
+              )}
+            </View>
+          )}
         </Animated.View>
       )}
       {!!mapSearchMessage && <Text style={[styles.mapSearchMessage, { borderColor: accentBorderTone }]}>{mapSearchMessage}</Text>}

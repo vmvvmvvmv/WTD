@@ -26,3 +26,17 @@ class MapPresentationTests(SimpleTestCase):
         self.assertContains(response, 'id="map-legend"')
         self.assertContains(response, '--air-good: #3D7FEA')
         self.assertContains(response, '정보 없음')
+        self.assertContains(response, "let mapMode = 'weather'")
+        self.assertContains(response, 'weatherEventPresentation')
+        self.assertContains(response, 'weather-badge wind')
+        self.assertContains(response, 'wind-trail')
+        self.assertContains(response, 'weather-heavy-rain')
+        self.assertContains(response, 'legend-gradient weather')
+        self.assertContains(response, '/static/dust/icons/map-weather-rain.png')
+        self.assertContains(response, '/static/dust/icons/map-weather-snow.png')
+        self.assertContains(response, '/static/dust/icons/map-weather-wind.png')
+
+    def test_mobile_map_can_still_open_in_dust_mode(self):
+        response = self.client.get('/dust/mobile-map/', {'mode': 'dust', 'app_test_token': os.environ.get('APP_TEST_TOKEN', '')})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "let mapMode = 'dust'")
