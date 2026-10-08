@@ -1,8 +1,27 @@
 # WeatherToDo 작업 인수인계
 
-작성일: 2026-09-19
+작성일: 2026-09-19 · 최종 갱신: 2026-10-09
 
 이 문서는 새 Codex 채팅에서 WeatherToDo 프로젝트 작업을 이어가기 위한 인수인계 문서다.
+작업 규칙과 유지해야 할 결정은 최상위 `AGENTS.md`에 있다. 최근 변경은 이 문서의 마지막 섹션들과 `git log`로 확인한다.
+
+## 0. 빠른 실행 순서 (2026-10-09 기준)
+
+운영 서버가 없으므로 PC에서 백엔드를 켜고, 휴대폰은 USB로 연결해 PC 백엔드를 쓴다.
+
+1. **백엔드 켜기**: `backend\start_local_backend.bat`을 더블클릭하거나 명령창에서 실행한다. 창은 켜 둔다.
+   - `backend\venv`(Python 3.11)를 자동으로 쓰고, 데이터 최신성 검사 → `adb reverse tcp:8001 tcp:8001` → `http://127.0.0.1:8001` 서버 실행 순서로 동작한다.
+   - "Local data is stale"이 나오면 다른 창에서 `backend\collect_hourly.bat`을 한 번 실행한다. 평소에는 Windows 예약 작업(`WeatherToDo Hourly Collection` 매시 5분, `WeatherToDo Morning Notifications` 매일 07:00)이 자동으로 수집한다.
+2. **휴대폰 연결**: USB 디버깅을 켜고 `adb devices`가 `device`인지 확인한다.
+3. **Metro 켜기**: 새 창에서 아래를 실행한다.
+   ```powershell
+   cd C:\Users\goodd\Documents\GitHub\WTD\mobile
+   adb reverse tcp:8081 tcp:8081
+   npx expo start --dev-client --localhost --clear --port 8081
+   ```
+4. 휴대폰의 WeatherToDo 개발 빌드를 연다. 개발 빌드가 없거나 네이티브 설정을 바꿨다면 `npm run android`로 새로 설치한다.
+
+`mobile/.env`의 `EXPO_PUBLIC_API_URL`은 `http://127.0.0.1:8001`(USB + adb reverse) 이어야 한다. 예전 운영 주소 `https://wtd-api.vmv-lab.com`은 서버 종료로 응답하지 않는다.
 
 ## 1. 프로젝트 위치
 
@@ -28,10 +47,14 @@ npm ci
 `mobile/.env`가 필요하다. 최소한 다음 환경변수를 준비한다.
 
 ```env
-EXPO_PUBLIC_API_URL=https://wtd-api.vmv-lab.com
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8001
 EXPO_PUBLIC_APP_TEST_TOKEN=개발용_앱_토큰
 EXPO_PUBLIC_NAVER_MAP_CLIENT_ID=네이버_지도_클라이언트_ID
 ```
+
+- `127.0.0.1:8001`은 USB 연결 후 `adb reverse tcp:8001 tcp:8001`(백엔드 배치 파일이 자동 실행)이 있어야 휴대폰에서 PC로 연결된다. Android 에뮬레이터라면 `http://10.0.2.2:8001`을 쓴다.
+- `EXPO_PUBLIC_APP_TEST_TOKEN`은 `backend/.env`의 `APP_TEST_TOKEN`과 같은 값이어야 한다. 다르면 `/dust/`, `/outfit/` 요청이 403이 된다.
+- `.env`를 바꾼 뒤에는 Metro를 `--clear`로 다시 시작한다.
 
 Android 개발 빌드 또는 `expo prebuild`를 실행하려면 `mobile/google-services.json`도 필요하다. 이 파일은 Git에 올리지 않으며 Firebase 콘솔에서 내려받는다.
 
@@ -90,6 +113,8 @@ adb logcat -v time "*:S" ReactNativeJS:V Expo:V ExpoModulesCore:V AndroidRuntime
 
 운영 서버가 없으므로(2026-10 Lightsail 종료) 앱을 확인하려면 로컬 백엔드를 실행한다.
 
+**평소에는 `backend\start_local_backend.bat`만 실행하면 된다**(0장 참고). 아래는 가상환경을 처음 만들거나 직접 명령을 실행할 때의 방법이다.
+
 가상환경은 `backend\venv`(Python 3.11)를 쓴다. Django 4.2가 지원하는 Python은 3.8~3.12라서 `py -3`(이 PC에서는 3.14)으로 만들지 않는다. `start_local_backend.bat`은 `backend\venv`를 가장 먼저 찾는다.
 
 ```powershell
@@ -98,9 +123,11 @@ py -3.11 -m venv venv          # 처음 한 번만
 .\venv\Scripts\Activate.ps1    # cmd에서는 venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
-python manage.py runserver 0.0.0.0:8001
+python manage.py runserver 127.0.0.1:8001
 ```
 
+- 백엔드 테스트: `venv\Scripts\python.exe manage.py test dust app`
+- 데이터 상태 확인: `venv\Scripts\python.exe manage.py check_data_freshness`
 - 챗봇 등 선택 기능의 Prophet까지 쓰려면 `pip install -r requirements-optional.txt`를 추가로 실행한다.
 - 가상환경을 켜지 않고 `python`을 실행하면 시스템 Python(3.14, Django 6)이 쓰이므로 주의한다.
 
@@ -170,12 +197,12 @@ npx expo export --platform android --output-dir .expo-export-check
 
 ## 7. 다음 채팅에서 먼저 할 일
 
-1. 이 문서와 `mobile/src/components/home/HomePanel.tsx`를 먼저 읽는다.
-2. 실제 기기에서 Metro를 실행하고 홈·캘린더·지도·설정 화면을 확인한다.
-3. `npm run typecheck`를 다시 실행한다.
-4. UI 수정 전에는 기존 API 데이터·외출지수·알림 로직을 유지하는지 확인한다.
-5. `AppContent.tsx`를 더 정리할 때는 API 호출을 custom hook으로 옮기는 작업부터 진행한다.
-6. 새 작업을 마치면 이 인수인계 문서와 Notion 작업 기록을 함께 갱신한다.
+1. 최상위 `AGENTS.md`, 이 문서의 0장과 마지막 섹션들을 먼저 읽는다.
+2. `git status`, `git log -10 --oneline`으로 미커밋 변경과 최근 커밋을 확인한다. 미커밋 변경은 다른 에이전트의 작업일 수 있으니 되돌리지 않는다.
+3. 백엔드 테스트(`backend\venv\Scripts\python.exe manage.py test dust app`)와 모바일 검사(`npm run typecheck`, `npm run lint`)로 시작 상태를 확인한다.
+4. 0장 순서대로 백엔드와 Metro를 켜고 실제 기기에서 홈·캘린더·지도·설정 화면을 확인한다.
+5. UI 수정 전에는 기존 API 데이터·외출지수·알림 로직을 유지하는지 확인한다.
+6. 새 작업을 마치면 이 문서 맨 아래에 섹션을 추가하고, Notion 릴리즈 노트 데이터베이스에 페이지를 추가한다. 작업 단위로 커밋한다.
 
 ## 8. Notion 작업 기록
 
@@ -184,7 +211,7 @@ npx expo export --platform android --output-dir .expo-export-check
 
 새 채팅 첫 메시지에 다음 문장을 붙여 넣으면 된다.
 
-> `C:\Users\goodd\Documents\GitHub\WTD\WEATHERTODO_HANDOFF.md`를 먼저 읽고, 현재 작업 상태와 다음 작업을 파악한 뒤 이어서 진행해줘. 기존 로직은 유지하고, 변경 전 관련 파일과 테스트 상태를 먼저 확인해줘.
+> `C:\Users\goodd\Documents\GitHub\WTD`의 `AGENTS.md`와 `WEATHERTODO_HANDOFF.md`(0장, 마지막 섹션)를 먼저 읽고, `git status`와 `git log`로 최근 변경을 파악한 뒤 이어서 진행해줘. 기존 로직과 AGENTS.md의 결정은 유지하고, 변경 전 관련 파일과 테스트 상태를 먼저 확인해줘. 작업이 끝나면 인수인계 문서와 Notion 릴리즈 노트를 갱신하고 작업 단위로 커밋해줘.
 
 
 ## 9. 2026-09-19 구조 정리
@@ -428,3 +455,12 @@ npx expo export --platform android --output-dir .expo-export-check
   - `test_weather_notifications.py`의 일정 문구 테스트를 시간만 쓰는 동작에 맞게 바꿨다.
 - 검증: 백엔드 `dust`+`app` 테스트 74건 통과, 모바일 `tsc`·`node --test` 통과.
 - 남은 일: 로컬 DB `python manage.py migrate dust`, 홈 화면의 대체 데이터 안내(`currentNotice`)·로딩 표시 연결, 일정 알림 재예약 과다, `calendarRiskEvaluator` 테스트, 커밋 정리. 상세는 Notion "남은 작업 모음".
+
+## 32. 2026-10-09 백엔드 실행 환경 정리 (Claude)
+
+- 백엔드 가상환경을 저장소 안 `backendenv`(Python 3.11.9)로 옮겼다. 예전 `Documents\AI-Dust_Moblie6ackend-venv`는 Codex 내장 Python 기반이라 삭제했고, 배치 파일의 해당 경로도 지웠다. `AI-Dust_Moblie6`의 다른 폴더(DB 백업 등)는 그대로 있다.
+- `requirements.txt`에 Pillow를 직접 추가했다(프로필 `ImageField`에 필요, 예전에는 prophet→matplotlib로 간접 설치됨).
+- Django를 4.2.12(PyPI에서 철회된 버전) → 4.2.30으로 올렸다. 시스템 점검, 마이그레이션, 백엔드 테스트 74건, 로컬 DB 기준 `/dust/current`·`predict`·`hourly`·`korea-stations`·`mobile-map` 응답을 확인했다.
+- 참고: Django 4.2 LTS의 지원은 2026-04에 끝났다. 4.2.30이 4.2의 마지막 패치이므로 이후 보안 수정을 받으려면 5.2 LTS(지원 2028-04까지)로 올려야 한다. 별도 작업으로 남긴다.
+- 실행 가이드를 0장(빠른 실행 순서), 2장(`.env`를 로컬 주소로), 3장, 7장, 8장(Codex 시작 문구)에 반영했다.
+- 커밋: `927cbde`(Pillow), `a1a5574`(venv 문서), `c1cee65`(Django 4.2.30), `ecead6f`(배치 파일 정리), 그리고 이 문서 갱신 커밋.
