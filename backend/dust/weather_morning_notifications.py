@@ -68,11 +68,8 @@ def _date_label(value: date) -> str:
 
 
 def _event_label(event: dict) -> str:
-    title = str(event.get("title") or "").strip()
-    time_text = str(event.get("time") or "").strip()
-    if not title:
-        return ""
-    return f"[{title}]" if not time_text else f"[{title} {time_text}]"
+    # 일정 제목은 서버에 두지 않으므로 시간만 안내한다(예전 데이터에 title이 남아 있어도 쓰지 않는다).
+    return str(event.get("time") or "").strip()[:5]
 
 
 def events_for_date(device: NotificationDevice, target_date: date) -> list[dict]:
@@ -222,6 +219,10 @@ def build_weather_morning_body(target_date: date, risk: WeatherRisk, events: lis
     return f"{date_text} \ub0a0\uc528\uac00 \ub300\uccb4\ub85c \uad1c\ucc2e\uc544\uc694. \uc624\ub298 \uc77c\uc815\uc774 \uc788\ub2e4\uba74 \uac00\ubccd\uac8c \ud655\uc778\ud574\uc8fc\uc138\uc694."
 
 
+class ExpoDeviceNotRegistered(RuntimeError):
+    """앱 삭제·토큰 만료로 다시 보내도 성공할 수 없는 기기."""
+
+
 def send_expo_push(token: str, title: str, body: str, data: dict) -> None:
     payload = {
         "to": token,
@@ -237,6 +238,9 @@ def send_expo_push(token: str, title: str, body: str, data: dict) -> None:
     response_data = response.json()
     ticket = response_data.get("data") if isinstance(response_data, dict) else None
     if not isinstance(ticket, dict) or ticket.get("status") != "ok":
+        details = ticket.get("details") if isinstance(ticket, dict) else None
+        if isinstance(details, dict) and details.get("error") == "DeviceNotRegistered":
+            raise ExpoDeviceNotRegistered(f"Expo push failed: {response_data}")
         raise RuntimeError(f"Expo push failed: {response_data}")
 
 
@@ -284,6 +288,14 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
                 "date": target_date.isoformat(),
                 "hasEvents": bool(events),
             })
+        except ExpoDeviceNotRegistered:
+            # 매일 실패를 반복하지 않도록 끄고, 더 쓰지 않을 일정 요약도 비운다.
+            failed += 1
+            device.enabled = False
+            device.calendar_events = []
+            device.save(update_fields=["enabled", "calendar_events", "updated_at"])
+            write(f"Expo device is no longer registered; disabled device for {city} {region}.")
+            continue
         except Exception as exc:
             failed += 1
             write(f"Expo push request failed for {city} {region}: {exc}")
