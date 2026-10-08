@@ -208,6 +208,12 @@ SIDO_STATION_ADDR_ALIASES = {
     '제주': ['제주', '제주특별자치도'],
 }
 
+_SCRIPT_JSON_ESCAPES = str.maketrans({'<': '\\u003C', '>': '\\u003E', '&': '\\u0026'})
+
+def _script_json(value):
+    """Serialize a value for inline <script> so request input cannot close the tag."""
+    return json.dumps(value).translate(_SCRIPT_JSON_ESCAPES)
+
 def mobile_map(request):
     client_id = NAVER_MAP_CLIENT_ID
     initial_mode = "weather" if request.GET.get("mode") == "weather" else "dust"
@@ -223,7 +229,7 @@ def mobile_map(request):
     initial_zoom = max(6, min(initial_zoom, 18))
     initial_lat_js = "null" if initial_lat is None else str(initial_lat)
     initial_lng_js = "null" if initial_lng is None else str(initial_lng)
-    app_test_token_js = json.dumps(request.GET.get("app_test_token", ""))
+    app_test_token_js = _script_json(request.GET.get("app_test_token", ""))
     map_ui_js = json.dumps(build_map_ui_config(), ensure_ascii=False)
     map_css_variables = build_map_css_variables()
     html = f"""<!doctype html>
@@ -434,7 +440,7 @@ def mobile_map(request):
       const mapElement = document.getElementById('map');
       let mapMode = '{initial_mode}';
       const pickerMode = {str(picker_mode).lower()};
-      const viewMode = {json.dumps(view_mode)};
+      const viewMode = {_script_json(view_mode)};
       const basicMode = {str(basic_mode).lower()};
       const initialLat = {initial_lat_js};
       const initialLng = {initial_lng_js};
