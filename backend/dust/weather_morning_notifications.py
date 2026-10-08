@@ -171,52 +171,58 @@ def _time_range(points: list[WeatherHourlyMeasurement]) -> str:
 def _temperature_text(points: list[WeatherHourlyMeasurement]) -> str:
     values = [point.temperature for point in points if point.temperature is not None]
     if not values:
-        return "\uace0\uc628 \uc608\ubcf4"
-    return f"\uc608\uc0c1 \uae30\uc628 {round(max(values))}\u00b0C"
+        return ""
+    low = round(min(values))
+    high = round(max(values))
+    if low == high:
+        return f"\uc608\uc0c1 \uae30\uc628 {low}\u00b0C"
+    return f"\uc608\uc0c1 \uae30\uc628 {low}~{high}\u00b0C"
 
 
 def _rain_text(points: list[WeatherHourlyMeasurement]) -> str:
     if not points:
-        return "\ube44 \uc608\ubcf4"
+        return "비가 올 수 있어요"
     probabilities = [point.rain_probability for point in points if point.rain_probability is not None]
     probability = max(probabilities) if probabilities else None
     range_text = _time_range(points)
     if probability is not None and range_text:
-        return f"{range_text} \uac15\uc218 \ud655\ub960 {round(probability)}%"
+        return f"{range_text} 강수 확률 {round(probability)}%예요"
     if range_text:
-        return f"{range_text} \ube44 \uc608\uc0c1"
+        return f"{range_text} 비가 올 수 있어요"
     if probability is not None:
-        return f"\uac15\uc218 \ud655\ub960 {round(probability)}%"
-    return "\ube44 \uc608\ubcf4"
+        return f"강수 확률 {round(probability)}%예요"
+    return "비가 올 수 있어요"
 
 
 def build_weather_morning_body(target_date: date, risk: WeatherRisk, events: list[dict]) -> str:
     date_text = _date_label(target_date)
     event_text = ", ".join(filter(None, (_event_label(event) for event in events)))
-    prefix = f"{event_text} \uc77c\uc815\uc774 \uc788\ub294 \ub0a0\uc778\ub370 " if event_text else ""
-    suffix = " \uc77c\uc815 \ud655\uc778\ud574\uc8fc\uc138\uc694." if not event_text else " \uc900\ube44\ubb3c\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694."
+    prefix = f"{event_text} 일정이 있어요. " if event_text else ""
     rain_text = _rain_text(risk.rain_points)
-    heat_text = _temperature_text(risk.heat_points)
+    temperature_text = _temperature_text(risk.points)
 
-    if risk.has_thunder:
-        return f"{prefix}{date_text} \ucc9c\ub465\u00b7\ubc88\uac1c \uac00\ub2a5\uc131\uc774 \uc788\uc5b4\uc694. \uc57c\uc678 \ud65c\ub3d9\uc740 \ud53c\ud558\uace0 \uc2e4\ub0b4\ub85c \uc774\ub3d9\ud558\ub294 \uac8c \uc88b\uc544\uc694."
+    def with_temperature(body: str) -> str:
+        return f"{body}\n{temperature_text}" if temperature_text else body
+
     if risk.has_snow_cold and risk.has_rain:
-        return f"{prefix}{date_text} \ucd94\uc704\uc640 \ube44 \uc608\ubcf4\uac00 \uc788\uc5b4\uc694. {rain_text}. \uc6b0\uc0b0\uacfc \ub530\ub73b\ud55c \uc637\uc744 \ucc59\uae30\uace0{suffix}"
-    if risk.has_rain and risk.has_wind:
-        return f"{prefix}{date_text} \ube44\uc640 \uac15\ud48d \uc608\ubcf4\uac00 \uc788\uc5b4\uc694. {rain_text}. \uc678\ucd9c \uc804{suffix}"
+        return with_temperature(f"{prefix}{date_text}에는 기온이 낮고 비 예보도 있어요. {rain_text}. 우산과 따뜻한 겉옷을 챙기세요.")
     if risk.has_snow_cold and risk.has_wind:
-        return f"{prefix}{date_text} \ub208\u00b7\uc800\uc628\uacfc \uac15\ud48d \uc608\ubcf4\uac00 \uc788\uc5b4\uc694. \ub530\ub73b\ud558\uac8c \uc785\uace0 \uc57c\uc678 \uc77c\uc815\uc740 \uc870\uc2ec\ud574\uc8fc\uc138\uc694."
+        return with_temperature(f"{prefix}{date_text}에는 기온이 낮거나 눈이 올 수 있고 바람도 강해요. 따뜻한 방풍 겉옷을 챙기세요.")
     if risk.has_snow_cold:
-        return f"{prefix}{date_text} \ub208\u00b7\uc800\uc628 \uc608\ubcf4\uac00 \uc788\uc5b4\uc694. \ub530\ub73b\ud558\uac8c \uc785\uace0{suffix}"
-    if risk.has_heat:
-        return f"{prefix}{date_text} \ub9ce\uc774 \ub354\uc6cc\uc694. {heat_text}. \ubb3c\uc744 \ucc59\uae30\uace0 \ud55c\ub0ae \uc57c\uc678\ud65c\ub3d9\uc740 \uc904\uc774\ub294 \uac8c \uc88b\uc544\uc694."
+        return with_temperature(f"{prefix}{date_text}에는 기온이 낮거나 눈이 올 수 있어요. 따뜻한 겉옷을 챙기세요.")
+    if risk.has_thunder:
+        return with_temperature(f"{prefix}{date_text}에는 천둥·번개가 예상돼요. 야외 활동은 잠시 미루세요.")
+    if risk.has_rain and risk.has_wind:
+        return with_temperature(f"{prefix}{date_text}에는 비와 강한 바람이 예상돼요. {rain_text}. 우산과 바람막이를 챙기세요.")
     if risk.has_rain:
-        return f"{prefix}{date_text} \ube44 \uc608\ubcf4\uac00 \uc788\uc5b4\uc694. {rain_text}.{suffix}"
+        return with_temperature(f"{prefix}{date_text} {rain_text}. 우산을 챙기세요.")
     if risk.has_wind:
-        return f"{prefix}{date_text} \uac15\ud48d \uc608\ubcf4\uac00 \uc788\uc5b4\uc694. \uc57c\uc678 \uc77c\uc815\uc774 \uc788\uc73c\uba74 \ubbf8\ub9ac \ud655\uc778\ud574\uc8fc\uc138\uc694."
+        return with_temperature(f"{prefix}{date_text}에는 바람이 강해요. 바람막이를 챙기세요.")
+    if risk.has_heat:
+        return with_temperature(f"{prefix}{date_text}에는 기온이 높아요. 물과 양산을 챙기고 한낮에는 쉬어 가세요.")
     if event_text:
-        return f"{prefix}{date_text} \ub0a0\uc528\uac00 \ub300\uccb4\ub85c \uad1c\ucc2e\uc544\uc694. \uadf8\ub798\ub3c4 \ub098\uac00\uae30 \uc804 \uc77c\uc815\uacfc \uc900\ube44\ubb3c\uc744 \ud655\uc778\ud574\uc8fc\uc138\uc694."
-    return f"{date_text} \ub0a0\uc528\uac00 \ub300\uccb4\ub85c \uad1c\ucc2e\uc544\uc694. \uc624\ub298 \uc77c\uc815\uc774 \uc788\ub2e4\uba74 \uac00\ubccd\uac8c \ud655\uc778\ud574\uc8fc\uc138\uc694."
+        return with_temperature(f"{prefix}{date_text} 날씨는 무난해요. 출발 전에 필요한 물건만 확인하세요.")
+    return with_temperature(f"{date_text}에는 큰 날씨 변화가 없어요.")
 
 
 class ExpoDeviceNotRegistered(RuntimeError):
@@ -273,7 +279,7 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
             continue
 
         events = events_for_date(device, target_date)
-        title = f"{region} \uc544\uce68 \ub0a0\uc528 \uc54c\ub9bc"
+        title = "오늘 날씨와 일정"
         body = build_weather_morning_body(target_date, risk, events)
         if dry_run:
             write(f"[dry-run] {title} - {body}")

@@ -34,6 +34,7 @@ def _cache_key(request: OutfitRequest, rule_result: dict) -> str:
         "activity_type": rule_result["activity_type"],
         "occasion": rule_result["occasion"],
         "band": rule_result["outfit"]["band"],
+        "weather_condition": rule_result["weather_condition"],
         "must_have": sorted((item["type"], item["level"]) for item in rule_result["must_have"]),
         "sensitivity": request.sensitivity,
     }

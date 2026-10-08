@@ -37,7 +37,8 @@ function hasSnowOrCold(risk?: CalendarRiskResult) {
   const label = risk?.weatherLabel ?? '';
   return label.includes('\uB208')
     || label.toLowerCase().includes('snow')
-    || (typeof risk?.temperature === 'number' && risk.temperature <= 0);
+    || (typeof risk?.temperatureMin === 'number' && risk.temperatureMin <= 0)
+    || (typeof risk?.temperatureMin !== 'number' && typeof risk?.temperature === 'number' && risk.temperature <= 0);
 }
 
 function hasWind(risk?: CalendarRiskResult) {
@@ -45,7 +46,8 @@ function hasWind(risk?: CalendarRiskResult) {
 }
 
 function hasHeat(risk?: CalendarRiskResult) {
-  return typeof risk?.temperature === 'number' && risk.temperature >= 30;
+  return (typeof risk?.temperatureMax === 'number' && risk.temperatureMax >= 30)
+    || (typeof risk?.temperatureMax !== 'number' && typeof risk?.temperature === 'number' && risk.temperature >= 30);
 }
 
 export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeatherRiskIndicator[] {
@@ -55,17 +57,27 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
       icon: 'snow-outline',
       key: 'snowCold',
       label: '\uB208\u00B7\uC800\uC628 \uC8FC\uC758',
+      priority: 50,
+      tone: semanticColors.weather.danger.tone,
+    });
+  }
+  if (hasThunder(risk)) {
+    indicators.push({
+      icon: 'thunderstorm-outline',
+      key: 'thunder',
+      label: '\uCC9C\uB465\u00B7\uBC88\uAC1C \uC8FC\uC758',
       priority: 40,
       tone: semanticColors.weather.danger.tone,
     });
   }
   if (hasHeat(risk)) {
+    const highTemperature = risk?.temperatureMax ?? risk?.temperature;
     indicators.push({
       icon: 'sunny-outline',
       key: 'heat',
-      label: typeof risk?.temperature === 'number' ? `\uACE0\uC628 \uC8FC\uC758 ${Math.round(risk.temperature)}\u00B0C` : '\uACE0\uC628 \uC8FC\uC758',
+      label: typeof highTemperature === 'number' ? `\uACE0\uC628 \uC8FC\uC758 ${Math.round(highTemperature)}\u00B0C` : '\uACE0\uC628 \uC8FC\uC758',
       priority: 35,
-      tone: risk?.temperature && risk.temperature >= 33 ? semanticColors.weather.danger.tone : semanticColors.weather.caution.tone,
+      tone: highTemperature && highTemperature >= 33 ? semanticColors.weather.danger.tone : semanticColors.weather.caution.tone,
     });
   }
   if (hasRain(risk)) {
@@ -81,7 +93,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
     indicators.push({
       icon: 'leaf-outline',
       key: 'wind',
-      label: '\uAC15\uD48D \uC8FC\uC758',
+      label: risk?.windTimeRange ? `${risk.windTimeRange} \uAC15\uD48D \uC8FC\uC758` : '\uAC15\uD48D \uC8FC\uC758',
       priority: 20,
       tone: semanticColors.weather.caution.tone,
     });

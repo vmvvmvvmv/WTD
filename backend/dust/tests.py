@@ -34,6 +34,28 @@ class MobileMapScriptInjectionTests(SimpleTestCase):
         self.assertIn('\u003C/script\u003E', html)
 
 
+class NotificationCalendarPrivacyTests(SimpleTestCase):
+    def _saved_calendar_events(self, morning_alerts):
+        from dust.notification_registry import upsert_notification_device
+        payload = {
+            'expoPushToken': 'ExponentPushToken[test]',
+            'city': '서울',
+            'region': '송파구',
+            'weatherMorningAlerts': morning_alerts,
+            'calendarEvents': [{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00'}],
+        }
+        with patch('dust.notification_registry.NotificationDevice.objects.update_or_create', return_value=(object(), True)) as save:
+            upsert_notification_device(payload)
+        return save.call_args.kwargs['defaults']['calendar_events']
+
+    def test_calendar_titles_are_not_stored_when_morning_alerts_are_off(self):
+        self.assertEqual(self._saved_calendar_events(False), [])
+
+    def test_only_date_and_time_are_stored_when_morning_alerts_are_on(self):
+        # 예전 앱 버전이 제목을 보내도 서버는 날짜·시간만 저장한다.
+        self.assertEqual(self._saved_calendar_events(True), [{'date': '2026-10-09', 'time': '09:00'}])
+
+
 class OutfitClientKeyTests(SimpleTestCase):
     def _key(self, **meta):
         from django.test import RequestFactory
@@ -61,26 +83,79 @@ class OutfitClientKeyTests(SimpleTestCase):
         self.assertNotEqual(real, other_user)
 
 
-class NotificationCalendarPrivacyTests(SimpleTestCase):
-    def _saved_calendar_events(self, morning_alerts):
-        from dust.notification_registry import upsert_notification_device
-        payload = {
-            'expoPushToken': 'ExponentPushToken[test]',
-            'city': '서울',
-            'region': '송파구',
-            'weatherMorningAlerts': morning_alerts,
-            'calendarEvents': [{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00'}],
-        }
-        with patch('dust.notification_registry.NotificationDevice.objects.update_or_create', return_value=(object(), True)) as save:
-            upsert_notification_device(payload)
-        return save.call_args.kwargs['defaults']['calendar_events']
+class PredictionCachePolicyTests(SimpleTestCase):
+    @patch('dust.views._fetch_past_dust_items_by_station', return_value=([], None))
+    @patch('dust.views._load_stored_realtime_daily_dust', return_value=[])
+    @patch('dust.views.DustMeasurement.objects.filter')
+    @patch('dust.views._resolve_station_name', return_value='테스트측정소')
+    def test_unavailable_prediction_is_not_cached_for_predict_endpoint(self, _station, measurements, *_mocks):
+        from django.core.cache import cache
+        from dust.views import _build_prediction_for_region
+        measurements.return_value.order_by.return_value = []
+        cache.delete('dust_predict_v10_테스트시_테스트구')
 
-    def test_calendar_titles_are_not_stored_when_morning_alerts_are_off(self):
-        self.assertEqual(self._saved_calendar_events(False), [])
+        result = _build_prediction_for_region('테스트시', '테스트구')
 
-    def test_only_date_and_time_are_stored_when_morning_alerts_are_on(self):
-        # 예전 앱 버전이 제목을 보내도 서버는 날짜·시간만 저장한다.
-        self.assertEqual(self._saved_calendar_events(True), [{'date': '2026-10-09', 'time': '09:00'}])
+        self.assertEqual(result['predictions'], [])
+        self.assertIsNone(cache.get('dust_predict_v10_테스트시_테스트구'))
+
+
+class DailyOutfitCacheTests(SimpleTestCase):
+    """하루 단위 옷차림 캐시에는 일정 제목을 저장하지 않는다."""
+
+    def _key(self, occasion, schedule_id='event-1'):
+        from dust.services.outfit.context_builder import build_outfit_request
+        from dust.services.outfit.daily_service import _cache_key
+        request = build_outfit_request({
+            'schedule_id': schedule_id, 'title': '아무 제목', 'start': '2026-10-09T09:00:00',
+            'city': '서울', 'region': '송파구',
+        })
+        rule_result = {'outfit': {'band': 'mild'}, 'weather_condition': 'normal', 'must_have': []}
+        return _cache_key([(request, {'occasion': occasion})], rule_result)
+
+    def test_key_follows_occasion_not_title(self):
+        self.assertEqual(self._key('casual'), self._key('casual'))
+        self.assertNotEqual(self._key('casual'), self._key('sport'))
+
+    def _payload(self, title):
+        from dust.test_outfit_recommendation import request_payload
+        return {'schedules': [{**request_payload('full'), 'title': title}], 'sensitivity': 'normal', 'mode': 'full'}
+
+    @patch('dust.services.outfit.daily_service.save_cached_recommendation')
+    @patch('dust.services.outfit.daily_service.get_cached_recommendation', return_value=None)
+    @patch('dust.services.outfit.daily_service._llm_allowed', return_value=True)
+    @patch('dust.services.outfit.daily_service.build_llm_client')
+    @patch('dust.services.outfit.daily_service.load_schedule_snapshot')
+    def test_saved_cache_has_no_schedule_titles(self, load_snapshot, build_client, _allowed, _get, save):
+        import json
+        from unittest.mock import Mock
+        from dust.services.outfit.daily_service import recommend_daily_outfit
+        from dust.test_outfit_recommendation import snapshot
+        load_snapshot.return_value = snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9, rain_prob_max=70, has_rain=True, weather_condition='rain')
+        client = Mock()
+        client.generate.return_value = {'summary': '우산을 챙기세요.', 'outfit_note': '니트와 청바지를 입어요.', 'layering_tip': '쉽게 벗고 입도록 준비하세요.', 'reasons': {'umbrella': '비에 대비해요'}}
+        build_client.return_value = client
+
+        result = recommend_daily_outfit(self._payload('산부인과 진료'), client_key='device')
+
+        self.assertEqual(result['source'], 'llm')
+        self.assertEqual(result['schedule_tips'][0]['title'], '산부인과 진료')
+        saved = save.call_args.args[1]
+        self.assertNotIn('schedule_tips', saved)
+        self.assertNotIn('산부인과 진료', json.dumps(saved, ensure_ascii=False))
+
+    @patch('dust.services.outfit.daily_service.get_cached_recommendation', return_value={'source': 'llm', 'summary': 'cached'})
+    @patch('dust.services.outfit.daily_service.load_schedule_snapshot')
+    def test_cache_hit_uses_current_titles(self, load_snapshot, _get):
+        from dust.services.outfit.daily_service import recommend_daily_outfit
+        from dust.test_outfit_recommendation import snapshot
+        load_snapshot.return_value = snapshot(rain_prob_max=70, has_rain=True, weather_condition='rain')
+
+        result = recommend_daily_outfit(self._payload('바뀐 제목'), client_key='device')
+
+        self.assertTrue(result['cached'])
+        self.assertEqual(result['summary'], 'cached')
+        self.assertEqual(result['schedule_tips'][0]['title'], '바뀐 제목')
 
 
 class ExpoDeviceNotRegisteredTests(SimpleTestCase):
@@ -113,44 +188,6 @@ class ExpoDeviceNotRegisteredTests(SimpleTestCase):
         self.assertFalse(device.enabled)
         self.assertEqual(device.calendar_events, [])
         device.save.assert_called_once()
-
-
-class StripCalendarTitlesMigrationTests(SimpleTestCase):
-    def test_existing_titles_are_removed(self):
-        import importlib
-        from types import SimpleNamespace
-        from unittest.mock import MagicMock
-        migration = importlib.import_module('dust.migrations.0013_strip_calendar_event_titles')
-        device = SimpleNamespace(
-            calendar_events=[{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00'}, {'title': '날짜 없음'}],
-            save=MagicMock(),
-        )
-        model = MagicMock()
-        model.objects.all.return_value.iterator.return_value = [device]
-        apps = SimpleNamespace(get_model=lambda *_: model)
-
-        migration.strip_titles(apps, None)
-
-        self.assertEqual(device.calendar_events, [{'date': '2026-10-09', 'time': '09:00'}])
-        device.save.assert_called_once_with(update_fields=['calendar_events'])
-
-
-
-class PredictionCachePolicyTests(SimpleTestCase):
-    @patch('dust.views._fetch_past_dust_items_by_station', return_value=([], None))
-    @patch('dust.views._load_stored_realtime_daily_dust', return_value=[])
-    @patch('dust.views.DustMeasurement.objects.filter')
-    @patch('dust.views._resolve_station_name', return_value='테스트측정소')
-    def test_unavailable_prediction_is_not_cached_for_predict_endpoint(self, _station, measurements, *_mocks):
-        from django.core.cache import cache
-        from dust.views import _build_prediction_for_region
-        measurements.return_value.order_by.return_value = []
-        cache.delete('dust_predict_v10_테스트시_테스트구')
-
-        result = _build_prediction_for_region('테스트시', '테스트구')
-
-        self.assertEqual(result['predictions'], [])
-        self.assertIsNone(cache.get('dust_predict_v10_테스트시_테스트구'))
 
 
 @patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
@@ -248,3 +285,23 @@ class OptionalFeatureRoutingTests(SimpleTestCase):
             self._reload_urls()
             self.assertEqual(resolve('/dust/chat/').url_name, 'dust_chat')
             self.assertEqual(resolve('/analyze/compact/a&b').url_name, 'ai_short')
+
+
+class StripCalendarTitlesMigrationTests(SimpleTestCase):
+    def test_existing_titles_are_removed(self):
+        import importlib
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        migration = importlib.import_module('dust.migrations.0013_strip_calendar_event_titles')
+        device = SimpleNamespace(
+            calendar_events=[{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00'}, {'title': '날짜 없음'}],
+            save=MagicMock(),
+        )
+        model = MagicMock()
+        model.objects.all.return_value.iterator.return_value = [device]
+        apps = SimpleNamespace(get_model=lambda *_: model)
+
+        migration.strip_titles(apps, None)
+
+        self.assertEqual(device.calendar_events, [{'date': '2026-10-09', 'time': '09:00'}])
+        device.save.assert_called_once_with(update_fields=['calendar_events'])
