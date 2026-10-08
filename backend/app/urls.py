@@ -1,13 +1,5 @@
-from django.urls import path, include
-from django.views.static import serve
-from django.contrib import admin
-from rest_framework.routers import DefaultRouter
-from .views import InfoViewSet
+from django.urls import path
 from . import views
-
-# 추가
-router = DefaultRouter()
-router.register('Info', InfoViewSet)
 
 app_name = 'common'
 
@@ -23,7 +15,4 @@ urlpatterns = [
     path('update/', views.update_user_info, name='update'),
     path('updatePassword/', views.update_user_password, name='update_password'),
     path('info/', views.info_view, name='info_view'),
-    
-    # REST API 엔드포인트
-    path('app/', include(router.urls)),  # router 경로를 '/app/'로 분리
 ]

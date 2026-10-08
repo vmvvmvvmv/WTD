@@ -8,9 +8,6 @@ from django.http import HttpResponse, JsonResponse
 from datetime import datetime
 from .models import Users, Info
 import logging
-# 추가
-from rest_framework.viewsets import ModelViewSet
-from .serializers import InfoSerializer
 
 logger = logging.getLogger('custom_logger')
 
@@ -126,7 +123,7 @@ def login_response(request):
             return JsonResponse({'success': False, 'message': '아이디가 존재하지 않습니다.'})
 
         # DB에 저장된 비밀번호와 입력된 비밀번호를 비교
-        if user_pw == user.password:  # 비밀번호 비교
+        if user.matches_client_password(user_pw):  # 비밀번호 비교
             login(request, user)
 
             return JsonResponse({'success': True, 'data': user.nickname})  # 로그인 성공
@@ -213,7 +210,3 @@ def info_view(request):
         return JsonResponse({
             "error": str(e)
         }, status=500)
-# 추가
-class InfoViewSet(ModelViewSet):
-    queryset = Info.objects.all()
-    serializer_class = InfoSerializer

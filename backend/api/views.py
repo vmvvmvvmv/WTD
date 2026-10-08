@@ -81,7 +81,7 @@ def do_login(request):
         return JsonResponse({'success': False, 'message': '오류가 발생했습니다.'}, status=HttpStatusCode.BAD_REQUEST)
 
     # DB에 저장된 비밀번호와 입력된 비밀번호를 비교
-    if user_pw == user_record.password:  # 비밀번호 비교
+    if user_record.matches_client_password(user_pw):  # 비밀번호 비교
         login(request, user_record)
         # print(request.session.session_key)
         create_history(request, user_id, HistoryCode.SUCCESS)

@@ -5,6 +5,8 @@
 #   * Make sure each ForeignKey and OneToOneField has `on_delete` set to the desired behavior
 #   * Remove `managed = False` lines if you wish to allow Django to create, modify, and delete the table
 # Feel free to rename the models, but don't rename db_table values or field names.
+import hmac
+
 from django.contrib.auth.base_user import AbstractBaseUser, BaseUserManager
 from django.contrib.auth.models import AbstractUser, PermissionsMixin
 from django.db import models
@@ -173,6 +175,12 @@ class Users(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'user_id'  # 로그인에 사용할 필드
     REQUIRED_FIELDS = ['email']  # create_superuser에 필요한 필드
+
+    def matches_client_password(self, supplied):
+        # 소셜 로그인 계정은 password가 비어 있으므로 빈 값끼리 일치로 처리하면 안 된다.
+        if not self.password or not supplied:
+            return False
+        return hmac.compare_digest(str(supplied).encode('utf-8'), self.password.encode('utf-8'))
 
     class Meta:
         managed = True
