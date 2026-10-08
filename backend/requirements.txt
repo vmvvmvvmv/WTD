@@ -8,6 +8,5 @@ requests
 pandas
 scikit-learn==1.8.0
 python-dotenv
-prophet
 joblib
 gunicorn==20.1.0

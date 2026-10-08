@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.urls import path
 from .views import current_dust, current_weather, dust_chat, hourly_dust, hourly_weather, korea_station_dust, midterm_weather, mobile_map, mobile_map_client_log, naver_place_search, predict_dust, past_dust, past_weather, register_notification_device
 
@@ -9,11 +10,16 @@ urlpatterns = [
     path('weather/current/', current_weather, name='current_weather'),
     path('weather/hourly/', hourly_weather, name='hourly_weather'),
     path('weather/mid-term/', midterm_weather, name='midterm_weather'),
-    path('weather/past/', past_weather, name='past_weather'),
     path('korea-stations/', korea_station_dust, name='korea_station_dust'),
     path('mobile-map/', mobile_map, name='mobile_map'),
     path('mobile-map/log/', mobile_map_client_log, name='mobile_map_client_log'),
     path('places/naver-search/', naver_place_search, name='naver_place_search'),
-    path('chat/', dust_chat, name='dust_chat'),
     path('notifications/register/', register_notification_device, name='register_notification_device'),
 ]
+
+# 앱에서 쓰지 않는 선택 기능(기상 상세 데이터, 챗봇 브리핑)은 운영 서버에 노출하지 않는다.
+if settings.ENABLE_OPTIONAL_FEATURES:
+    urlpatterns += [
+        path('weather/past/', past_weather, name='past_weather'),
+        path('chat/', dust_chat, name='dust_chat'),
+    ]

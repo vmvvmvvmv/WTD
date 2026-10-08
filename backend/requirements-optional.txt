@@ -1,0 +1,4 @@
+# 운영 서버에는 설치하지 않는 선택 기능 의존성입니다.
+# 챗봇 브리핑의 Prophet 예측 등 ENABLE_OPTIONAL_FEATURES=true일 때만 필요합니다.
+# 설치: pip install -r requirements.txt -r requirements-optional.txt
+prophet
