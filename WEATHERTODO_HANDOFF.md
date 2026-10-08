@@ -458,9 +458,9 @@ npx expo export --platform android --output-dir .expo-export-check
 
 ## 32. 2026-10-09 백엔드 실행 환경 정리 (Claude)
 
-- 백엔드 가상환경을 저장소 안 `backendenv`(Python 3.11.9)로 옮겼다. 예전 `Documents\AI-Dust_Moblie6ackend-venv`는 Codex 내장 Python 기반이라 삭제했고, 배치 파일의 해당 경로도 지웠다. `AI-Dust_Moblie6`의 다른 폴더(DB 백업 등)는 그대로 있다.
+- 백엔드 가상환경을 저장소 안 `backend\venv`(Python 3.11.9)로 옮겼다. 예전 `Documents\AI-Dust_Moblie6\backend-venv`는 Codex 내장 Python 기반이라 삭제했고, 배치 파일의 해당 경로도 지웠다. `AI-Dust_Moblie6`의 다른 폴더(DB 백업 등)는 그대로 있다.
 - `requirements.txt`에 Pillow를 직접 추가했다(프로필 `ImageField`에 필요, 예전에는 prophet→matplotlib로 간접 설치됨).
 - Django를 4.2.12(PyPI에서 철회된 버전) → 4.2.30으로 올렸다. 시스템 점검, 마이그레이션, 백엔드 테스트 74건, 로컬 DB 기준 `/dust/current`·`predict`·`hourly`·`korea-stations`·`mobile-map` 응답을 확인했다.
 - 참고: Django 4.2 LTS의 지원은 2026-04에 끝났다. 4.2.30이 4.2의 마지막 패치이므로 이후 보안 수정을 받으려면 5.2 LTS(지원 2028-04까지)로 올려야 한다. 별도 작업으로 남긴다.
 - 실행 가이드를 0장(빠른 실행 순서), 2장(`.env`를 로컬 주소로), 3장, 7장, 8장(Codex 시작 문구)에 반영했다.
-- 커밋: `927cbde`(Pillow), `a1a5574`(venv 문서), `c1cee65`(Django 4.2.30), `ecead6f`(배치 파일 정리), 그리고 이 문서 갱신 커밋.
+- 커밋: `927cbde`(Pillow), `a1a5574`(venv 문서), `c1cee65`(Django 4.2.30), `ecead6f`(배치 파일 정리), `e52647d`(실행 가이드 갱신).
