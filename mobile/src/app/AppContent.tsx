@@ -1270,10 +1270,14 @@ export function AppContent() {
         await saveNotificationToken(token);
       }
 
-      const calendarEventSummary = calendarEvents
-        .filter((event) => event.date >= todayDateLabel)
-        .slice(0, 30)
-        .map((event) => ({ date: event.date, time: event.time, title: event.title }));
+      // 일정 요약은 서버의 아침 날씨 알림에만 쓰이므로, 그 알림이 꺼져 있으면 보내지 않습니다.
+      const calendarEventSummary = notificationSettings.weatherMorningAlerts
+        ? calendarEvents
+          .filter((event) => event.date >= todayDateLabel)
+          .slice(0, 30)
+          // 일정 제목은 민감한 내용이 담기기 쉬워 서버로 보내지 않습니다. 아침 알림은 시간만 안내합니다.
+          .map((event) => ({ date: event.date, time: event.time }))
+        : [];
 
       await registerNotificationDevice({
         calendarEvents: calendarEventSummary,

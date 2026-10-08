@@ -185,7 +185,7 @@ export function postBriefingMessage(params: {
 }
 
 export function registerNotificationDevice(params: {
-  calendarEvents?: Array<{ date: string; time?: string; title: string }>;
+  calendarEvents?: Array<{ date: string; time?: string }>;
   city: string;
   enabled: boolean;
   expoPushToken: string;
