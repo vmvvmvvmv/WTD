@@ -88,18 +88,21 @@ adb logcat -v time "*:S" ReactNativeJS:V Expo:V ExpoModulesCore:V AndroidRuntime
 
 ## 3. 백엔드 로컬 실행
 
-모바일 `.env`가 운영 API를 가리키면 로컬 Django를 실행하지 않아도 앱 UI를 확인할 수 있다.
+운영 서버가 없으므로(2026-10 Lightsail 종료) 앱을 확인하려면 로컬 백엔드를 실행한다.
 
-백엔드까지 로컬에서 실행해야 할 때:
+가상환경은 `backend\venv`(Python 3.11)를 쓴다. Django 4.2가 지원하는 Python은 3.8~3.12라서 `py -3`(이 PC에서는 3.14)으로 만들지 않는다. `start_local_backend.bat`은 `backend\venv`를 가장 먼저 찾는다.
 
 ```powershell
 cd C:\Users\goodd\Documents\GitHub\WTD\backend
-py -3 -m venv .venv
-.\.venv\Scripts\Activate.ps1
+py -3.11 -m venv venv          # 처음 한 번만
+.\venv\Scripts\Activate.ps1    # cmd에서는 venv\Scripts\activate
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver 0.0.0.0:8001
 ```
+
+- 챗봇 등 선택 기능의 Prophet까지 쓰려면 `pip install -r requirements-optional.txt`를 추가로 실행한다.
+- 가상환경을 켜지 않고 `python`을 실행하면 시스템 Python(3.14, Django 6)이 쓰이므로 주의한다.
 
 로컬 백엔드 사용 시에는 `backend/.env`, MySQL, 공공데이터·기상청·네이버·Gemini API 키가 필요하다.
 
