@@ -2,7 +2,6 @@ import requests
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
-from prophet import Prophet
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import os
@@ -18,6 +17,7 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from django.utils import timezone
 from dotenv import load_dotenv
+from .airkorea_forecast import build_forecast_prediction
 from .notification_registry import notification_device_response, upsert_notification_device
 from .current_dust_service import (
     canonical_sido_name,
@@ -3139,6 +3139,8 @@ def _ensemble_pm10_predictions(df, prophet_predictions, periods=3, backtest=None
     return _blend_with_recent_trend(df, blended), prophet_weights, [round(value, 1) for value in baseline]
 
 def _forecast_pm10(df, periods=3, backtest=None):
+    from prophet import Prophet  # 무거운 의존성이라 실제 학습할 때만 로드한다.
+
     model = Prophet(
         daily_seasonality=False,
         weekly_seasonality=True,
@@ -3186,6 +3188,8 @@ def _calculate_backtest_metrics(df):
         }
 
     try:
+        from prophet import Prophet  # 무거운 의존성이라 실제 학습할 때만 로드한다.
+
         model = Prophet(
             daily_seasonality=False,
             weekly_seasonality=True,
@@ -3504,158 +3508,14 @@ def predict_dust(request):
     if not city or not district:
         return Response({"error": "city와 region 파라미터가 필요합니다."}, status=400)
 
-    cache_key = f'dust_predict_v10_{city}_{district}'
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return Response(cached_data)
-
     try:
-        # 측정소 이름 매핑
-        station_name = _resolve_station_name(city, district)
-        print(f"측정소 이름: {station_name}")
-
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=180)  # AirKorea API request limit
-        stored_start_date = end_date.date() - timedelta(days=730)
-
-        items = []
-        api_error = None
-
-        stored_measurements = DustMeasurement.objects.filter(
-            city=city,
-            region=district,
-            station_name=station_name,
-            measured_date__gte=stored_start_date,
-            pm10_value__isnull=False,
-        ).order_by('measured_date')
-        realtime_daily_items = _load_stored_realtime_daily_dust(
-            city,
-            district,
-            station_name,
-            stored_start_date,
-            end_date,
-        )
-
-        api_rows = _rows_from_past_items(items, "airkorea")
-        stored_rows = [{
-            "ds": measurement.measured_date,
-            "y": measurement.pm10_value,
-            "source": "stored",
-        } for measurement in stored_measurements]
-        realtime_rows = _rows_from_past_items(realtime_daily_items, "realtime_daily")
-
-        if len(stored_rows) + len(realtime_rows) < 2:
-            items, api_error = _fetch_past_dust_items_by_station(station_name, start_date, end_date, allow_api=True)
-            if items:
-                _store_past_dust_items(city, district, station_name, items)
-            api_rows = _rows_from_past_items(items, "airkorea")
-
-        print(f"가져온 데이터 수: {len(items)}")
-        rows = api_rows + stored_rows + realtime_rows
-        print(f"저장 일평균 수: {len(stored_rows)}, 실시간 일평균 수: {len(realtime_rows)}")
-
-        if not rows:
-            result = {
-                city: {
-                    district: {
-                        "future_dates": [],
-                        "predictions": [],
-                        "model": {
-                            "available": False,
-                            "station_name": station_name,
-                            "api_count": len(items),
-                            "stored_count": 0,
-                            "realtime_daily_count": 0,
-                            "api_error": api_error,
-                            "error": f"{district} 지역에서 예측에 사용할 저장 데이터를 찾을 수 없습니다.",
-                        }
-                    }
-                }
-            }
-            return Response(result)
-
-        df = _normalize_prediction_frame(rows)
-
-        print(f"학습 데이터 수: {len(df)}")
-
-        if len(df) < 2:
-            result = {
-                city: {
-                    district: {
-                        "future_dates": [],
-                        "predictions": [],
-                        "model": {
-                            "available": False,
-                            "station_name": station_name,
-                            "training_count": len(df),
-                            "api_count": len(items),
-                            "stored_count": len(stored_rows),
-                            "realtime_daily_count": len(realtime_rows),
-                            "api_error": api_error,
-                            "error": f"{district} 지역에 예측할 만큼의 유효한 데이터가 아직 부족합니다.",
-                        }
-                    }
-                }
-            }
-            return Response(result)
-
-        backtest = _calculate_backtest_metrics(df)
-        future_dates, predictions, ensemble_info = _forecast_pm10(df, periods=3, backtest=backtest)
-        nearby_predictions, nearby_stations, nearby_error = _nearby_station_prediction_adjustment(
-            city,
-            station_name,
-            start_date,
-            end_date,
-        )
-        nearby_weights = [0.12, 0.1, 0.08]
-        if len(nearby_predictions) == len(predictions):
-            predictions = [
-                int(round((prediction * (1 - nearby_weights[index])) + (nearby_predictions[index] * nearby_weights[index])))
-                for index, prediction in enumerate(predictions)
-            ]
-
-        weather_items, weather_error = _fetch_kma_weather_by_station(city, station_name)
-        weather_days = _summarize_kma_weather(weather_items, periods=3)
-        predictions, weather_adjustments = _weather_adjust_predictions(predictions, weather_days)
-
-        latest_training_date = df['ds'].max().strftime('%Y-%m-%d') if not df.empty else None
-        earliest_training_date = df['ds'].min().strftime('%Y-%m-%d') if not df.empty else None
-
-        result = {
-            city: {
-                district: {
-                    "future_dates": future_dates,
-                    "predictions": predictions,
-                    "model": {
-                        "method": "prophet_recent_baseline_nearby_weather_ensemble",
-                        "training_count": len(df),
-                        "api_count": len(items),
-                        "stored_count": len(stored_rows),
-                        "realtime_daily_count": len(realtime_rows),
-                        "earliest_training_date": earliest_training_date,
-                        "latest_training_date": latest_training_date,
-                        "api_error": api_error,
-                        "nearby_stations": nearby_stations,
-                        "nearby_error": nearby_error,
-                        "backtest": backtest,
-                        "ensemble": ensemble_info,
-                        "weather": {
-                            "source": "KMA_VilageFcst",
-                            "enabled": bool(KMA_API_KEY),
-                            "error": weather_error,
-                            "days": weather_days,
-                            "adjustments": weather_adjustments,
-                        },
-                    }
-                }
-            }
-        }
-        cache.set(cache_key, result, 60 * 60)
-        return Response(result)
-
-    except Exception as e:
-        print(f"오류 ({city} - {district}): {str(e)}")
-        return Response({"error": str(e)}, status=500)
+        # 서버 메모리를 아끼기 위해 Prophet 학습 대신 에어코리아 내일·모레 예보 등급을 쓴다.
+        # Prophet 기반 _build_prediction_for_region은 챗봇 등 선택 기능용으로 남겨 둔다.
+        result = build_forecast_prediction(AIRKOREA_SERVICE_KEY, city)
+    except Exception:
+        logger.exception('Failed to build dust prediction for %s %s', city, district)
+        return Response({"error": "미세먼지 예측을 불러오지 못했습니다."}, status=500)
+    return Response({city: {district: result}})
 
 def _build_prediction_for_region(city, district):
     cache_key = f'dust_predict_v10_{city}_{district}'
@@ -3749,6 +3609,8 @@ def _build_prediction_for_region(city, district):
                 "model": {
                     "method": "prophet_recent_baseline_nearby_weather_ensemble",
                     "training_count": len(df),
+                    "earliest_training_date": df['ds'].min().strftime('%Y-%m-%d'),
+                    "latest_training_date": df['ds'].max().strftime('%Y-%m-%d'),
                     "api_count": len(items),
                     "stored_count": len(stored_rows),
                     "realtime_daily_count": len(realtime_rows),
@@ -3766,7 +3628,10 @@ def _build_prediction_for_region(city, district):
                 },
             }
 
-    cache.set(cache_key, {city: {district: result}}, 60 * 60)
+    # predict_dust와 같은 키를 쓰므로, 데이터 부족 결과를 저장하면 홈 예측이 1시간 동안 비어 보인다.
+    # predict_dust처럼 실제 예측값이 있을 때만 캐시에 남긴다.
+    if result["predictions"]:
+        cache.set(cache_key, {city: {district: result}}, 60 * 60)
     return result
 
 def _dust_status(value):
