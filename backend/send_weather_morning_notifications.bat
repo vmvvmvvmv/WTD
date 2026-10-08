@@ -6,7 +6,6 @@ cd /d "%~dp0"
 REM Use the project virtualenv when it exists. Fall back to python on PATH.
 set "PYTHON_CMD=%WTD_PYTHON%"
 if not defined PYTHON_CMD if exist "%~dp0venv\Scripts\python.exe" set "PYTHON_CMD=%~dp0venv\Scripts\python.exe"
-if not defined PYTHON_CMD if exist "%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe" set "PYTHON_CMD=%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe"
 if not defined PYTHON_CMD set "PYTHON_CMD=python"
 
 echo ================================================== >> weather_morning_notifications.log
