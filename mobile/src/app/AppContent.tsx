@@ -292,6 +292,10 @@ export function AppContent() {
   const notificationToastOpacity = useRef(new Animated.Value(0)).current;
   const notificationToastTranslateY = useRef(new Animated.Value(16)).current;
   const calendarNotificationSyncRef = useRef(0);
+  // 비동기 응답이 도착했을 때 지금 선택된 지역과 같은지 비교하기 위한 최신 값입니다.
+  const selectedRegionRef = useRef(selectedRegion);
+  selectedRegionRef.current = selectedRegion;
+  const weatherRequestRef = useRef(0);
 
   // Android에서는 검색 화면이 닫히는 순간 키보드가 다시 붙는 경우가 있어 여러 타이밍에 한 번 더 내립니다.
   const dismissMapSearchKeyboard = () => {
@@ -339,11 +343,15 @@ export function AppContent() {
   };
 
   const loadWeather = async (lat: number, lng: number) => {
+    // 늦게 도착한 이전 좌표의 응답이 최신 날씨를 덮어쓰지 않도록 마지막 요청만 반영합니다.
+    const requestId = ++weatherRequestRef.current;
     try {
       const storedWeather = await loadStoredWeather(lat, lng, todayDateLabel);
+      if (requestId !== weatherRequestRef.current) return;
       setWeather(storedWeather.weather);
       setYesterdayWeather(storedWeather.yesterdayWeather);
     } catch {
+      if (requestId !== weatherRequestRef.current) return;
       setWeather(null);
       setYesterdayWeather(null);
     }
@@ -469,7 +477,10 @@ export function AppContent() {
   const loadDashboard = async (force = false) => {
     if (!selectedRegion) return;
     const region = selectedRegion;
+    // 응답을 기다리는 사이 지역이 바뀌었다면 이전 지역 데이터로 화면을 덮어쓰지 않습니다.
+    const isStale = () => !selectedRegionRef.current || !isSameRegion(selectedRegionRef.current, region);
     const cachedDashboard = await loadDashboardCache(region);
+    if (isStale()) return;
     if (cachedDashboard) {
       setPrediction(cachedDashboard.prediction);
       setPastItems(cachedDashboard.pastItems);
@@ -494,6 +505,7 @@ export function AppContent() {
         pastItems: nextPastItems,
         prediction: predictionData,
       } = await fetchDashboardDust(region, todayDateLabel, cachedDashboard);
+      if (isStale()) return;
 
       setPrediction(predictionData);
       setPastItems(nextPastItems);
@@ -504,6 +516,7 @@ export function AppContent() {
       finishRegionTransition();
       try {
         const storedWeather = await fetchDashboardWeather(region, todayDateLabel, stationItems);
+        if (isStale()) return;
         const nextWeatherHourlyItems = storedWeather.hourlyItems;
         const nextWeatherMidTermItems = storedWeather.midTermItems;
         const currentWeatherData = storedWeather.weather;
@@ -539,12 +552,15 @@ export function AppContent() {
         });
       }
     } catch (caught) {
-      if (!cachedDashboard) {
+      if (!cachedDashboard && !isStale()) {
         setError(caught instanceof Error ? caught.message : 'API 연결에 실패했습니다.');
       }
     } finally {
-      setIsLoading(false);
-      finishRegionTransition();
+      // 이전 지역 요청이 새 지역의 로딩 표시를 먼저 끄지 않도록 합니다.
+      if (!isStale()) {
+        setIsLoading(false);
+        finishRegionTransition();
+      }
     }
   };
 
