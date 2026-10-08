@@ -4,7 +4,6 @@ setlocal
 cd /d "%~dp0"
 set "PYTHON_EXE=%WTD_PYTHON%"
 if not defined PYTHON_EXE if exist "%~dp0venv\Scripts\python.exe" set "PYTHON_EXE=%~dp0venv\Scripts\python.exe"
-if not defined PYTHON_EXE if exist "%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe" set "PYTHON_EXE=%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe"
 if not defined PYTHON_EXE set "PYTHON_EXE=python"
 
 set "LOG_FILE=%~dp0collect_hourly.log"
