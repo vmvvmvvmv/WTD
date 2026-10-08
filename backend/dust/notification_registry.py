@@ -32,19 +32,22 @@ def clean_notification_regions(regions: Any, fallback_city: str, fallback_region
 
 
 def clean_notification_calendar_events(events: Any) -> list[dict[str, str]]:
-    """Store only the small schedule summary needed for morning push copy."""
+    """Store only the date/time needed for morning push copy.
+
+    일정 제목은 건강·인간관계 등 민감한 내용이 담기기 쉬워 저장하지 않는다.
+    예전 앱 버전이 title을 보내더라도 여기서 버린다.
+    """
     cleaned: list[dict[str, str]] = []
     if not isinstance(events, list):
         return cleaned
     for event in events:
         if not isinstance(event, dict):
             continue
-        title = str(event.get("title") or "").strip()
         date = str(event.get("date") or "").strip()
         time = str(event.get("time") or "").strip()
-        if not title or not date:
+        if not date:
             continue
-        item = {"title": title[:80], "date": date[:10]}
+        item = {"date": date[:10]}
         if time:
             item["time"] = time[:5]
         cleaned.append(item)
@@ -81,7 +84,9 @@ def upsert_notification_device(payload: Any) -> NotificationDevice:
 
     pm10_threshold = max(1, min(float_from_payload(payload.get("pm10Threshold"), 80), 300))
     regions = clean_notification_regions(payload.get("regions"), city, region)
-    calendar_events = clean_notification_calendar_events(payload.get("calendarEvents"))
+    weather_morning_alerts = bool_from_payload(payload.get("weatherMorningAlerts"), False)
+    # 일정 제목은 아침 날씨 알림에만 필요하다. 알림이 꺼져 있으면 저장하지 않고 기존 값도 비운다.
+    calendar_events = clean_notification_calendar_events(payload.get("calendarEvents")) if weather_morning_alerts else []
 
     device, _created = NotificationDevice.objects.update_or_create(
         expo_push_token=token,
@@ -92,7 +97,7 @@ def upsert_notification_device(payload: Any) -> NotificationDevice:
             "notify_bad_only": bool_from_payload(payload.get("notifyBadOnly"), True),
             "pm10_threshold": pm10_threshold,
             "morning_summary": bool_from_payload(payload.get("morningSummary"), False),
-            "weather_morning_alerts": bool_from_payload(payload.get("weatherMorningAlerts"), False),
+            "weather_morning_alerts": weather_morning_alerts,
             "include_favorites": bool_from_payload(payload.get("includeFavorites"), True),
             "regions": regions,
             "calendar_events": calendar_events,
