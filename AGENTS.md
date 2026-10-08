@@ -14,7 +14,7 @@
 - **보안**: `/dust/mobile-map/`의 인라인 `<script>`에 요청 값을 넣을 때는 `_script_json()`을 쓴다. 로그인 비밀번호 비교는 `Users.matches_client_password()`만 쓴다.
 
 ## 검증 명령
-- 백엔드: `backend`에서 `python manage.py test dust app` (로컬 venv: `%USERPROFILE%\Documents\AI-Dust_Moblie6\backend-venv\Scripts\python.exe`)
+- 백엔드: `backend`에서 `venv\Scripts\python.exe manage.py test dust app` (가상환경 `backend\venv`, Python 3.11. 시스템 `python`은 3.14·Django 6이라 쓰지 않는다)
 - 모바일: `mobile`에서 `npm run typecheck`, `npm run lint`, `node --test src/**/*.test.mjs`
 
 ## 작업 기록
