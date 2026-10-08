@@ -13,6 +13,7 @@ const MAX_YEARLY_OCCURRENCES = 5;
 const MAX_MONTHLY_OCCURRENCES = 24;
 const MAX_DAILY_OCCURRENCES = 370;
 const MAX_WEEKLY_OCCURRENCES = 160;
+const MAX_REPEAT_SCAN_DAYS = 3660;
 
 function addDays(date: string, amount: number) {
   const parts = parseDateParts(date);
@@ -67,9 +68,10 @@ export function buildRepeatedEvents(base: CalendarEvent, rule: CalendarRepeatRul
     return events;
   }
 
+  // 상한은 생성된 일정 수로 셉니다. 날짜 순회 상한은 요일이 비어 있을 때 종료일까지 헛도는 것만 막습니다.
   const limit = rule.mode === 'daily' ? MAX_DAILY_OCCURRENCES : MAX_WEEKLY_OCCURRENCES;
   let currentDate = base.date;
-  for (let index = 0; index < limit && currentDate <= rule.endDate; index += 1) {
+  for (let scanned = 0; events.length < limit && scanned < MAX_REPEAT_SCAN_DAYS && currentDate <= rule.endDate; scanned += 1) {
     const day = new Date(`${currentDate}T00:00:00`).getDay();
     if (rule.mode === 'daily' || rule.weekdays.includes(day)) events.push(createOccurrence(repeatBase, currentDate));
     currentDate = addDays(currentDate, 1);
