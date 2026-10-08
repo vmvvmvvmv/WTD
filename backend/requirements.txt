@@ -8,5 +8,6 @@ requests
 pandas
 scikit-learn==1.8.0
 python-dotenv
+Pillow  # app.Info.profile_image(ImageField)에 필요. 예전에는 prophet→matplotlib로 간접 설치됐다.
 joblib
 gunicorn==20.1.0
