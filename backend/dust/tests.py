@@ -2,10 +2,13 @@ from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
+# 로컬 .env의 APP_TEST_TOKEN 설정과 무관하게 엔드포인트 동작만 검증한다.
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
 class CurrentDustEndpointTests(SimpleTestCase):
     @patch('dust.views._resolve_station_name', return_value='대신동')
     @patch('dust.views._load_realtime_station_values', return_value=({}, {}))
     @patch('dust.views._load_latest_daily_station_values', return_value={})
+    @patch('dust.views._candidate_stations_for_region', return_value=[])
     def test_missing_data_response(self, *_mocks):
         response = self.client.get('/dust/current/?city=부산&region=대신동')
         self.assertEqual(response.status_code, 404)
@@ -130,3 +133,118 @@ class StripCalendarTitlesMigrationTests(SimpleTestCase):
 
         self.assertEqual(device.calendar_events, [{'date': '2026-10-09', 'time': '09:00'}])
         device.save.assert_called_once_with(update_fields=['calendar_events'])
+
+
+
+class PredictionCachePolicyTests(SimpleTestCase):
+    @patch('dust.views._fetch_past_dust_items_by_station', return_value=([], None))
+    @patch('dust.views._load_stored_realtime_daily_dust', return_value=[])
+    @patch('dust.views.DustMeasurement.objects.filter')
+    @patch('dust.views._resolve_station_name', return_value='테스트측정소')
+    def test_unavailable_prediction_is_not_cached_for_predict_endpoint(self, _station, measurements, *_mocks):
+        from django.core.cache import cache
+        from dust.views import _build_prediction_for_region
+        measurements.return_value.order_by.return_value = []
+        cache.delete('dust_predict_v10_테스트시_테스트구')
+
+        result = _build_prediction_for_region('테스트시', '테스트구')
+
+        self.assertEqual(result['predictions'], [])
+        self.assertIsNone(cache.get('dust_predict_v10_테스트시_테스트구'))
+
+
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
+class PredictEndpointTests(SimpleTestCase):
+    @patch('dust.views.build_forecast_prediction', return_value={'future_dates': ['2026-10-10'], 'predictions': [55]})
+    def test_wraps_forecast_by_city_and_region(self, forecast):
+        response = self.client.get('/dust/predict/', {'city': '서울', 'region': '송파구'})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['서울']['송파구']['predictions'], [55])
+        self.assertEqual(forecast.call_args.args[1], '서울')
+
+    @patch('dust.views.build_forecast_prediction', side_effect=RuntimeError('private upstream detail'))
+    def test_error_does_not_expose_details(self, _forecast):
+        with self.assertLogs('dust.views', level='ERROR'):
+            response = self.client.get('/dust/predict/', {'city': '서울', 'region': '송파구'})
+        self.assertEqual(response.status_code, 500)
+        self.assertNotIn('private upstream detail', response.content.decode())
+
+
+class AirKoreaForecastTests(SimpleTestCase):
+    ITEMS = [
+        {'informCode': 'PM10', 'informData': '2026-10-09', 'dataTime': '2026-10-08 05시 발표',
+         'informGrade': '서울 : 좋음,경기남부 : 좋음,경기북부 : 좋음'},
+        {'informCode': 'PM10', 'informData': '2026-10-09', 'dataTime': '2026-10-08 17시 발표',
+         'informGrade': '서울 : 보통,경기남부 : 나쁨,경기북부 : 보통,영서 : 좋음'},
+        {'informCode': 'PM25', 'informData': '2026-10-09', 'dataTime': '2026-10-08 23시 발표',
+         'informGrade': '서울 : 매우나쁨'},
+    ]
+
+    def test_uses_latest_pm10_announcement(self):
+        from dust.airkorea_forecast import latest_pm10_grades_by_date
+        announced, grades = latest_pm10_grades_by_date(self.ITEMS)['2026-10-09']
+        self.assertEqual(announced, '2026-10-08 17시 발표')
+        self.assertEqual(grades['서울'], '보통')
+
+    def test_split_region_uses_worse_grade_and_aliases(self):
+        from dust.airkorea_forecast import grade_for_city, parse_grades
+        grades = parse_grades(self.ITEMS[1]['informGrade'])
+        self.assertEqual(grade_for_city(grades, '경기도'), '나쁨')
+        self.assertEqual(grade_for_city(grades, '강원특별자치도'), '좋음')
+        self.assertIsNone(grade_for_city(grades, '제주'))
+
+    @patch('dust.airkorea_forecast.timezone.localdate')
+    @patch('dust.airkorea_forecast._fetch_items')
+    def test_builds_tomorrow_prediction_matching_app_thresholds(self, fetch, localdate):
+        from datetime import date
+        from django.core.cache import cache
+        from dust.airkorea_forecast import build_forecast_prediction
+        localdate.return_value = date(2026, 10, 8)
+        cache.delete('airkorea_pm10_forecast_v1_2026-10-08')
+        fetch.return_value = self.ITEMS
+        result = build_forecast_prediction('key', '경기')
+        self.assertEqual(result['future_dates'], ['2026-10-09'])
+        self.assertEqual(result['grades'], ['나쁨'])
+        self.assertGreater(result['predictions'][0], 80)  # 앱의 '나쁨' 기준(80 초과)과 일치
+
+    @patch('dust.airkorea_forecast.timezone.localdate')
+    @patch('dust.airkorea_forecast._fetch_items')
+    def test_api_failure_returns_empty_prediction(self, fetch, localdate):
+        import requests
+        from datetime import date
+        from django.core.cache import cache
+        from dust.airkorea_forecast import build_forecast_prediction
+        localdate.return_value = date(2026, 10, 7)
+        cache.delete('airkorea_pm10_forecast_v1_2026-10-07')
+        fetch.side_effect = requests.Timeout('serviceKey=secret')
+        result = build_forecast_prediction('key', '서울')
+        self.assertEqual(result['predictions'], [])
+        self.assertFalse(result['model']['available'])
+
+
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
+class OptionalFeatureRoutingTests(SimpleTestCase):
+    def _reload_urls(self):
+        import importlib
+        from django.urls import clear_url_caches
+        import config.urls
+        import dust.urls
+        importlib.reload(dust.urls)
+        importlib.reload(config.urls)
+        clear_url_caches()
+
+    def tearDown(self):
+        self._reload_urls()  # 다른 테스트에 영향을 주지 않도록 원래 설정으로 되돌린다.
+
+    def test_optional_routes_are_not_exposed_when_disabled(self):
+        with self.settings(ENABLE_OPTIONAL_FEATURES=False):
+            self._reload_urls()
+            for path in ('/dust/chat/', '/dust/weather/past/', '/analyze/compact/a&b'):
+                self.assertEqual(self.client.get(path).status_code, 404, path)
+
+    def test_optional_routes_exist_when_enabled(self):
+        from django.urls import resolve
+        with self.settings(ENABLE_OPTIONAL_FEATURES=True):
+            self._reload_urls()
+            self.assertEqual(resolve('/dust/chat/').url_name, 'dust_chat')
+            self.assertEqual(resolve('/analyze/compact/a&b').url_name, 'ai_short')
