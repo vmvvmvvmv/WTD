@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import Reanimated, { FadeIn, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
+import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 
@@ -108,7 +109,7 @@ export function CalendarDayCell({
           const endsWeek = cellIndex % 7 === 6;
           const segmentStart = !isRangeEvent || isStart || startsWeek;
           const segmentEnd = !isRangeEvent || isEnd || endsWeek;
-          const tone = event.sensitive ? '#c58a19' : getEventTone(event);
+          const tone = event.sensitive ? bauhausColors.amber : getEventTone(event);
 
           return (
             // 새로 저장한 일정의 선이 칸에 스르륵 나타납니다.

@@ -10,6 +10,7 @@ import { searchNaverPlaces } from '../../api/dustEndpoints';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { CalendarDatePickerGrid } from './CalendarDatePickerGrid';
 import { styles } from '../../styles/appStyles';
+import { textColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import {
   addMinutesToDateTime,
@@ -374,7 +375,7 @@ function DateTimePicker({
               onPress={() => setDuration(minutes)}
               style={({ pressed }) => [styles.calendarDurationChip, active && { backgroundColor: accentTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
             >
-              <Text style={[styles.calendarDurationChipText, active && styles.calendarDurationChipTextActive]}>{formatDuration(minutes)}</Text>
+              <Text style={[styles.calendarDurationChipText, active && styles.calendarChipTextSelected]}>{formatDuration(minutes)}</Text>
             </Pressable>
           );
         })}
@@ -511,11 +512,11 @@ function RepeatSelector({
               onPress={() => selectRepeatMode(option.value)}
               style={({ pressed }) => [
                 styles.calendarRepeatOption,
-                active && { backgroundColor: accentSoftTone, borderColor: accentTone },
+                active && { backgroundColor: accentTone, borderColor: accentTone },
                 pressed && styles.pressedFeedback,
               ]}
             >
-              <Text style={[styles.calendarRepeatOptionText, active && { color: accentTone }]}>{option.label}</Text>
+              <Text style={[styles.calendarRepeatOptionText, active && styles.calendarChipTextSelected]}>{option.label}</Text>
             </Pressable>
           );
         })}
@@ -538,7 +539,7 @@ function RepeatSelector({
                   pressed && styles.pressedFeedback,
                 ]}
               >
-                <Text style={[styles.calendarWeekdayChipText, active && { color: '#ffffff' }]}>{label}</Text>
+                <Text style={[styles.calendarWeekdayChipText, active && styles.calendarChipTextSelected]}>{label}</Text>
               </Pressable>
             );
           })}
@@ -592,12 +593,12 @@ function ActivityTypeSelector({
             onPress={() => onChangeActivityInput(option.value)}
             style={({ pressed }) => [
               styles.calendarActivityOption,
-              active && { backgroundColor: accentSoftTone, borderColor: accentTone },
+              active && { backgroundColor: accentTone, borderColor: accentTone },
               pressed && styles.pressedFeedback,
             ]}
           >
-            <Ionicons color={active ? accentTone : '#687180'} name={option.icon} size={17} />
-            <Text style={[styles.calendarActivityOptionText, active && { color: accentTone }]}>{option.label}</Text>
+            <Ionicons color={active ? '#ffffff' : textColors.secondary} name={option.icon} size={17} />
+            <Text style={[styles.calendarActivityOptionText, active && styles.calendarChipTextSelected]}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -651,11 +652,11 @@ function NotificationLeadSelector({
             }}
             style={({ pressed }) => [
               styles.calendarActivityOption,
-              active && { backgroundColor: accentSoftTone, borderColor: accentTone },
+              active && { backgroundColor: accentTone, borderColor: accentTone },
               pressed && styles.pressedFeedback,
             ]}
           >
-            <Text style={[styles.calendarActivityOptionText, active && { color: accentTone }]}>{option.label}</Text>
+            <Text style={[styles.calendarActivityOptionText, active && styles.calendarChipTextSelected]}>{option.label}</Text>
           </Pressable>
         );
       })}
@@ -670,11 +671,11 @@ function NotificationLeadSelector({
         }}
         style={({ pressed }) => [
           styles.calendarActivityOption,
-          showCustomInput && { backgroundColor: accentSoftTone, borderColor: accentTone },
+          showCustomInput && { backgroundColor: accentTone, borderColor: accentTone },
           pressed && styles.pressedFeedback,
         ]}
       >
-        <Text style={[styles.calendarActivityOptionText, showCustomInput && { color: accentTone }]}>직접 설정</Text>
+        <Text style={[styles.calendarActivityOptionText, showCustomInput && styles.calendarChipTextSelected]}>직접 설정</Text>
       </Pressable>
       {showCustomInput && (
         <View style={styles.calendarNotificationCustomRow}>
@@ -1023,7 +1024,7 @@ export function CalendarEventEditor({
           onPress={onSave}
           style={({ pressed }) => [
             styles.calendarEditorSaveFab,
-            { backgroundColor: title.trim() ? accentTone : '#d9dee5', bottom: Math.max(18, insets.bottom + 14), shadowColor: accentTone },
+            { backgroundColor: title.trim() ? accentTone : textColors.disabled, bottom: Math.max(18, insets.bottom + 14), shadowColor: accentTone },
             pressed && title.trim() && styles.pressedFeedback,
           ]}
         >
@@ -1103,7 +1104,7 @@ export function CalendarEventEditor({
                 onPress={() => pendingLocation && applyPickedLocation(pendingLocation)}
                 style={({ pressed }) => [
                   styles.calendarMapPickerConfirmButton,
-                  { backgroundColor: pendingLocation ? accentTone : '#d9dee5' },
+                  { backgroundColor: pendingLocation ? accentTone : textColors.disabled },
                   pressed && pendingLocation && styles.pressedFeedback,
                 ]}
               >

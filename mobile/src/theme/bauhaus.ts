@@ -8,6 +8,7 @@ export const bauhausColors = {
   blue: '#3D7FEA',
   blueSoft: '#E8F1FE',
   yellow: '#FFB95C',
+  amber: '#C58A19',
   muted: '#E7EFF7',
   border: '#D7E4F2',
   surface: '#F8FAFD',
