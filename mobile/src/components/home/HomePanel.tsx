@@ -9,7 +9,7 @@ import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
-import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
+import { buildHomeActivityGuideItems, type ActivityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
 import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
@@ -27,6 +27,16 @@ type HomeCircularGaugeProps = {
 };
 
 type HomeWeatherMotionKind = WeatherVisualKind | 'wind';
+
+// 활동 가이드 아이콘: 활동 종류 대신 그 일정 시간대의 날씨를 보여줍니다.
+const ACTIVITY_WEATHER_ICONS: Record<ActivityWeatherKind, { background: string; color: string; name: keyof typeof Ionicons.glyphMap }> = {
+  clear: { background: '#FFF7E0', color: '#F3B43F', name: 'sunny' },
+  cloudy: { background: '#F1F4F8', color: '#7A889C', name: 'cloudy' },
+  rain: { background: '#E8F1FE', color: '#3D7FEA', name: 'rainy' },
+  snow: { background: '#EAF6FD', color: '#4BA3D9', name: 'snow' },
+  wind: { background: '#E9F7F0', color: '#2F9B69', name: 'flag' },
+  unknown: { background: '#F1F4F8', color: '#B7C0CC', name: 'time-outline' },
+};
 
 const HOME_METRIC_BACKGROUNDS = {
   clear: require('../../../assets/home-metric-clear-v3.png'),
@@ -842,11 +852,14 @@ export function HomePanel({
                   onPress={() => setSelectedOutfitEventId(item.id)}
                   style={({ pressed }) => [styles.activityGuideRow, completed && styles.activityGuideRowCompleted, pressed && styles.pressedFeedback]}
                 >
-                  <View style={[styles.activityGuideIconBox, completed ? styles.activityGuideIconBoxCompleted : { backgroundColor: '#E8F1FE' }]}>
-                    <AppActionIcon
-                      name={item.activityType === 'indoor' ? 'activityIndoor' : item.activityType === 'transit' ? 'activityTransit' : 'activityOutdoor'}
-                      size={34}
-                      style={completed && styles.activityGuideIconCompleted}
+                  <View
+                    accessibilityLabel={item.forecastLabel || undefined}
+                    style={[styles.activityGuideIconBox, completed ? styles.activityGuideIconBoxCompleted : { backgroundColor: ACTIVITY_WEATHER_ICONS[item.weatherKind].background }]}
+                  >
+                    <Ionicons
+                      color={completed ? '#B7C0CC' : ACTIVITY_WEATHER_ICONS[item.weatherKind].color}
+                      name={ACTIVITY_WEATHER_ICONS[item.weatherKind].name}
+                      size={28}
                     />
                   </View>
                   <View style={styles.activityGuideTextGroup}>
@@ -868,6 +881,14 @@ export function HomePanel({
                       <Text style={[styles.activityGuideTimeText, completed && styles.activityGuideMetaCompleted]}>{item.timeLabel}</Text>
                       {!!item.locationLabel && <><View style={styles.activityGuideMetaDivider} /><Text numberOfLines={1} style={[styles.activityGuideRowLocation, completed && styles.activityGuideMetaCompleted]}>{item.locationLabel}</Text></>}
                     </View>
+                    {!completed && !!item.forecastLabel && (
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.activityGuideForecast, { color: item.weatherKind === 'clear' || item.weatherKind === 'cloudy' ? '#4F5D70' : ACTIVITY_WEATHER_ICONS[item.weatherKind].color }]}
+                      >
+                        {item.forecastLabel}
+                      </Text>
+                    )}
                     <Text numberOfLines={2} style={[styles.activityGuideRowDesc, completed && styles.activityGuideMetaCompleted]}>{completed ? '완료한 일정이에요.' : item.advice}</Text>
                   </View>
                   <Pressable
