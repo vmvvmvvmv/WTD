@@ -40,3 +40,46 @@ test('uses the worst weather inside the event window and summarizes rain timing'
   assert.equal(result.rainTimeRange, '11:00~12:00');
   assert.match(result.desc, /우산 챙기셨나요/);
 });
+
+test('does not reuse a far-away observation or current weather for a later schedule today', () => {
+  const evening = { ...event, date: '2026-10-10', endTime: '19:00', time: '18:00' };
+  const result = evaluateCalendarEventRisk(evening, {
+    now: new Date(2026, 9, 10, 14, 0),
+    todayDateLabel: '2026-10-10',
+    weather: { label: '맑음', temperature: 22 },
+    weatherItems: [
+      { date: '2026-10-10', hour: '14:00', label: '맑음', rain_mm: 0, rain_probability: 10, temperature: 22, wind_speed: 1 },
+    ],
+  });
+
+  assert.equal(result.weatherLabel, undefined);
+  assert.equal(result.temperature, undefined);
+});
+
+test('uses the 18:00 rain forecast once it is loaded', () => {
+  const evening = { ...event, date: '2026-10-10', endTime: '19:00', time: '18:00' };
+  const result = evaluateCalendarEventRisk(evening, {
+    now: new Date(2026, 9, 10, 14, 0),
+    todayDateLabel: '2026-10-10',
+    weather: { label: '맑음', temperature: 22 },
+    weatherItems: [
+      { date: '2026-10-10', hour: '14:00', label: '맑음', rain_mm: 0, rain_probability: 10, temperature: 22, wind_speed: 1 },
+      { date: '2026-10-10', hour: '18:00', label: '비', rain_mm: 2, rain_probability: 80, temperature: 19, wind_speed: 2 },
+    ],
+  });
+
+  assert.equal(result.weatherLabel, '비');
+  assert.equal(result.rainTimeRange, '18:00~19:00');
+});
+
+test('still uses current weather for a schedule starting soon', () => {
+  const soon = { ...event, date: '2026-10-10', endTime: '16:00', time: '15:00' };
+  const result = evaluateCalendarEventRisk(soon, {
+    now: new Date(2026, 9, 10, 14, 0),
+    todayDateLabel: '2026-10-10',
+    weather: { label: '맑음', temperature: 22 },
+    weatherItems: [],
+  });
+
+  assert.equal(result.weatherLabel, '맑음');
+});

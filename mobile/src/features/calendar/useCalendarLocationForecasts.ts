@@ -38,6 +38,9 @@ async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel
   }];
 }
 
+// 서버는 매시 예보를 새로 모으므로, 앱을 켜 둔 동안에도 이 간격으로 장소별 예보를 다시 받습니다.
+const LOCATION_FORECAST_REFRESH_MS = 10 * 60 * 1000;
+
 // 장소 중복 제거와 이전 요청 결과 무시를 이 훅에서 관리합니다.
 export function useCalendarLocationForecasts(
   calendarEvents: CalendarEvent[],
@@ -45,26 +48,36 @@ export function useCalendarLocationForecasts(
   todayDateLabel: string,
 ) {
   const [calendarLocationForecasts, setCalendarLocationForecasts] = useState<Record<string, CalendarLocationForecast>>({});
+  const [refreshTick, setRefreshTick] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => setRefreshTick((tick) => tick + 1), LOCATION_FORECAST_REFRESH_MS);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!hasLoadedRegionStore) return;
     let cancelled = false;
     const eventsWithLocation = calendarEvents.filter((event) => !!calendarEventLocationKey(event));
     const uniqueEvents = Array.from(new Map(eventsWithLocation.map((event) => [calendarEventLocationKey(event), event])).values());
-    if (uniqueEvents.length === 0) {
-      setCalendarLocationForecasts({});
-      return;
-    }
+    const activeKeys = new Set(uniqueEvents.map((event) => calendarEventLocationKey(event)));
+    // 더 이상 없는 장소만 지우고, 남은 장소는 새 예보가 올 때까지 이전 값을 유지합니다.
+    setCalendarLocationForecasts((current) => Object.fromEntries(Object.entries(current).filter(([key]) => activeKeys.has(key))));
 
-    Promise.all(uniqueEvents.map((event) => loadCalendarLocationForecast(event, todayDateLabel).catch(() => null))).then((entries) => {
-      if (cancelled) return;
-      setCalendarLocationForecasts(Object.fromEntries(entries.filter((entry): entry is [string, CalendarLocationForecast] => !!entry)));
+    // 장소마다 받는 대로 바로 반영합니다(가장 느린 장소를 기다리지 않음).
+    uniqueEvents.forEach((event) => {
+      loadCalendarLocationForecast(event, todayDateLabel)
+        .then((entry) => {
+          if (cancelled || !entry) return;
+          setCalendarLocationForecasts((current) => ({ ...current, [entry[0]]: entry[1] }));
+        })
+        .catch(() => {});
     });
 
     return () => {
       cancelled = true;
     };
-  }, [calendarEvents, hasLoadedRegionStore, todayDateLabel]);
+  }, [calendarEvents, hasLoadedRegionStore, refreshTick, todayDateLabel]);
 
   return calendarLocationForecasts;
 }

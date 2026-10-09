@@ -36,3 +36,9 @@ test('눈·강풍·흐림·예보 없음을 구분한다', () => {
   assert.equal(activityWeatherKind(risk({ weatherLabel: '구름많음' })), 'cloudy');
   assert.equal(activityForecastLabel(risk({ level: 'unknown' })), '');
 });
+
+test('날씨 예보가 아직 없으면 맑음이라고 단정하지 않는다', () => {
+  const value = risk({ pm10: 25 });
+  assert.equal(activityWeatherKind(value), 'unknown');
+  assert.equal(activityForecastLabel(value), '이 시간대 날씨 예보를 아직 받지 못했어요');
+});
