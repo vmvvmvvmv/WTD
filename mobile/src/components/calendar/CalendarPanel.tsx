@@ -164,6 +164,15 @@ export function CalendarPanel({
     sheetSizeProgress.setValue(0);
   };
 
+  // 다른 달을 보다가 "오늘"을 누르면 이번 달로 (방향에 맞게) 넘어가고 오늘을 고릅니다.
+  const [todayYear, todayMonth] = todayDateLabel.split('-').map(Number);
+  const isViewingTodayMonth = visibleMonth.year === todayYear && visibleMonth.month === todayMonth - 1;
+  const goToday = () => {
+    const offset = (todayYear - visibleMonth.year) * 12 + (todayMonth - 1 - visibleMonth.month);
+    moveMonth(offset);
+    setSelectedDate(todayDateLabel);
+  };
+
   const selectDate = (nextDate: string, options?: { openSheet?: boolean }) => {
     setSelectedDate(nextDate);
     setIsDaySheetOpen(options?.openSheet !== false);
@@ -247,6 +256,7 @@ export function CalendarPanel({
           getEventTone={eventTone}
           monthCells={monthCells}
           monthTitle={monthLabel(visibleMonth.year, visibleMonth.month)}
+          onGoToday={isViewingTodayMonth ? undefined : goToday}
           onMoveMonth={moveMonth}
           onSelectDate={selectDate}
           selectedDate={selectedDate}

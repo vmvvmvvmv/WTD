@@ -18,6 +18,8 @@ type Props = {
   getEventTone: (event: CalendarEvent) => string;
   monthCells: CalendarMonthCell[];
   monthTitle: string;
+  // 이번 달이 아닐 때만 넘깁니다. 있으면 제목 옆에 "오늘" 버튼을 보여줍니다.
+  onGoToday?: () => void;
   onMoveMonth: (offset: number) => void;
   onSelectDate: (date: string, options?: { openSheet?: boolean; trackTap?: boolean }) => void;
   resetSignal?: number;
@@ -38,6 +40,7 @@ export function CalendarMonthGrid({
   getEventTone,
   monthCells,
   monthTitle,
+  onGoToday,
   onMoveMonth,
   onSelectDate,
   selectedDate,
@@ -94,7 +97,20 @@ export function CalendarMonthGrid({
         <Pressable accessibilityLabel={"\uC774\uC804 \uB2EC"} onPress={() => handleMoveMonth(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
           <Ionicons color="#3D7FEA" name="chevron-back" size={22} />
         </Pressable>
-        <Text style={styles.calendarMonthTitle}>{monthTitle}</Text>
+        <View style={styles.calendarMonthTitleGroup}>
+          <Text style={styles.calendarMonthTitle}>{monthTitle}</Text>
+          {onGoToday && (
+            <Pressable
+              accessibilityLabel="오늘로 이동"
+              accessibilityRole="button"
+              hitSlop={8}
+              onPress={onGoToday}
+              style={({ pressed }) => [styles.calendarTodayButton, pressed && styles.pressedFeedback]}
+            >
+              <Text style={styles.calendarTodayButtonText}>오늘</Text>
+            </Pressable>
+          )}
+        </View>
         <Pressable accessibilityLabel={"\uB2E4\uC74C \uB2EC"} onPress={() => handleMoveMonth(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
           <Ionicons color="#3D7FEA" name="chevron-forward" size={22} />
         </Pressable>
