@@ -2,8 +2,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 import Reanimated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
+import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
+import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
 import { styles } from '../../styles/appStyles';
-import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
+import { AppActionIcon } from '../shared/AppActionIcon';
 import type { CalendarEvent, OutfitFigure, OutfitSensitivity } from '../../types/dust';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
 import { eventDateLabel, eventRangeLength, formatDateDisplay, formatSelectedDateTitle } from './calendarUtils';
@@ -43,12 +45,6 @@ type Props = {
   weatherRisks?: CalendarWeatherRiskIndicator[];
   weatherLabel?: string;
 };
-
-function eventImage(event: CalendarEvent): AppActionIconName {
-  if (event.activityType === 'indoor') return 'activityIndoor';
-  if (event.activityType === 'transit') return 'activityTransit';
-  return 'activityOutdoor';
-}
 
 function activityLabel(event: CalendarEvent) {
   if (event.activityType === 'indoor') return TEXT.indoor;
@@ -170,6 +166,10 @@ export function CalendarDaySheet({
         ) : events.map((event, index) => {
           const risk = riskByEvent?.[event.id];
           const tone = risk?.tone ?? accentTone;
+          // 홈 활동 가이드와 같은 기준: 아이콘은 그 일정 시간대 날씨, 예보는 한 줄로.
+          const weatherKind = risk ? activityWeatherKind(risk) : 'unknown';
+          const weatherIconStyle = ACTIVITY_WEATHER_ICONS[weatherKind];
+          const forecastLabel = risk ? activityForecastLabel(risk) : '';
           return (
             // 날짜를 바꾸면 일정이 위에서부터 차례로 살짝 올라오며 나타납니다.
             <Reanimated.View
@@ -178,8 +178,8 @@ export function CalendarDaySheet({
               style={styles.calendarEventGroup}
             >
               <View style={styles.calendarEventRow}>
-                <View style={[styles.calendarEventIcon, { backgroundColor: `${tone}14` }]}>
-                  <AppActionIcon name={eventImage(event)} size={32} />
+                <View accessibilityLabel={forecastLabel || undefined} style={[styles.calendarEventIcon, { backgroundColor: weatherIconStyle.background }]}>
+                  <Ionicons color={weatherIconStyle.color} name={weatherIconStyle.name} size={26} />
                 </View>
                 <View style={styles.calendarEventBody}>
                   <Text style={styles.calendarEventTitle}>{event.title}</Text>
@@ -187,13 +187,13 @@ export function CalendarDaySheet({
                     {eventDateLabel(event)} {event.time}{event.endTime ? `~${event.endTime}` : ''} · {activityLabel(event)}
                   </Text>
                   {!!eventLocationMeta(event) && <Text style={styles.calendarEventMeta}>{eventLocationMeta(event)}</Text>}
+                  {!!forecastLabel && <Text numberOfLines={1} style={[styles.calendarEventForecast, { color: activityForecastColor(weatherKind) }]}>{forecastLabel}</Text>}
                   {!!risk?.desc && <Text style={styles.calendarEventMemo}>{risk.desc}</Text>}
                   {!!event.memo && <Text style={styles.calendarEventMemo}>{event.memo}</Text>}
                 </View>
                 <View style={styles.calendarBadgeStack}>
                   {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: '#eef5ff', color: '#2f80ed' }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
                   <Text style={[styles.calendarGuideBadge, { backgroundColor: `${tone}14`, color: tone }]}>{risk?.badge ?? impactLabel(event)}</Text>
-                  <Text style={styles.calendarGuideBadge}>{activityLabel(event)}</Text>
                 </View>
                 <Pressable
                   accessibilityLabel={`${event.title} 일정 편집`}
