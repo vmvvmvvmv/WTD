@@ -21,7 +21,22 @@ def _band_index(feels_avg: float, sensitivity: str) -> int:
     return next(index for index, band in enumerate(BANDS) if adjusted >= band["minimum"])
 
 
+WEATHER_CONDITIONS = {"snow", "rain", "strong_wind", "showers", "normal"}
+
+
+def rain_window_label(snapshot: dict) -> str:
+    """"15:00"~"17:00" -> "15~17시", 한 시간뿐이면 "15시"."""
+    start, end = snapshot.get("rain_start"), snapshot.get("rain_end")
+    if not start or not end:
+        return ""
+    start_hour, end_hour = int(start[:2]), int(end[:2])
+    return f"{start_hour}시" if (end_hour - start_hour) % 24 == 1 else f"{start_hour}~{end_hour}시"
+
+
 def _weather_condition(snapshot: dict) -> str:
+    # 집계 단계에서 비의 길이까지 보고 정한 값(rain/showers)을 그대로 쓴다.
+    if snapshot.get("weather_condition") in WEATHER_CONDITIONS:
+        return snapshot["weather_condition"]
     if snapshot.get("has_snow"):
         return "snow"
     rain_probability, rain_mm = snapshot.get("rain_prob_max"), snapshot.get("rain_mm_max")
@@ -39,8 +54,12 @@ def _must_have(snapshot: dict, weather_condition: str, activity_type: str) -> li
     wind, feels_min = snapshot.get("wind_max"), snapshot.get("feels_min")
     if weather_condition == "snow":
         result.append({"type": "waterproof_shoes", "label": "미끄럼 방지 방수 신발", "level": "required", "reason": "젖거나 미끄러운 눈길에 대비해요"})
-    elif (rain_probability is not None and rain_probability >= 60) or (rain_mm is not None and rain_mm >= 1) or weather_condition == "rain":
-        result.append({"type": "umbrella", "label": "우산", "level": "required", "reason": "비에 대비해 챙겨요"})
+    elif (rain_probability is not None and rain_probability >= 60) or (rain_mm is not None and rain_mm >= 1) or weather_condition in {"rain", "showers"} or snapshot.get("has_rain"):
+        # 잠깐 오는 비라도 확실하면 우산은 필수다. 비의 길이는 겉옷에만 반영한다.
+        window = rain_window_label(snapshot)
+        label = "접이식 우산" if weather_condition == "showers" else "우산"
+        reason = f"{window}에 비 예보가 있어요" if window else "비에 대비해 챙겨요"
+        result.append({"type": "umbrella", "label": label, "level": "required", "reason": reason})
     elif rain_probability is not None and rain_probability >= 30:
         result.append({"type": "umbrella", "label": "접이식 우산", "level": "recommended", "reason": "비 가능성에 대비해요"})
     if (pm10 is not None and pm10 >= 151) or (pm25 is not None and pm25 >= 76):
@@ -58,7 +77,7 @@ def _must_have(snapshot: dict, weather_condition: str, activity_type: str) -> li
 
 
 def _apply_weather_outer(band: dict, weather_condition: str, occasion: str) -> None:
-    if weather_condition == "normal":
+    if weather_condition in {"normal", "showers"}:
         return
     cold_band = band["band"] in {"B6", "B7", "B8", "B9"}
     is_sport = occasion in {"running", "sport"}
@@ -106,6 +125,9 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
         summary = f"눈길 조심하세요. {main_outer}과 방수 신발이 좋아요."
     elif weather_condition == "rain":
         summary = f"우산 챙기셨나요? {main_outer}도 잘 맞아요."
+    elif weather_condition == "showers":
+        window = rain_window_label(snapshot)
+        summary = f"{window} 소나기 예보, 우산 챙기세요." if window else "잠깐 비 예보가 있어요. 우산 챙기세요."
     elif weather_condition == "strong_wind":
         summary = f"강한 바람에는 {main_outer} 차림이 좋아요."
     elif occasion in {"running", "sport"} and band["outer"]:
@@ -120,7 +142,7 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
         "outfit_note": outfit_note[:80],
         "layering_tip": layering_tip,
         "must_have": must_have,
-        "weather_snapshot": {key: snapshot.get(key) for key in ("feels_min", "feels_max", "feels_avg", "temp_range", "rain_prob_max", "rain_mm_max", "wind_max", "pm10_max", "pm25_max", "has_snow", "has_rain", "weather_condition")},
+        "weather_snapshot": {key: snapshot.get(key) for key in ("feels_min", "feels_max", "feels_avg", "temp_range", "rain_prob_max", "rain_mm_max", "wind_max", "pm10_max", "pm25_max", "has_snow", "has_rain", "rain_hours", "total_hours", "rain_start", "rain_end", "weather_condition")},
         "data_gaps": list(dict.fromkeys(data_gaps)),
         "occasion": occasion,
         "activity_type": resolved_activity,

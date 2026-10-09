@@ -53,6 +53,7 @@ def _weather_point(row: WeatherHourlyMeasurement) -> WeatherPoint:
         rain_probability=row.rain_probability,
         precipitation_type=row.precipitation_type,
         label=row.label,
+        measured_at=row.measured_at,
     )
 
 
@@ -128,4 +129,4 @@ def load_schedule_snapshot(request: OutfitRequest) -> dict:
                 target_at__lte=request.end,
             ).order_by("target_at")
             air_points = [AirPoint(row.pm10_predicted, None) for row in predictions]
-    return aggregate_schedule_window(weather_points, air_points)
+    return aggregate_schedule_window(weather_points, air_points, window=(request.start, request.end))
