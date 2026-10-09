@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, LayoutAnimation, Modal, PanResponder, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
@@ -12,6 +13,9 @@ import type { CalendarEvent } from '../../types/dust';
 import {
   addMinutesToDateTime,
   compareDateTime,
+  durationMinutes,
+  endForTime,
+  formatDuration,
   formatDateDisplay,
   formatDate,
   parseDateParts,
@@ -159,10 +163,13 @@ function TimeWheelColumn({ labels, onSelect, selectedIndex }: {
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(selectedIndex);
+  const hasPositionedRef = useRef(false);
 
   useEffect(() => {
     setHighlightedIndex(selectedIndex);
-    scrollRef.current?.scrollTo({ animated: false, y: selectedIndex * TIME_WHEEL_ITEM_HEIGHT });
+    // 처음에는 바로 맞추고, 그 뒤(시작↔종료 전환 등)에는 새 값까지 부드럽게 굴러갑니다.
+    scrollRef.current?.scrollTo({ animated: hasPositionedRef.current, y: selectedIndex * TIME_WHEEL_ITEM_HEIGHT });
+    hasPositionedRef.current = true;
   }, [selectedIndex]);
 
   const indexFromOffset = (offsetY: number) => (
@@ -279,12 +286,34 @@ function DateTimePicker({
     year: String(dateParts.year),
   };
 
+  const [activeField, setActiveField] = useState<'start' | 'end'>('start');
+  const [tabWidth, setTabWidth] = useState(0);
+  const tabIndicator = useRef(new Animated.Value(0)).current;
+  const duration = durationMinutes(startDate, startTime, endDate, endTime);
+
+  useEffect(() => {
+    Animated.spring(tabIndicator, { damping: 18, stiffness: 220, toValue: activeField === 'start' ? 0 : 1, useNativeDriver: true }).start();
+  }, [activeField, tabIndicator]);
+
+  // 시작을 옮기면 지금 일정 길이를 그대로 유지합니다(처음 만들 때는 1시간).
   const setStartDateTime = (nextDate: string, nextTime: string) => {
     onChangeStartDate(nextDate);
     onChangeStartTime(nextTime);
-    const shifted = addMinutesToDateTime(nextDate, nextTime, 60);
+    const shifted = addMinutesToDateTime(nextDate, nextTime, duration > 0 ? duration : 60);
     onChangeEndDate(shifted.date);
     onChangeEndTime(shifted.time);
+  };
+
+  const setEndTime = (nextTime: string) => {
+    const next = endForTime(startDate, startTime, nextTime);
+    onChangeEndDate(next.date);
+    onChangeEndTime(next.time);
+  };
+
+  const selectField = (field: 'start' | 'end') => {
+    if (field === activeField) return;
+    Haptics.selectionAsync().catch(() => {});
+    setActiveField(field);
   };
 
   const stepActiveValue = (unit: DateTimeUnit, direction: 1 | -1) => {
@@ -299,16 +328,57 @@ function DateTimePicker({
   };
 
   const setActiveTime = (nextTime: string) => {
+    if (activeField === 'end') {
+      setEndTime(nextTime);
+      return;
+    }
     setStartDateTime(startDate, nextTime);
   };
 
+  const endLabel = endDate === startDate ? endTime : `${formatMonthDay(endDate)} ${endTime}`;
+
   return (
     <View style={styles.calendarDateTimePickerGroup}>
+      <View
+        accessibilityRole="tablist"
+        onLayout={(event) => setTabWidth(event.nativeEvent.layout.width / 2)}
+        style={styles.calendarTimeRangeTabs}
+      >
+        {(['start', 'end'] as const).map((field) => {
+          const active = activeField === field;
+          return (
+            <Pressable
+              accessibilityLabel={`${field === 'start' ? '시작' : '종료'} 시간 ${field === 'start' ? startTime : endLabel} 고르기`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: active }}
+              key={field}
+              onPress={() => selectField(field)}
+              style={styles.calendarTimeRangeTab}
+            >
+              <Text style={[styles.calendarTimeRangeTabLabel, active && { color: accentTone }]}>{field === 'start' ? '시작' : '종료'}</Text>
+              <Text style={[styles.calendarTimeRangeTabValue, active && styles.calendarTimeRangeTabValueActive]}>{field === 'start' ? startTime : endLabel}</Text>
+            </Pressable>
+          );
+        })}
+        {tabWidth > 0 && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.calendarTimeRangeIndicator,
+              {
+                backgroundColor: accentTone,
+                transform: [{ translateX: tabIndicator.interpolate({ inputRange: [0, 1], outputRange: [0, tabWidth] }) }],
+                width: tabWidth,
+              },
+            ]}
+          />
+        )}
+      </View>
       <TimeWheelPicker
         accentSoftTone={accentSoftTone}
         accentTone={accentTone}
         onChange={setActiveTime}
-        value={startTime}
+        value={activeField === 'start' ? startTime : endTime}
       />
       <Pressable
         accessibilityLabel="일정 날짜 선택"
@@ -320,7 +390,9 @@ function DateTimePicker({
       >
         <View style={styles.calendarDateSummaryTextGroup}>
           <Text style={styles.calendarDateSummaryValue}>{formatDateDisplay(startDate)}</Text>
-          <Text style={styles.calendarDateSummaryHint}>종료 {endDate === startDate ? endTime : `${formatDateDisplay(endDate)} ${endTime}`} · 1시간 일정</Text>
+          <Text style={styles.calendarDateSummaryHint}>
+            {startTime}~{endLabel}{duration > 0 ? ` · ${formatDuration(duration)} 일정` : ''}
+          </Text>
         </View>
         <Ionicons color={accentTone} name="calendar-outline" size={22} />
       </Pressable>

@@ -114,6 +114,24 @@ export function compareDateTime(startDate: string, startTime: string, endDate: s
   return start - end;
 }
 
+export function durationMinutes(startDate: string, startTime: string, endDate: string, endTime: string) {
+  return Math.round(-compareDateTime(startDate, startTime, endDate, endTime) / 60000);
+}
+
+// 끝나는 시각만 고른 경우: 시작 시각과 같거나 이르면 다음 날로 본다(예: 23:00 시작, 01:00 종료).
+export function endForTime(startDate: string, startTime: string, endTime: string) {
+  const sameDay = compareDateTime(startDate, startTime, startDate, endTime) < 0;
+  return { date: sameDay ? startDate : stepDatePart(startDate, 'day', 1), time: normalizeTime(endTime) };
+}
+
+export function formatDuration(minutes: number) {
+  if (minutes <= 0) return '';
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest}분`;
+  return rest === 0 ? `${hours}시간` : `${hours}시간 ${rest}분`;
+}
+
 function clampDay(year: number, month: number, day: number) {
   return Math.min(day, new Date(year, month + 1, 0).getDate());
 }
