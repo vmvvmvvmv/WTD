@@ -52,7 +52,7 @@ export const outfitStyles = StyleSheet.create({
   emptyText: { color: '#718096', flex: 1, fontSize: 11, fontWeight: '800', lineHeight: 16 },
   retry: { alignItems: 'center', borderRadius: 10, justifyContent: 'center', minHeight: 44, minWidth: 58, paddingHorizontal: 8 },
   retryText: { color: token.accent, fontSize: 11, fontWeight: '900' },
-  weatherAlert: { alignItems: 'flex-start', borderLeftColor: semanticColors.weather.caution.tone, borderLeftWidth: 3, flexDirection: 'row', gap: 8, marginBottom: 10, marginTop: 4, paddingLeft: 10, paddingVertical: 2 },
+  weatherAlert: { alignItems: 'flex-start', borderLeftColor: semanticColors.weather.caution.tone, borderLeftWidth: 3, flexDirection: 'row', gap: 8, marginBottom: 6, marginTop: 10, paddingLeft: 10, paddingVertical: 2 },
   weatherAlertBody: { flex: 1 },
   weatherAlertTitle: { color: semanticColors.weather.caution.tone, fontSize: 13, fontWeight: '900' },
   weatherAlertDetail: { color: '#4F5D70', fontSize: 12, fontWeight: '600', lineHeight: 17, marginTop: 2 },
