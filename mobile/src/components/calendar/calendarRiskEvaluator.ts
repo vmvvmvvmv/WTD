@@ -49,6 +49,8 @@ type MidTermPoint = {
 
 type RiskContext = {
   currentPm10?: number;
+  // 테스트에서 현재 시각을 고정할 때만 넘긴다.
+  now?: Date;
   dustItems?: HourlyDustItem[];
   locationBasis?: string;
   prediction?: PredictionResponse | null;
@@ -194,6 +196,10 @@ function pickDustPoint(event: CalendarEvent, points: DustPoint[]) {
   return nearest ? { basis: `${nearest.label} 기준`, point: nearest } : { basis: '', point: undefined };
 }
 
+// 일정 시각과 이보다 멀리 떨어진 예보·관측값은 그 일정의 날씨로 쓰지 않는다.
+// (예: 18시 일정에 14시 관측값 '맑음'을 쓰면, 아직 안 들어온 18시 비 예보를 가린다.)
+const WEATHER_FALLBACK_LIMIT_MS = 3 * 60 * 60 * 1000;
+
 function selectWeatherPoints(event: CalendarEvent, points: WeatherPoint[]) {
   const inRange = points.filter((item) => isPointInEventRange(item.date, item.label, event));
   if (inRange.length > 0) return { basis: '일정 시간대 예보 기준', points: inRange };
@@ -206,7 +212,9 @@ function selectWeatherPoints(event: CalendarEvent, points: WeatherPoint[]) {
     if (!best) return item;
     return pointDistance(item.date, item.label, event) < pointDistance(best.date, best.label, event) ? item : best;
   }, null);
-  return nearest ? { basis: `${nearest.label} 기준`, points: [nearest] } : { basis: '', points: [] };
+  return nearest && pointDistance(nearest.date, nearest.label, event) <= WEATHER_FALLBACK_LIMIT_MS
+    ? { basis: `${nearest.label} 기준`, points: [nearest] }
+    : { basis: '', points: [] };
 }
 
 function maxValue(values: Array<number | undefined>) {
@@ -394,17 +402,21 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
   const weatherAggregate = aggregateWeather(weatherResult.points);
   const midTermWeather = midTermWeatherForEvent(event, context.weatherMidTermItems);
   const isTodayEvent = isSameDateOrRangeIncludes(context.todayDateLabel, event);
+  // 현재 날씨는 지금 진행 중이거나 곧(3시간 안) 시작하는 일정에만 대신 쓴다.
+  const eventStart = dateTimeMs(event.date, event.time);
+  const useCurrentWeather = isTodayEvent
+    && (typeof eventStart !== 'number' || eventStart - (context.now ?? new Date()).getTime() <= WEATHER_FALLBACK_LIMIT_MS);
   const dailyPredictedPm10 = dailyPredictionForEvent(event, context.prediction);
   const pm10 = dustResult.point?.pm10 ?? (isTodayEvent ? context.currentPm10 : undefined) ?? dailyPredictedPm10;
-  const temperature = weatherAggregate.temperature ?? (isTodayEvent ? context.weather?.temperature : undefined) ?? midTermWeather?.temperature;
+  const temperature = weatherAggregate.temperature ?? (useCurrentWeather ? context.weather?.temperature : undefined) ?? midTermWeather?.temperature;
   const temperatureMin = weatherAggregate.temperatureMin ?? temperature;
   const temperatureMax = weatherAggregate.temperatureMax ?? temperature;
-  const rainMm = weatherAggregate.rainMm ?? (isTodayEvent ? context.weather?.rainMm : undefined);
+  const rainMm = weatherAggregate.rainMm ?? (useCurrentWeather ? context.weather?.rainMm : undefined);
   const rainSummary = rainSummaryForEvent(event, weatherPoints, midTermWeather);
   const rainProbability = weatherAggregate.rainProbability ?? rainSummary?.probability ?? midTermWeather?.rainProbability;
-  const windSpeed = weatherAggregate.windSpeed ?? (isTodayEvent ? context.weather?.windSpeed : undefined);
-  const weatherLabel = weatherAggregate.weatherLabel ?? (isTodayEvent ? context.weather?.label : undefined) ?? midTermWeather?.weatherLabel;
-  const rawBasis = weatherResult.basis || dustResult.basis || (typeof dailyPredictedPm10 === 'number' ? '3일 미세먼지 예측 기준' : '') || (midTermWeather ? TEXT.midTermBasis : (isTodayEvent ? TEXT.currentBasis : TEXT.forecastNeeded));
+  const windSpeed = weatherAggregate.windSpeed ?? (useCurrentWeather ? context.weather?.windSpeed : undefined);
+  const weatherLabel = weatherAggregate.weatherLabel ?? (useCurrentWeather ? context.weather?.label : undefined) ?? midTermWeather?.weatherLabel;
+  const rawBasis = weatherResult.basis || dustResult.basis || (typeof dailyPredictedPm10 === 'number' ? '3일 미세먼지 예측 기준' : '') || (midTermWeather ? TEXT.midTermBasis : (useCurrentWeather ? TEXT.currentBasis : TEXT.forecastNeeded));
   const basis = context.locationBasis ? context.locationBasis + ' · ' + rawBasis : rawBasis;
 
   const outingIndex = calculateOutingIndex({ pm10, rainMm, rainProbability, temperature, weatherLabel, windSpeed });

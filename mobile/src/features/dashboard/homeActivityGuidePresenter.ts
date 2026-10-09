@@ -37,6 +37,7 @@ function includesWeather(label: string | undefined, words: string[]) {
 
 function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult) {
   if (risk.level === 'unknown') return '아직 예보가 없어요. 가까운 날 다시 확인해 주세요.';
+  if (!hasWeatherForecast(risk)) return '예보가 들어오면 여기에 바로 반영돼요.';
 
   const hasSnow = includesWeather(risk.weatherLabel, ['눈', 'snow']);
   if (hasSnow || (risk.temperature !== undefined && risk.temperature <= 0)) {
@@ -60,8 +61,13 @@ function hasRainRisk(risk: CalendarRiskResult) {
     || (risk.rainMm ?? 0) > 0;
 }
 
+// 날씨 예보(상태·기온·비·바람)가 하나도 없으면 미세먼지만으로 '맑음'이라고 단정하지 않는다.
+function hasWeatherForecast(risk: CalendarRiskResult) {
+  return Boolean(risk.weatherLabel) || typeof risk.temperature === 'number' || hasRainRisk(risk) || typeof risk.windSpeed === 'number';
+}
+
 export function activityWeatherKind(risk: CalendarRiskResult): ActivityWeatherKind {
-  if (risk.level === 'unknown') return 'unknown';
+  if (risk.level === 'unknown' || !hasWeatherForecast(risk)) return 'unknown';
   if (includesWeather(risk.weatherLabel, ['눈', 'snow'])) return 'snow';
   if (hasRainRisk(risk)) return 'rain';
   if ((risk.windSpeed ?? 0) >= 8) return 'wind';
@@ -72,7 +78,7 @@ export function activityForecastLabel(risk: CalendarRiskResult): string {
   const kind = activityWeatherKind(risk);
   const range = risk.rainTimeRange && risk.rainTimeRange !== '일정 시간대' ? risk.rainTimeRange : '';
   const probability = typeof risk.rainProbability === 'number' ? ` · 강수 ${Math.round(risk.rainProbability)}%` : '';
-  if (kind === 'unknown') return '';
+  if (kind === 'unknown') return risk.level === 'unknown' ? '' : '이 시간대 날씨 예보를 아직 받지 못했어요';
   if (kind === 'snow') return `${range ? `${range} ` : '일정 중 '}눈 예보${probability}`;
   if (kind === 'rain') return `${range ? `${range} ` : '일정 중 '}비 예보${probability}`;
   if (kind === 'wind') {
