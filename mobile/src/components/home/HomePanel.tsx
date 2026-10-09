@@ -10,7 +10,8 @@ import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
-import { buildHomeActivityGuideItems, type ActivityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
+import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
+import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
 import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
@@ -29,16 +30,6 @@ type HomeCircularGaugeProps = {
 };
 
 type HomeWeatherMotionKind = WeatherVisualKind | 'wind';
-
-// 활동 가이드 아이콘: 활동 종류 대신 그 일정 시간대의 날씨를 보여줍니다.
-const ACTIVITY_WEATHER_ICONS: Record<ActivityWeatherKind, { background: string; color: string; name: keyof typeof Ionicons.glyphMap }> = {
-  clear: { background: '#FFF7E0', color: '#F3B43F', name: 'sunny' },
-  cloudy: { background: '#F1F4F8', color: '#7A889C', name: 'cloudy' },
-  rain: { background: '#E8F1FE', color: '#3D7FEA', name: 'rainy' },
-  snow: { background: '#EAF6FD', color: '#4BA3D9', name: 'snow' },
-  wind: { background: '#E9F7F0', color: '#2F9B69', name: 'flag' },
-  unknown: { background: '#F1F4F8', color: '#B7C0CC', name: 'time-outline' },
-};
 
 const HOME_METRIC_BACKGROUNDS = {
   clear: require('../../../assets/home-metric-clear-v3.png'),
@@ -880,7 +871,7 @@ export function HomePanel({
                     {!completed && !!item.forecastLabel && (
                       <Text
                         numberOfLines={1}
-                        style={[styles.activityGuideForecast, { color: item.weatherKind === 'clear' || item.weatherKind === 'cloudy' ? '#4F5D70' : ACTIVITY_WEATHER_ICONS[item.weatherKind].color }]}
+                        style={[styles.activityGuideForecast, { color: activityForecastColor(item.weatherKind) }]}
                       >
                         {item.forecastLabel}
                       </Text>
