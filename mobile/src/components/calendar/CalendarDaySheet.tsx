@@ -85,12 +85,12 @@ function MetricChip({
   value: string;
 }) {
   return (
-    <View style={styles.calendarMetricChip}>
+    <View accessibilityLabel={`${label} ${value}`} accessible style={styles.calendarMetricChip}>
       <Ionicons color={tone} name={icon} size={14} />
-      <View>
-        <Text style={styles.calendarMetricChipLabel}>{label}</Text>
-        <Text style={[styles.calendarMetricChipValue, { color: tone }]}>{value}</Text>
-      </View>
+      <Text style={[styles.calendarMetricChipValue, { color: tone }]}>
+        <Text style={styles.calendarMetricChipLabel}>{label} </Text>
+        {value}
+      </Text>
     </View>
   );
 }
