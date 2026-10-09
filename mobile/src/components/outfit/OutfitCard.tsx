@@ -156,7 +156,6 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
         entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)}
         style={[outfitStyles.card, outfitStyles.dualCard]}
       >
-        <WeatherAlertRow result={result} />
         <View style={outfitStyles.dualVisualRow}>
           <View style={outfitStyles.dualVisualPanel}>
             <Text style={outfitStyles.dualVisualLabel}>남성 옷차림</Text>
@@ -167,6 +166,7 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
             <OutfitVisual figure="female" imageStyle={outfitStyles.dualVisualImage} result={result} />
           </View>
         </View>
+        <WeatherAlertRow result={result} />
         <View style={outfitStyles.dualDescription}>
           <Text style={outfitStyles.dualDescriptionText}>{result.outfit_note || result.summary}</Text>
           {!!result.layering_tip && <Text style={outfitStyles.dualDescriptionSubtext}>{result.layering_tip}</Text>}
