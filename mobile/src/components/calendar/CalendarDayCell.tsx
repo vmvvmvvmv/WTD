@@ -1,6 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { StyleProp, ViewStyle } from 'react-native';
+import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
+import Reanimated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/dust';
@@ -52,6 +54,14 @@ export function CalendarDayCell({
   weatherRisk,
 }: Props) {
   const inActiveRange = !!range && date >= range.startDate && date <= range.endDate;
+  // 날짜를 고르면 숫자가 한 번 톡 커졌다 돌아옵니다(애니메이션 줄이기 설정이면 생략).
+  const reduceMotion = useReducedMotion();
+  const dayScale = useSharedValue(1);
+  useEffect(() => {
+    if (!isSelected || reduceMotion) return;
+    dayScale.value = withSequence(withTiming(1.22, { duration: 110 }), withSpring(1, { damping: 9, stiffness: 260 }));
+  }, [dayScale, isSelected, reduceMotion]);
+  const dayScaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: dayScale.value }] }));
   const visibleEventItems = eventItems.slice(0, 3);
   const visibleEventCount = visibleEventItems.filter(Boolean).length;
   const hiddenEventCount = Math.max(0, eventCount - visibleEventCount);
@@ -78,11 +88,12 @@ export function CalendarDayCell({
           <Ionicons color={weatherRisk.tone} name={weatherRisk.icon} size={11} />
         </View>
       )}
-      <Text style={[
+      <Reanimated.Text style={[
+        dayScaleStyle,
         styles.calendarDayText,
         isToday && { color: accentTone },
         isSelected && { color: accentTone },
-      ]}>{day}</Text>
+      ]}>{day}</Reanimated.Text>
       <View style={styles.calendarEventLineStack}>
         {visibleEventItems.map((event, laneIndex) => {
           if (!event) {
