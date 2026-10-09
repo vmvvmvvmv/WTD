@@ -29,7 +29,7 @@ type Props = {
   onDismiss: () => void;
   onEditEvent?: (event: CalendarEvent) => void;
   onExpandStateChange?: (expanded: boolean) => void;
-  onRemoveEvent: (eventId: string) => void;
+  onRemoveEvent: (event: CalendarEvent) => void;
   outfitEnabled: boolean;
   outfitFallbackLocation?: OutfitFallbackLocation;
   outfitFigure: OutfitFigure;
@@ -204,7 +204,7 @@ export function CalendarDaySheet({
                 </Pressable>
                 <Pressable
                   accessibilityLabel={`${event.title} 일정 삭제`}
-                  onPress={() => onRemoveEvent(event.id)}
+                  onPress={() => onRemoveEvent(event)}
                   style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
                 >
                   <AppActionIcon name="delete" size={24} />

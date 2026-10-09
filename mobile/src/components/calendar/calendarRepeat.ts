@@ -82,3 +82,9 @@ export function buildRepeatedEvents(base: CalendarEvent, rule: CalendarRepeatRul
 export function nextDefaultRepeatEndDate(startDate: string) {
   return addMinutesToDateTime(startDate, '00:00', 30 * 24 * 60).date;
 }
+
+// 반복 일정을 "이후 일정 모두" 삭제할 때: 같은 반복 묶음에서 이 날짜와 그 뒤의 일정을 뺀다(앞선 일정은 남긴다).
+export function withoutFollowingOccurrences(events: CalendarEvent[], target: CalendarEvent) {
+  if (!target.repeatGroupId) return events.filter((event) => event.id !== target.id);
+  return events.filter((event) => event.repeatGroupId !== target.repeatGroupId || event.date < target.date);
+}

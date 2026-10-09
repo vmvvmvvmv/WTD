@@ -2,7 +2,7 @@
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
-import { Alert, ScrollView, useWindowDimensions } from 'react-native';
+import { ScrollView, useWindowDimensions } from 'react-native';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
@@ -15,6 +15,7 @@ import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresen
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
 import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
+import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRemoval';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
 
@@ -553,6 +554,7 @@ export function HomePanel({
   calendarEvents,
   eventLocationForecasts,
   onDeleteCalendarEvent,
+  onDeleteFollowingCalendarEvents,
   onOpenCalendar,
   onOpenDetail,
   onOpenMap,
@@ -579,6 +581,7 @@ export function HomePanel({
   calendarEvents?: CalendarEvent[];
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   onDeleteCalendarEvent?: (eventId: string) => void;
+  onDeleteFollowingCalendarEvents?: (event: CalendarEvent) => void;
   onOpenCalendar?: () => void;
   onOpenDetail: () => void;
   onOpenMap: () => void;
@@ -887,12 +890,14 @@ export function HomePanel({
                   <Pressable
                     accessibilityLabel={`${item.title} 일정 삭제`}
                     hitSlop={8}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      Alert.alert('일정 삭제', `'${item.title}' 일정을 삭제할까요?`, [
-                        { style: 'cancel', text: '취소' },
-                        { onPress: () => onDeleteCalendarEvent?.(item.id), style: 'destructive', text: '삭제' },
-                      ]);
+                    onPress={(pressEvent) => {
+                      pressEvent.stopPropagation();
+                      const calendarEvent = todayCalendarEvents.find((event) => event.id === item.id);
+                      if (!calendarEvent) return;
+                      confirmCalendarEventRemoval(calendarEvent, {
+                        removeFollowing: () => onDeleteFollowingCalendarEvents?.(calendarEvent),
+                        removeOne: () => onDeleteCalendarEvent?.(item.id),
+                      });
                     }}
                     style={({ pressed }) => [styles.activityGuideDeleteButton, pressed && styles.pressedFeedback]}
                   >
