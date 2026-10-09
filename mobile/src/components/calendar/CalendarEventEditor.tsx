@@ -8,6 +8,7 @@ import type { WebView as WebViewType } from 'react-native-webview';
 
 import { searchNaverPlaces } from '../../api/dustEndpoints';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
+import { CalendarDatePickerGrid } from './CalendarDatePickerGrid';
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/dust';
 import {
@@ -21,7 +22,6 @@ import {
   parseDateParts,
   parseTimeParts,
   stepDatePart,
-  stepTime,
   weekdayLabels,
 } from './calendarUtils';
 import type { CalendarRepeatMode } from './calendarRepeat';
@@ -35,7 +35,6 @@ const pickerUnits = [
   { key: 'minute', label: '분' },
 ] as const;
 
-const datePickerUnits = pickerUnits.filter((unit) => unit.key !== 'hour' && unit.key !== 'minute');
 
 const repeatOptions: Array<{ label: string; value: CalendarRepeatMode }> = [
   { label: '안 함', value: 'none' },
@@ -114,6 +113,8 @@ type Props = {
   startTime: string;
   title: string;
 };
+
+const DURATION_OPTIONS = [30, 60, 120, 180, 240];
 
 function animatePickerLayout() {
   LayoutAnimation.configureNext({
@@ -276,16 +277,6 @@ function DateTimePicker({
   startTime: string;
 }) {
   const [showDateWheel, setShowDateWheel] = useState(false);
-  const dateParts = parseDateParts(startDate);
-  const timeParts = parseTimeParts(startTime);
-  const values: Record<DateTimeUnit, string> = {
-    day: formatWheelDay(startDate),
-    hour: timeParts.hour,
-    minute: timeParts.minute,
-    month: `${dateParts.month + 1}월`,
-    year: String(dateParts.year),
-  };
-
   const [activeField, setActiveField] = useState<'start' | 'end'>('start');
   const [tabWidth, setTabWidth] = useState(0);
   const tabIndicator = useRef(new Animated.Value(0)).current;
@@ -310,21 +301,18 @@ function DateTimePicker({
     onChangeEndTime(next.time);
   };
 
+  // 길이 칩: 시작은 그대로 두고 종료만 시작 + 고른 길이로 맞춥니다.
+  const setDuration = (minutes: number) => {
+    Haptics.selectionAsync().catch(() => {});
+    const shifted = addMinutesToDateTime(startDate, startTime, minutes);
+    onChangeEndDate(shifted.date);
+    onChangeEndTime(shifted.time);
+  };
+
   const selectField = (field: 'start' | 'end') => {
     if (field === activeField) return;
     Haptics.selectionAsync().catch(() => {});
     setActiveField(field);
-  };
-
-  const stepActiveValue = (unit: DateTimeUnit, direction: 1 | -1) => {
-    if (unit === 'hour' || unit === 'minute') {
-      const nextTime = stepTime(startTime, unit, direction);
-      setStartDateTime(startDate, nextTime);
-      return;
-    }
-
-    const nextDate = stepDatePart(startDate, unit, direction);
-    setStartDateTime(nextDate, startTime);
   };
 
   const setActiveTime = (nextTime: string) => {
@@ -374,6 +362,23 @@ function DateTimePicker({
           />
         )}
       </View>
+      <View accessibilityLabel="일정 길이 선택" style={styles.calendarDurationRow}>
+        {DURATION_OPTIONS.map((minutes) => {
+          const active = duration === minutes;
+          return (
+            <Pressable
+              accessibilityLabel={`${formatDuration(minutes)} 일정`}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              key={minutes}
+              onPress={() => setDuration(minutes)}
+              style={({ pressed }) => [styles.calendarDurationChip, active && { backgroundColor: accentTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
+            >
+              <Text style={[styles.calendarDurationChipText, active && styles.calendarDurationChipTextActive]}>{formatDuration(minutes)}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
       <TimeWheelPicker
         accentSoftTone={accentSoftTone}
         accentTone={accentTone}
@@ -396,30 +401,18 @@ function DateTimePicker({
         </View>
         <Ionicons color={accentTone} name="calendar-outline" size={22} />
       </Pressable>
-      {showDateWheel && <View style={styles.calendarDateWheel}>
-          <View style={[styles.calendarDateWheelHighlight, { backgroundColor: accentSoftTone }]} />
-          {datePickerUnits.map((unit) => {
-            const dragHandlers = buildDragHandlers((direction) => stepActiveValue(unit.key, direction));
-            return (
-              <View key={unit.key} style={styles.calendarDateWheelColumn}>
-                <Pressable onPress={() => stepActiveValue(unit.key, 1)} style={({ pressed }) => [styles.calendarDateWheelStep, pressed && styles.pressedFeedback]}>
-                  <Ionicons color={accentTone} name="chevron-up" size={16} />
-                </Pressable>
-                <Pressable
-                  onPress={() => stepActiveValue(unit.key, 1)}
-                  style={({ pressed }) => [styles.calendarDateWheelValue, pressed && styles.pressedFeedback]}
-                  {...dragHandlers}
-                >
-                  <Text style={styles.calendarDateWheelLabel}>{unit.label}</Text>
-                  <Text adjustsFontSizeToFit numberOfLines={1} style={styles.calendarDateWheelText}>{values[unit.key]}</Text>
-                </Pressable>
-                <Pressable onPress={() => stepActiveValue(unit.key, -1)} style={({ pressed }) => [styles.calendarDateWheelStep, pressed && styles.pressedFeedback]}>
-                  <Ionicons color={accentTone} name="chevron-down" size={16} />
-                </Pressable>
-              </View>
-            );
-          })}
-      </View>}
+      {showDateWheel && (
+        <CalendarDatePickerGrid
+          accentSoftTone={accentSoftTone}
+          accentTone={accentTone}
+          onChange={(date) => {
+            setStartDateTime(date, startTime);
+            animatePickerLayout();
+            setShowDateWheel(false);
+          }}
+          value={startDate}
+        />
+      )}
     </View>
   );
 }
