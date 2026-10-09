@@ -148,7 +148,6 @@ export function CalendarPanel({
   // - sheetSizeProgress expands/collapses the already-open sheet.
   const compactSheetHeight = Math.min(380, Math.max(DAY_SHEET_HEIGHT, Math.round(windowSize.height * 0.42)));
   const expandedSheetHeight = Math.max(compactSheetHeight, windowSize.height - 120);
-  const targetDaySheetHeight = isDaySheetExpanded ? expandedSheetHeight : compactSheetHeight;
   const animatedDaySheetHeight = sheetSizeProgress.interpolate({ inputRange: [0, 1], outputRange: [compactSheetHeight, expandedSheetHeight] });
   const calendarBottom = Animated.multiply(sheetProgress, animatedDaySheetHeight);
   const sheetTranslateY = Animated.multiply(Animated.subtract(1, sheetProgress), animatedDaySheetHeight);
@@ -271,17 +270,21 @@ export function CalendarPanel({
         />
       )}
 
-      <Pressable
-        accessibilityLabel="일정 추가"
-        onPress={() => draft.openEditor(selectedDate)}
-        style={({ pressed }) => [
-          styles.calendarFloatingAddButton,
-          { backgroundColor: '#ffffff', borderColor: accentTone, bottom: isDaySheetOpen ? targetDaySheetHeight + 16 : 20, shadowColor: accentTone },
-          pressed && styles.pressedFeedback,
-        ]}
-      >
-        <AppActionIcon name="schedule" size={38} />
-      </Pressable>
+      {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
+      <Animated.View style={[styles.calendarFloatingAddDock, { bottom: Animated.add(calendarBottom, Animated.subtract(20, Animated.multiply(sheetProgress, 4))) }]}>
+        <Pressable
+          accessibilityLabel="일정 추가"
+          onPress={() => draft.openEditor(selectedDate)}
+          style={({ pressed }) => [
+            styles.calendarFloatingAddButton,
+            styles.calendarFloatingAddButtonDocked,
+            { backgroundColor: '#ffffff', borderColor: accentTone, shadowColor: accentTone },
+            pressed && styles.pressedFeedback,
+          ]}
+        >
+          <AppActionIcon name="schedule" size={38} />
+        </Pressable>
+      </Animated.View>
 
       <CalendarEventEditor
         accentSoftTone={accentSoftTone}

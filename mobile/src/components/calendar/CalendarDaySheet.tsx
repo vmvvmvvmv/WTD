@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import Reanimated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
@@ -166,11 +167,16 @@ export function CalendarDaySheet({
               <Text style={styles.calendarSelectionEmptyTitle}>{TEXT.emptyTitle}</Text>
             </View>
           </View>
-        ) : events.map((event) => {
+        ) : events.map((event, index) => {
           const risk = riskByEvent?.[event.id];
           const tone = risk?.tone ?? accentTone;
           return (
-            <View key={event.id} style={styles.calendarEventGroup}>
+            // 날짜를 바꾸면 일정이 위에서부터 차례로 살짝 올라오며 나타납니다.
+            <Reanimated.View
+              entering={FadeInDown.delay(Math.min(index, 5) * 50).duration(220).reduceMotion(ReduceMotion.System)}
+              key={event.id}
+              style={styles.calendarEventGroup}
+            >
               <View style={styles.calendarEventRow}>
                 <View style={[styles.calendarEventIcon, { backgroundColor: `${tone}14` }]}>
                   <AppActionIcon name={eventImage(event)} size={32} />
@@ -205,7 +211,7 @@ export function CalendarDaySheet({
                 </Pressable>
               </View>
               <OutfitCardContainer enabled={outfitEnabled} event={event} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} />
-            </View>
+            </Reanimated.View>
           );
         })}
       </ScrollView>
