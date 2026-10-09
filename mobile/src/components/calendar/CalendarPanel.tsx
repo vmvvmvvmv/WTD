@@ -6,6 +6,7 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
+import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
 import { buildCalendarRiskByEvent, buildSelectedCalendarForecast, type CalendarLocationForecast } from './calendarForecast';
 import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
@@ -35,6 +36,7 @@ export function CalendarPanel({
   onAddEvent,
   onAddEvents,
   onRemoveEvent,
+  onRemoveFollowingEvents,
   onUpdateEvent,
   onUpdateEventSeries,
   outfitEnabled,
@@ -58,6 +60,7 @@ export function CalendarPanel({
   onAddEvent: (event: CalendarEvent) => void;
   onAddEvents?: (events: CalendarEvent[]) => void;
   onRemoveEvent: (eventId: string) => void;
+  onRemoveFollowingEvents: (event: CalendarEvent) => void;
   onUpdateEvent?: (event: CalendarEvent) => void;
   onUpdateEventSeries?: (event: CalendarEvent) => void;
   outfitEnabled: boolean;
@@ -213,6 +216,13 @@ export function CalendarPanel({
     });
   };
 
+  const removeEvent = (event: CalendarEvent) => {
+    confirmCalendarEventRemoval(event, {
+      removeFollowing: () => onRemoveFollowingEvents(event),
+      removeOne: () => onRemoveEvent(event.id),
+    });
+  };
+
   const editEvent = (event: CalendarEvent) => {
     if (!event.repeatGroupId) {
       draft.openEditorForEvent(event);
@@ -254,7 +264,7 @@ export function CalendarPanel({
           onDismiss={() => setIsDaySheetOpen(false)}
           onEditEvent={editEvent}
           onExpandStateChange={setDaySheetExpanded}
-          onRemoveEvent={onRemoveEvent}
+          onRemoveEvent={removeEvent}
           outfitEnabled={outfitEnabled}
           outfitFallbackLocation={defaultLocation ?? undefined}
           outfitFigure={outfitFigure}

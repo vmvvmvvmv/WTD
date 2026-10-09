@@ -26,6 +26,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { WebView as WebViewType } from 'react-native-webview';
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
 import { buildCalendarRiskByEvent } from '../components/calendar/calendarForecast';
+import { withoutFollowingOccurrences } from '../components/calendar/calendarRepeat';
 import { buildOutingAccentTheme } from '../theme/appTheme';
 import { bauhausColors, textColors } from '../theme/bauhaus';
 import { DataPanel } from '../components/data/DataPanel';
@@ -822,6 +823,11 @@ export function AppContent() {
 
   const removeCalendarEvent = (eventId: string) => {
     setCalendarEvents((current) => current.filter((event) => event.id !== eventId));
+  };
+
+  // 반복 일정의 "이후 일정 모두" 삭제: 이 날짜와 그 뒤의 같은 반복 일정만 지웁니다.
+  const removeFollowingCalendarEvents = (target: CalendarEvent) => {
+    setCalendarEvents((current) => withoutFollowingOccurrences(current, target));
   };
 
   const updateCalendarEvent = (updatedEvent: CalendarEvent) => {
@@ -1886,6 +1892,7 @@ export function AppContent() {
               onAddEvent={addCalendarEvent}
               onAddEvents={addCalendarEvents}
               onRemoveEvent={removeCalendarEvent}
+              onRemoveFollowingEvents={removeFollowingCalendarEvents}
               onUpdateEvent={updateCalendarEvent}
               onUpdateEventSeries={updateCalendarEventSeries}
               outfitEnabled={outfitSettings.enabled}
@@ -2116,6 +2123,7 @@ export function AppContent() {
             calendarEvents={calendarEvents}
             eventLocationForecasts={calendarLocationForecasts}
             onDeleteCalendarEvent={removeCalendarEvent}
+            onDeleteFollowingCalendarEvents={removeFollowingCalendarEvents}
             onOpenCalendar={() => setActiveTab('calendar')}
             onOpenDetail={openSelectedRegionDetail}
             onOpenMap={() => {
