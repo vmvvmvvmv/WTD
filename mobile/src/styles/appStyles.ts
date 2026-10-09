@@ -698,6 +698,7 @@ export const styles = StyleSheet.create({
   calendarEventBody: { flex: 1, minWidth: 0 },
   calendarEventTitle: { color: textColors.primary, fontSize: 14, fontWeight: '700' },
   calendarEventMeta: { color: textColors.secondary, fontSize: 11, fontWeight: '600', lineHeight: 16, marginTop: 3 },
+  calendarEventForecast: { fontSize: 12, fontWeight: '700', marginTop: 3 },
   calendarEventMemo: { color: textColors.muted, fontSize: 11, fontWeight: '600', lineHeight: 16, marginTop: 2 },
   calendarGuideBadge: { borderRadius: 999, fontSize: 11, fontWeight: '700', overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 5 },
   calendarBadgeStack: { alignItems: 'flex-end', gap: 4 },
