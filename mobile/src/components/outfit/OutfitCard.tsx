@@ -172,23 +172,6 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
           {!!result.layering_tip && <Text style={outfitStyles.dualDescriptionSubtext}>{result.layering_tip}</Text>}
           {!!essentials && <Text style={outfitStyles.dualEssentials}>챙길 것 · {essentials}</Text>}
         </View>
-        {!!result.schedule_tips?.length && (
-          <View style={outfitStyles.scheduleTipList}>
-            {result.schedule_tips.slice(0, 2).map((tip) => (
-              <View key={`${tip.schedule_id}-${tip.time}`} style={outfitStyles.scheduleTipRow}>
-                <Text style={outfitStyles.scheduleTipTime}>{tip.time}</Text>
-                <View style={outfitStyles.scheduleTipBody}>
-                  <Text numberOfLines={1} style={outfitStyles.scheduleTipTitle}>{tip.title}</Text>
-                  <Text style={outfitStyles.scheduleTipMessage}>{tip.message}</Text>
-                  {!!tip.items.length && <Text style={outfitStyles.scheduleTipItems}>{tip.items.join(' · ')}</Text>}
-                </View>
-              </View>
-            ))}
-            {(result.schedule_tips.length > 2 || (result.total_schedules ?? 0) > 2) && (
-              <Text style={outfitStyles.scheduleTipMore}>나머지 일정도 기본 옷차림에 반영했어요.</Text>
-            )}
-          </View>
-        )}
         {showRetry && onRetry && <Pressable accessibilityLabel="옷차림 추천 다시 시도" onPress={onRetry} style={outfitStyles.retry}><Text style={outfitStyles.retryText}>다시 시도</Text></Pressable>}
       </Animated.View>
     );
