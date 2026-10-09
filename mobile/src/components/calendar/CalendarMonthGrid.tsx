@@ -116,7 +116,9 @@ export function CalendarMonthGrid({
         </Pressable>
       </View>
       <View style={styles.calendarWeekRow}>
-        {weekDays.map((day) => <Text key={day} style={styles.calendarWeekText}>{day}</Text>)}
+        {weekDays.map((day, index) => (
+          <Text key={day} style={[styles.calendarWeekText, index === 0 && styles.calendarWeekTextSunday, index === 6 && styles.calendarWeekTextSaturday]}>{day}</Text>
+        ))}
       </View>
       <Animated.View style={[styles.calendarGrid, monthAnimatedStyle]} {...swipeHandlers}>
         {weekRows.map((week, rowIndex) => (
