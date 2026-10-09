@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  AppState,
   BackHandler,
   Easing,
   ImageBackground,
@@ -1362,6 +1363,24 @@ export function AppContent() {
     setHasTriedInitialLocation(true);
     applyNearestGpsRegion();
   }, [hasLoadedRegionStore, hasTriedInitialLocation]);
+
+  // 서버는 예보를 매시 새로 모으므로, 홈에 머무는 동안 10분마다, 그리고 앱으로 돌아올 때마다 홈 예보를 다시 받습니다.
+  const loadDashboardRef = useRef(loadDashboard);
+  loadDashboardRef.current = loadDashboard;
+  useEffect(() => {
+    if (activeTab !== 'home') return;
+    const refresh = () => {
+      void loadDashboardRef.current(true);
+    };
+    const timer = setInterval(refresh, 10 * 60 * 1000);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refresh();
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [activeTab]);
 
   // 지도 탭 진입 시 GPS 기준 측정소로 초기 포커스를 한 번만 보냅니다.
   useEffect(() => {
