@@ -1,9 +1,9 @@
-﻿import { Animated, Easing, Image, Pressable, Text, View } from 'react-native';
+﻿import { AccessibilityInfo, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { Alert, ScrollView, useWindowDimensions } from 'react-native';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
@@ -19,7 +19,6 @@ import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/Outf
 
 type HomeCircularGaugeProps = {
   gaugeSize?: number;
-  label: string;
   large?: boolean;
   progress: number;
   tone: string;
@@ -302,7 +301,163 @@ function HomeWindOverlay() {
   );
 }
 
-function HomeCircularGauge({ gaugeSize, label, large = false, progress, tone, unit, value }: HomeCircularGaugeProps) {
+// 배경 이미지의 해 위치(왼쪽 위)에 맞춘 햇살 크기입니다.
+const HOME_SUN_GLOW_SIZE = 150;
+const HOME_SUN_RAY_SIZE = 280;
+const HOME_SUN_RAY_PATHS = Array.from({ length: 12 }, (_, index) => {
+  const angle = (index * 30 * Math.PI) / 180;
+  const spread = (index % 2 === 0 ? 4 : 2.5) * (Math.PI / 180);
+  const point = (theta: number) => `${(100 * Math.cos(theta)).toFixed(1)},${(100 * Math.sin(theta)).toFixed(1)}`;
+  return `M0,0 L${point(angle - spread)} L${point(angle + spread)} Z`;
+});
+
+function useLoopingValue(duration: number, mode: 'pingpong' | 'forward') {
+  const value = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const timing = (toValue: number) => Animated.timing(value, {
+      duration,
+      easing: mode === 'pingpong' ? Easing.inOut(Easing.sin) : Easing.linear,
+      toValue,
+      useNativeDriver: true,
+    });
+    const animation = Animated.loop(mode === 'pingpong' ? Animated.sequence([timing(1), timing(0)]) : timing(1));
+    animation.start();
+    return () => animation.stop();
+  }, [duration, mode, value]);
+  return value;
+}
+
+// 맑은 날: 해 주변 빛이 천천히 숨 쉬듯 커졌다 작아지고, 햇살이 아주 느리게 돕니다.
+function HomeClearSkyOverlay() {
+  const pulse = useLoopingValue(2200, 'pingpong');
+  const spin = useLoopingValue(36000, 'forward');
+  return (
+    <>
+      <Animated.View
+        style={[
+          styles.homeSunLayer,
+          { height: HOME_SUN_RAY_SIZE, marginLeft: -HOME_SUN_RAY_SIZE / 2, marginTop: -HOME_SUN_RAY_SIZE / 2, width: HOME_SUN_RAY_SIZE },
+          {
+            opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0.95] }),
+            transform: [
+              { rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) },
+              { scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.15] }) },
+            ],
+          },
+        ]}
+      >
+        <Svg height="100%" viewBox="-100 -100 200 200" width="100%">
+          <Defs>
+            <RadialGradient cx="0" cy="0" gradientUnits="userSpaceOnUse" id="homeSunRay" r="100">
+              <Stop offset="0" stopColor="#FFF4CC" stopOpacity="0.4" />
+              <Stop offset="1" stopColor="#FFF4CC" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          {HOME_SUN_RAY_PATHS.map((path) => <Path d={path} fill="url(#homeSunRay)" key={path} />)}
+        </Svg>
+      </Animated.View>
+      <Animated.View
+        style={[
+          styles.homeSunLayer,
+          { height: HOME_SUN_GLOW_SIZE, marginLeft: -HOME_SUN_GLOW_SIZE / 2, marginTop: -HOME_SUN_GLOW_SIZE / 2, width: HOME_SUN_GLOW_SIZE },
+          {
+            opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }),
+            transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.2] }) }],
+          },
+        ]}
+      >
+        <Svg height="100%" viewBox="-100 -100 200 200" width="100%">
+          <Defs>
+            <RadialGradient cx="0" cy="0" gradientUnits="userSpaceOnUse" id="homeSunGlow" r="100">
+              <Stop offset="0" stopColor="#FFF8DC" stopOpacity="0.75" />
+              <Stop offset="0.35" stopColor="#FFE9A8" stopOpacity="0.28" />
+              <Stop offset="1" stopColor="#FFE9A8" stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx="0" cy="0" fill="url(#homeSunGlow)" r="100" />
+        </Svg>
+      </Animated.View>
+      {HOME_SKY_GLINTS.map((glint) => <HomeSkyGlint key={`${glint.left}-${glint.top}`} {...glint} />)}
+      <HomeWindCloud delayMs={0} duration={16000} height={70} opacity={0.2} source={HOME_WIND_CLOUDS.small} top={18} width={140} />
+      <HomeWindCloud delayMs={7000} duration={21000} height={96} opacity={0.14} source={HOME_WIND_CLOUDS.large} top={92} width={180} />
+    </>
+  );
+}
+
+// 맑은 하늘에서 반짝이는 작은 빛 조각입니다. 위치와 시작 시점을 엇갈려 동시에 깜빡이지 않게 합니다.
+const HOME_SKY_GLINTS = [
+  { delayMs: 0, left: '32%', size: 7, top: '12%' },
+  { delayMs: 900, left: '48%', size: 5, top: '30%' },
+  { delayMs: 1700, left: '24%', size: 6, top: '44%' },
+  { delayMs: 2500, left: '62%', size: 4, top: '16%' },
+] as const;
+
+function HomeSkyGlint({ delayMs, left, size, top }: { delayMs: number; left: `${number}%`; size: number; top: `${number}%` }) {
+  const progress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const animation = Animated.loop(Animated.sequence([
+      Animated.delay(delayMs),
+      Animated.timing(progress, { duration: 700, easing: Easing.out(Easing.quad), toValue: 1, useNativeDriver: true }),
+      Animated.timing(progress, { duration: 900, easing: Easing.in(Easing.quad), toValue: 0, useNativeDriver: true }),
+      Animated.delay(3200 - delayMs),
+    ]));
+    animation.start();
+    return () => animation.stop();
+  }, [delayMs, progress]);
+  return (
+    <Animated.View
+      style={[
+        styles.homeSkyGlint,
+        {
+          borderRadius: size,
+          height: size,
+          left,
+          opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [0, 0.9] }),
+          top,
+          transform: [
+            { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [4, -4] }) },
+            { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1.4] }) },
+          ],
+          width: size,
+        },
+      ]}
+    />
+  );
+}
+
+// 흐린 날: 구름이 바람 부는 날보다 훨씬 느리게 흘러갑니다.
+function HomeCloudDriftOverlay() {
+  return (
+    <>
+      <HomeWindCloud delayMs={0} duration={13000} height={110} opacity={0.28} source={HOME_WIND_CLOUDS.large} top={-10} width={200} />
+      <HomeWindCloud delayMs={4000} duration={17000} height={84} opacity={0.22} source={HOME_WIND_CLOUDS.small} top={70} width={160} />
+      <HomeWindCloud delayMs={8500} duration={15000} height={70} opacity={0.18} source={HOME_WIND_CLOUDS.large} top={34} width={130} />
+    </>
+  );
+}
+
+// 날씨가 바뀌거나 화면이 처음 열릴 때 효과가 갑자기 튀어나오지 않도록 서서히 보여줍니다.
+function HomeMotionLayer({ children }: { children: ReactNode }) {
+  const opacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const animation = Animated.timing(opacity, { duration: 900, easing: Easing.out(Easing.quad), toValue: 1, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [opacity]);
+  return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>{children}</Animated.View>;
+}
+
+function useReduceMotion() {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => subscription.remove();
+  }, []);
+  return reduceMotion;
+}
+
+function HomeCircularGauge({ gaugeSize, large = false, progress, tone, unit, value }: HomeCircularGaugeProps) {
   const size = gaugeSize ?? (large ? 132 : 62);
   const stroke = large ? 10 : 6;
   const radius = (size - stroke) / 2;
@@ -337,7 +492,6 @@ function HomeCircularGauge({ gaugeSize, label, large = false, progress, tone, un
           />
         </Svg>
         <View style={styles.homeCircularGaugeCenter}>
-          <Text style={[styles.homeCircularGaugeLabel, large && styles.homeCircularGaugeLabelLarge]}>{label}</Text>
           <Text style={[styles.homeCircularGaugeValue, large && styles.homeCircularGaugeValueLarge]}>{value}</Text>
           <Text style={[styles.homeCircularGaugeUnit, large && styles.homeCircularGaugeUnitLarge]}>{unit}</Text>
         </View>
@@ -362,7 +516,7 @@ function HomeInfoGaugeSlide({ comparison, gaugeSize, label, progress, slideHeigh
   return (
     <View style={[styles.homeInfoSlide, styles.homeSplitGaugeSlide, { height: slideHeight, width }]}>
       <View style={[styles.homeSplitGaugeVisual, { width: gaugeSize + 4 }]}>
-        <HomeCircularGauge gaugeSize={gaugeSize} large label={label} progress={progress} tone={tone} unit={unit} value={value} />
+        <HomeCircularGauge gaugeSize={gaugeSize} large progress={progress} tone={tone} unit={unit} value={value} />
       </View>
       <View style={styles.homeSplitGaugeInfo}>
         <Text numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>
@@ -398,6 +552,7 @@ export function HomePanel({
   mapPreviewUrl,
   hourlyItems,
   pastItems,
+  loadFailed = false,
   weatherHourlyItems,
   weatherMidTermItems,
   prediction,
@@ -423,6 +578,8 @@ export function HomePanel({
   mapPreviewUrl: string;
   hourlyItems: HourlyDustItem[];
   pastItems: PastDustItem[];
+  // 서버에 연결하지 못해 보여줄 데이터가 없는 상태입니다. 단순히 아직 불러오는 중인 것과 구분합니다.
+  loadFailed?: boolean;
   weatherHourlyItems: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
   prediction: PredictionResponse | null;
@@ -462,7 +619,9 @@ export function HomePanel({
     todayDateLabel,
     weather,
     yesterdayWeather,
-  }), [currentO3, currentPm10, currentPm25, infoGaugeSize, pastItems, todayDateLabel, weather, yesterdayWeather]);
+  }).map((slide) => (loadFailed && (slide.value === '-' || slide.value === '--')
+    ? { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' }
+    : slide)), [currentO3, currentPm10, currentPm25, infoGaugeSize, loadFailed, pastItems, todayDateLabel, weather, yesterdayWeather]);
   const infoSlideCount = infoSlides.length;
   const carouselSlides = [infoSlides[infoSlideCount - 1], ...infoSlides, infoSlides[0]];
   useEffect(() => {
@@ -512,6 +671,7 @@ export function HomePanel({
   }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, todayCalendarEvents, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
   const weatherVisualKind = getWeatherVisualKind(weather?.label);
   const weatherMotionKind = getHomeWeatherMotionKind(weather?.label, weather?.windSpeed);
+  const reduceMotion = useReduceMotion();
   const weatherBackgroundKind = weatherMotionKind === 'wind' ? 'cloudy' : weatherVisualKind;
   const currentTimeLabel = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const activityGuideRows = useMemo(
@@ -527,6 +687,18 @@ export function HomePanel({
     ? [selectedOutfitEvent, ...remainingOutfitEvents.filter((event) => event.id !== selectedOutfitEvent.id)]
     : remainingOutfitEvents, [remainingOutfitEvents, selectedOutfitEvent]);
   const activeOutfitEvent = outfitEvents[0];
+  // 남은 일정이 없으면 지금부터 저녁까지를 하나의 외출로 보고 하루 날씨 기준 옷차림을 보여줍니다.
+  const currentHour = now.getHours();
+  const dayOutfitEvents = useMemo<CalendarEvent[]>(() => [{
+    activityType: 'outdoor',
+    date: todayDateLabel,
+    endTime: currentHour < 21 ? '22:00' : '23:59',
+    id: `day-outfit-${todayDateLabel}`,
+    sensitive: false,
+    time: `${String(currentHour).padStart(2, '0')}:00`,
+    title: '외출',
+  }], [currentHour, todayDateLabel]);
+  const displayedOutfitEvents = activeOutfitEvent ? outfitEvents : dayOutfitEvents;
   return (
     <View>
       <View style={styles.homeHeroBanner}>
@@ -538,10 +710,16 @@ export function HomePanel({
                 source={HOME_METRIC_BACKGROUNDS[weatherBackgroundKind]}
                 style={styles.homeGaugeFeatureImage}
               />
-              {(weatherMotionKind === 'rain' || weatherMotionKind === 'snow') && (
-                <HomeFallingWeatherOverlay kind={weatherMotionKind} />
+              {!reduceMotion && (
+                <HomeMotionLayer key={weatherMotionKind}>
+                  {(weatherMotionKind === 'rain' || weatherMotionKind === 'snow') && (
+                    <HomeFallingWeatherOverlay kind={weatherMotionKind} />
+                  )}
+                  {weatherMotionKind === 'wind' && <HomeWindOverlay />}
+                  {weatherMotionKind === 'clear' && <HomeClearSkyOverlay />}
+                  {weatherMotionKind === 'cloudy' && <HomeCloudDriftOverlay />}
+                </HomeMotionLayer>
               )}
-              {weatherMotionKind === 'wind' && <HomeWindOverlay />}
             <View style={[styles.homeInfoCarouselViewport, { height: infoSlideHeight }]}>
               <ScrollView
                 ref={infoCarouselRef}
@@ -606,8 +784,10 @@ export function HomePanel({
                 </ScrollView>
               ) : (
                 <View style={styles.homeHeroBannerForecastEmpty}>
-                  <Ionicons color="#7890AE" name="time-outline" size={18} />
-                  <Text style={styles.homeHeroBannerForecastEmptyText}>시간별 예보를 준비 중이에요</Text>
+                  <Ionicons color="#7890AE" name={loadFailed ? 'cloud-offline-outline' : 'time-outline'} size={18} />
+                  <Text style={styles.homeHeroBannerForecastEmptyText}>
+                    {loadFailed ? '서버에 연결되지 않아 예보를 불러오지 못했어요' : '시간별 예보를 준비 중이에요'}
+                  </Text>
                 </View>
               )}
             </View>
@@ -625,8 +805,19 @@ export function HomePanel({
         <View style={styles.activityGuideHeader}>
           <View style={styles.activityGuideHeaderTitleGroup}>
             <Text style={styles.activityGuideTitle}>오늘 활동 가이드</Text>
+            {activityGuideRows.length === 0 && <Text style={styles.activityGuideEmptyText}>오늘 등록된 일정이 없어요</Text>}
           </View>
-          {activityGuideRows.length > 0 && (
+          {activityGuideRows.length === 0 ? (
+            <Pressable
+              accessibilityLabel="일정 추가하러 가기"
+              accessibilityRole="button"
+              onPress={onOpenCalendar}
+              style={({ pressed }) => [styles.activityGuideAddChip, pressed && styles.pressedFeedback]}
+            >
+              <Ionicons color={accentTone} name="add" size={17} />
+              <Text style={[styles.activityGuideAddChipText, { color: accentTone }]}>일정 추가</Text>
+            </Pressable>
+          ) : (
             <Pressable
               accessibilityLabel="캘린더 열기"
               onPress={onOpenCalendar}
@@ -639,12 +830,7 @@ export function HomePanel({
             </Pressable>
           )}
         </View>
-        <View style={[styles.activityGuideList, activityGuideRows.length === 0 && styles.activityGuideListEmpty]}>
-          {activityGuideRows.length === 0 && (
-            <View style={styles.activityGuideEmptyBox}>
-              <Text style={styles.activityGuideRowTitle}>오늘 등록된 일정이 없어요</Text>
-            </View>
-          )}
+        {activityGuideRows.length > 0 && <View style={styles.activityGuideList}>
           {activityGuideRows.map((item) => {
             const selected = activeOutfitEvent?.id === item.id;
             const completed = item.isCompleted;
@@ -702,22 +888,18 @@ export function HomePanel({
               </View>
             );
           })}
-        </View>
-        <Pressable
+        </View>}
+        {activityGuideRows.length > 0 && <Pressable
           accessibilityLabel={"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}
           onPress={onOpenCalendar}
-          style={({ pressed }) => [
-            styles.activityGuideAddScheduleButton,
-            activityGuideRows.length === 0 && styles.activityGuideAddScheduleButtonEmpty,
-            pressed && styles.pressedFeedback,
-          ]}
+          style={({ pressed }) => [styles.activityGuideAddScheduleButton, pressed && styles.pressedFeedback]}
         >
           <View style={styles.activityGuideAddScheduleIcon}>
             <AppActionIcon name="schedule" size={27} />
           </View>
           <Text style={[styles.activityGuideAddScheduleText, { color: accentTone }]}>{"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}</Text>
           <Ionicons color={accentTone} name="chevron-forward" size={16} />
-        </Pressable>
+        </Pressable>}
       </View>
       {outfitEnabled && <View style={styles.homeOutfitSection}>
         <View style={styles.homeOutfitSectionHeader}>
@@ -726,25 +908,16 @@ export function HomePanel({
             <Text numberOfLines={1} style={styles.homeOutfitSectionMeta}>
               {outfitEvents.length > 1
                 ? `${outfitEvents.length}개 일정의 날씨를 함께 반영했어요`
-                : activeOutfitEvent ? `${activeOutfitEvent.time} · ${activeOutfitEvent.title}` : '일정 시간과 장소에 맞춰 추천해드려요'}
+                : activeOutfitEvent
+                  ? `${activeOutfitEvent.time} · ${activeOutfitEvent.title}`
+                  : `지금부터 ${dayOutfitEvents[0].endTime === '23:59' ? '자정' : '밤 10시'}까지 날씨를 반영했어요`}
             </Text>
           </View>
-          <View style={[styles.homeOutfitHeaderIcon, { backgroundColor: accentSoftTone }]}>
+          <View style={styles.homeOutfitHeaderIcon}>
             <HomeMotionActionIcon name="outfit" size={25} />
           </View>
         </View>
-        {activeOutfitEvent ? (
-          <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={outfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
-        ) : (
-          <Pressable
-            accessibilityLabel="옷차림 추천을 위한 일정 추가"
-            onPress={onOpenCalendar}
-            style={({ pressed }) => [styles.homeOutfitEmpty, pressed && styles.pressedFeedback]}
-          >
-            <Text style={styles.homeOutfitEmptyText}>일정을 등록하면 날씨와 대기질에 맞는 옷차림을 보여드려요.</Text>
-            <Ionicons color={accentTone} name="chevron-forward" size={17} />
-          </Pressable>
-        )}
+        <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={displayedOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
       </View>}
       <Pressable
         accessibilityLabel={"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}
@@ -755,7 +928,7 @@ export function HomePanel({
           <View style={styles.homeMapPreviewTitleGroup}>
             <Text style={styles.homeMapPreviewTitle}>{"\uC804\uAD6D \uB0A0\uC528 \uC9C0\uB3C4"}</Text>
           </View>
-          <View style={[styles.homeMapPreviewIconButton, { backgroundColor: accentSoftTone }]}>
+          <View style={styles.homeMapPreviewIconButton}>
             <HomeMotionActionIcon delayMs={420} name="map" size={29} />
           </View>
         </View>

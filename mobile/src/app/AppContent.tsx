@@ -26,6 +26,7 @@ import type { WebView as WebViewType } from 'react-native-webview';
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
 import { buildCalendarRiskByEvent } from '../components/calendar/calendarForecast';
 import { buildOutingAccentTheme } from '../theme/appTheme';
+import { bauhausColors } from '../theme/bauhaus';
 import { DataPanel } from '../components/data/DataPanel';
 import { WeatherDataPanel } from '../components/data/WeatherDataPanel';
 import type { WeatherDataMetricKey } from '../components/data/WeatherDataPanel';
@@ -38,6 +39,7 @@ import { styles } from '../styles/appStyles';
 import { AppTabBar } from '../navigation/AppTabBar';
 import { getTabRoute } from '../navigation/routes';
 import {
+  ApiHttpError,
   getCurrentDust,
   getKoreaStations,
   getOptionalPastDust,
@@ -560,7 +562,8 @@ export function AppContent() {
       }
     } catch (caught) {
       if (!cachedDashboard && !isStale()) {
-        setError(caught instanceof Error ? caught.message : 'API 연결에 실패했습니다.');
+        // 응답이 왔지만 실패한 경우와 서버에 닿지 못한 경우를 구분해 안내합니다.
+        setError(caught instanceof ApiHttpError ? '데이터를 불러오지 못했어요.' : '서버에 연결할 수 없어요.');
       }
     } finally {
       // 이전 지역 요청이 새 지역의 로딩 표시를 먼저 끄지 않도록 합니다.
@@ -1917,22 +1920,43 @@ export function AppContent() {
               <Pressable
                 accessibilityLabel="홈에서 지역 검색"
                 onPress={openHomeRegionSearch}
-                style={({ pressed }) => [styles.regionAddButton, showHomeRegionSearch && { backgroundColor: accentSoftTone, borderColor: accentTone }, pressed && styles.pressedFeedback]}
+                style={({ pressed }) => [styles.regionAddButton, pressed && styles.pressedFeedback]}
               >
                 <AppActionIcon name="search" size={22} />
                 <Text style={[styles.regionAddText, showHomeRegionSearch && { color: accentTone }]}>지역 검색</Text>
               </Pressable>
-              <View style={styles.homeWeatherChip}>
-                <Ionicons color="#f3b43f" name={getWeatherIcon(weather?.label)} size={20} />
-                <View>
-                  <Text style={styles.homeWeatherValue}>
-                    {typeof weather?.temperature === 'number' ? `${Math.round(weather.temperature)}°` : '--°'}
-                  </Text>
-                  <Text style={styles.homeWeatherLabel}>{weather?.label ?? '날씨'}</Text>
+              {/* 기온을 아직 모르면 "--° 날씨" 같은 빈 칩 대신 아예 숨깁니다. */}
+              {typeof weather?.temperature === 'number' && (
+                <View
+                  accessibilityLabel={`현재 ${Math.round(weather.temperature)}도${weather.label ? `, ${weather.label}` : ''}`}
+                  accessible
+                  style={styles.homeWeatherChip}
+                >
+                  <Ionicons color="#f3b43f" name={getWeatherIcon(weather.label)} size={20} />
+                  <View>
+                    <Text style={styles.homeWeatherValue}>{Math.round(weather.temperature)}°</Text>
+                    {!!weather.label && <Text style={styles.homeWeatherLabel}>{weather.label}</Text>}
+                  </View>
                 </View>
-              </View>
+              )}
             </View>
-            <Text style={styles.homeBasisText}>{formatCurrentBasis(currentItem)}</Text>
+            {error && !currentItem ? (
+              <Pressable
+                accessibilityLabel={`${error} 다시 시도`}
+                accessibilityRole="button"
+                hitSlop={8}
+                onPress={() => void loadDashboard(true)}
+                style={({ pressed }) => [styles.homeErrorRow, pressed && styles.pressedFeedback]}
+              >
+                <Ionicons color={bauhausColors.red} name="cloud-offline-outline" size={14} />
+                <Text style={styles.homeErrorText}>{error}</Text>
+                <Text style={[styles.homeErrorRetry, { color: accentTone }]}>다시 시도</Text>
+              </Pressable>
+            ) : (
+              <Text style={[styles.homeBasisText, currentItem?.source === 'stored_daily_latest' && styles.homeBasisTextFallback]}>
+                {formatCurrentBasis(currentItem)}
+              </Text>
+            )}
           </View>
         ) : activeTab === 'account' ? (
           <View style={styles.tabPageHeader}>
@@ -1947,47 +1971,51 @@ export function AppContent() {
         {activeTab === 'home' && showFavoritePicker && (
           <Animated.View style={[styles.favoritePicker, { opacity: homePanelOpacity, transform: [{ translateY: homePanelTranslateY }] }]}>
             <Text style={styles.favoritePickerTitle}>즐겨찾기 지역 선택</Text>
-            <View style={styles.favoritePickerList}>
-              {favoriteRegions.map((region) => {
-                const selected = isSameRegion(region, selectedRegion);
-                return (
-                  <View
-                    key={`${region.city}-${region.region}`}
-                    style={[styles.favoritePickerItem, selected && { backgroundColor: accentSoftTone, borderColor: accentTone }]}
-                  >
-                    <Pressable
-                      onPress={() => applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`)}
-                      style={({ pressed }) => [styles.favoritePickerSelectArea, pressed && styles.pressedFeedback]}
-                    >
-                      <Text style={[styles.favoritePickerText, selected && styles.favoritePickerTextActive]}>
-                        {region.city} {region.region}
-                      </Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityLabel="즐겨찾기 지역 삭제"
-                      onPress={() => removeFavoriteRegion(region)}
-                      style={({ pressed }) => [styles.favoritePickerRemoveButton, pressed && styles.pressedFeedback]}
-                    >
-                      <Text style={styles.favoriteRemoveText}>삭제</Text>
-                    </Pressable>
-                  </View>
-                );
-              })}
-            </View>
             {gpsRegion && !isSameRegion(gpsRegion, selectedRegion) && (
               <Pressable
+                accessibilityRole="button"
                 onPress={() => applyRegion(gpsRegion, `${gpsRegion.city} ${gpsRegion.region} 기준으로 돌아왔습니다.`)}
-                style={({ pressed }) => [styles.gpsRegionButton, pressed && styles.pressedFeedback]}
+                style={({ pressed }) => [styles.favoritePickerRow, pressed && styles.pressedFeedback]}
               >
-                <View style={styles.gpsRegionButtonIcon}>
-                  <Text style={styles.gpsRegionButtonIconText}>⌖</Text>
+                <Ionicons color={bauhausColors.red} name="navigate" size={17} style={styles.favoritePickerIcon} />
+                <View style={styles.homeRegionSuggestionTextGroup}>
+                  <Text style={styles.favoritePickerText}>{gpsRegion.region}</Text>
+                  <Text style={styles.homeRegionSuggestionMeta}>{gpsRegion.city} · 현재 위치</Text>
                 </View>
-                <View style={styles.gpsRegionButtonBody}>
-                  <Text style={styles.gpsRegionButtonLabel}>GPS 기준 지역</Text>
-                  <Text style={styles.gpsRegionButtonText}>{gpsRegion.city} {gpsRegion.region}</Text>
-                </View>
+                <Ionicons color="#B7C0CC" name="chevron-forward" size={18} />
               </Pressable>
             )}
+            {favoriteRegions.length === 0 && (
+              <Text style={styles.homeRegionSearchEmpty}>지역 검색에서 ☆를 눌러 즐겨찾기를 추가해 보세요.</Text>
+            )}
+            {favoriteRegions.map((region) => {
+              const selected = isSameRegion(region, selectedRegion);
+              return (
+                <View key={`${region.city}-${region.region}`} style={styles.favoritePickerRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected }}
+                    onPress={() => applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`)}
+                    style={({ pressed }) => [styles.favoritePickerSelectArea, pressed && styles.pressedFeedback]}
+                  >
+                    <Ionicons color="#E2B93B" name="star" size={17} style={styles.favoritePickerIcon} />
+                    <View style={styles.homeRegionSuggestionTextGroup}>
+                      <Text style={[styles.favoritePickerText, selected && { color: accentTone }]}>{region.region}</Text>
+                      <Text style={styles.homeRegionSuggestionMeta}>{region.city}</Text>
+                    </View>
+                    {selected && <Ionicons color={accentTone} name="checkmark" size={20} />}
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel={`${region.city} ${region.region} 즐겨찾기 삭제`}
+                    hitSlop={8}
+                    onPress={() => removeFavoriteRegion(region)}
+                    style={({ pressed }) => [styles.favoritePickerRemoveButton, pressed && styles.pressedFeedback]}
+                  >
+                    <Ionicons color="#B7C0CC" name="close" size={17} />
+                  </Pressable>
+                </View>
+              );
+            })}
           </Animated.View>
         )}
         {activeTab === 'home' && showHomeRegionSearch && (
@@ -2089,6 +2117,7 @@ export function AppContent() {
             weather={weather}
             yesterdayWeather={yesterdayWeather}
             pastItems={pastItems}
+            loadFailed={!!error && !currentItem}
           />
         )}
 
