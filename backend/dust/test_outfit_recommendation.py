@@ -219,3 +219,61 @@ class OutfitEndpointTests(SimpleTestCase):
     def test_missing_weather_returns_503(self, _mock_snapshot):
         response = self.client.post("/outfit/recommend/", data=request_payload(), content_type="application/json", HTTP_X_APP_TEST_TOKEN=os.getenv("APP_TEST_TOKEN", ""))
         self.assertEqual(response.status_code, 503)
+
+
+class ShowerVsRainTests(SimpleTestCase):
+    """잠깐 오는 비는 겉옷을 바꾸지 않되, 우산은 필수로 두고 시간대를 알린다."""
+
+    def _window(self, hours, rainy_hours, rain_mm=0.5, probability=None):
+        from datetime import datetime, timedelta, timezone as dt_timezone
+
+        start = datetime(2026, 10, 10, 12, tzinfo=dt_timezone(timedelta(hours=9)))
+        points = [
+            WeatherPoint(
+                temperature=18,
+                wind_speed=1,
+                rain_mm=rain_mm if hour in rainy_hours else 0,
+                rain_probability=probability if hour in rainy_hours else 10,
+                measured_at=start + timedelta(hours=hour),
+            )
+            for hour in range(hours)
+        ]
+        return aggregate_schedule_window(points, [], window=(start, start + timedelta(hours=hours)))
+
+    def test_two_hours_of_rain_in_a_long_day_is_showers_with_required_umbrella(self):
+        snap = self._window(10, {3, 4})
+        self.assertEqual(snap["weather_condition"], "showers")
+        self.assertEqual((snap["rain_start"], snap["rain_end"]), ("15:00", "17:00"))
+        result = build_rule_result(snap, activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertNotIn("방수", " ".join(result["outfit"]["outer"]))
+        umbrella = next(item for item in result["must_have"] if item["type"] == "umbrella")
+        self.assertEqual(umbrella["level"], "required")
+        self.assertIn("15~17시", umbrella["reason"])
+        self.assertIn("15~17시", result["summary"])
+
+    def test_rain_for_most_of_the_window_changes_the_outer(self):
+        snap = self._window(10, {1, 2, 3, 4, 5, 6})
+        self.assertEqual(snap["weather_condition"], "rain")
+        result = build_rule_result(snap, activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertIn("방수", result["outfit"]["outer"][0])
+
+    def test_short_schedule_with_any_rain_is_rain(self):
+        self.assertEqual(self._window(2, {1})["weather_condition"], "rain")
+
+    def test_brief_heavy_rain_is_rain(self):
+        self.assertEqual(self._window(10, {5}, rain_mm=5)["weather_condition"], "rain")
+
+    def test_brief_rain_probability_only_is_still_showers(self):
+        snap = self._window(10, {3}, rain_mm=0, probability=70)
+        self.assertEqual(snap["weather_condition"], "showers")
+        self.assertEqual(snap["rain_hours"], 1)
+
+    def test_daily_merge_keeps_normal_outer_when_one_short_schedule_hits_a_shower(self):
+        rainy = self._window(2, {1})  # 짧은 일정은 rain
+        dry = [self._window(3, set()) for _ in range(3)]
+        merged = merge_daily_snapshots([rainy, *dry])
+        self.assertEqual(rainy["weather_condition"], "rain")
+        self.assertEqual(merged["weather_condition"], "showers")
+        result = build_rule_result(merged, activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertNotIn("방수", " ".join(result["outfit"]["outer"]))
+        self.assertEqual(next(item for item in result["must_have"] if item["type"] == "umbrella")["level"], "required")
