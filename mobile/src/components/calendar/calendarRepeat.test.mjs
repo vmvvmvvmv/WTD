@@ -33,3 +33,12 @@ test('weekly repeat without weekdays falls back to the base event', () => {
   const events = buildRepeatedEvents(base, { endDate: '9999-12-31', mode: 'weekly', weekdays: [] });
   assert.equal(events.length, 1);
 });
+
+test('반복 일정 "이후 일정 모두" 삭제는 앞선 일정과 다른 일정은 남긴다', async () => {
+  const { withoutFollowingOccurrences } = await import('./calendarRepeat.ts');
+  const series = ['2026-10-10', '2026-10-17', '2026-10-24'].map((date, index) => ({ ...base, date, endDate: date, id: `s${index}`, repeatGroupId: 'g1' }));
+  const other = { ...base, date: '2026-10-20', endDate: '2026-10-20', id: 'other' };
+  const left = withoutFollowingOccurrences([...series, other], series[1]);
+  assert.deepEqual(left.map((event) => event.id), ['s0', 'other']);
+  assert.deepEqual(withoutFollowingOccurrences([other], other), []);
+});
