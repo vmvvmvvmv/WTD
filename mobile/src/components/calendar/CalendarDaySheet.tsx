@@ -6,6 +6,8 @@ import Reanimated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
 import { styles } from '../../styles/appStyles';
+import { bauhausColors, textColors } from '../../theme/bauhaus';
+import { getWeatherVisualKind } from '../../utils/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import type { CalendarEvent, OutfitFigure, OutfitSensitivity } from '../../types/dust';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
@@ -57,13 +59,6 @@ function activityLabel(event: CalendarEvent) {
 function impactLabel(event: CalendarEvent) {
   if (event.sensitive && event.activityType === 'outdoor') return TEXT.adjust;
   return TEXT.good;
-}
-
-function weatherIcon(label?: string): keyof typeof Ionicons.glyphMap {
-  if (label?.includes('비')) return 'rainy-outline';
-  if (label?.includes('눈')) return 'snow-outline';
-  if (label?.includes('흐림')) return 'cloud-outline';
-  return 'partly-sunny-outline';
 }
 
 function eventLocationMeta(event: CalendarEvent) {
@@ -131,19 +126,25 @@ export function CalendarDaySheet({
       </View>
       <View style={styles.calendarSelectionTopRow}>
         <View style={styles.calendarSelectionTitleGroup}>
-          <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : '#141821' }]}>
+          <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
             {selectedDate === todayDateLabel ? TEXT.today : formatSelectedDateTitle(selectedDate)}
           </Text>
           <Text style={styles.calendarSelectionSubText}>{formatDateDisplay(selectedDate)}</Text>
         </View>
         <View style={styles.calendarSelectionWeatherRow}>
           {typeof pm10 === 'number' && (
-            <MetricChip icon="leaf-outline" label="미세먼지" tone={accentTone} value={`${Math.round(pm10)}㎍/m³`} />
+            <MetricChip icon="leaf" label="미세먼지" tone={accentTone} value={`${Math.round(pm10)}㎍/m³`} />
           )}
           {typeof temperature === 'number' && (
-            <MetricChip icon="thermometer-outline" label="기온" tone="#c58a19" value={`${Math.round(temperature)}°`} />
+            <MetricChip icon="thermometer" label="기온" tone={bauhausColors.amber} value={`${Math.round(temperature)}°`} />
           )}
-          <MetricChip icon={weatherIcon(weatherLabel)} label="날씨" tone="#2f80ed" value={weatherLabel || '확인 중'} />
+          {/* 날씨 아이콘은 일정 줄과 같은 채운 아이콘 세트를 씁니다. */}
+          <MetricChip
+            icon={ACTIVITY_WEATHER_ICONS[getWeatherVisualKind(weatherLabel)].name}
+            label="날씨"
+            tone={ACTIVITY_WEATHER_ICONS[getWeatherVisualKind(weatherLabel)].color}
+            value={weatherLabel || '확인 중'}
+          />
         </View>
       </View>
       {weatherRisks.length > 0 && (
@@ -213,7 +214,7 @@ export function CalendarDaySheet({
                   {!!event.memo && <Text style={styles.calendarEventMemo}>{event.memo}</Text>}
                 </View>
                 <View style={styles.calendarBadgeStack}>
-                  {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: '#eef5ff', color: '#2f80ed' }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
+                  {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: bauhausColors.blueSoft, color: bauhausColors.blue }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
                   <Text style={[styles.calendarGuideBadge, { backgroundColor: `${tone}14`, color: tone }]}>{risk?.badge ?? impactLabel(event)}</Text>
                 </View>
                 <Pressable
