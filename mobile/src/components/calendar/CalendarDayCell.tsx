@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import type { StyleProp, ViewStyle } from 'react-native';
 import { useEffect } from 'react';
 import { Pressable, Text, View } from 'react-native';
-import Reanimated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
+import Reanimated, { FadeIn, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/dust';
@@ -111,7 +111,9 @@ export function CalendarDayCell({
           const tone = event.sensitive ? '#c58a19' : getEventTone(event);
 
           return (
-            <View
+            // 새로 저장한 일정의 선이 칸에 스르륵 나타납니다.
+            <Reanimated.View
+              entering={FadeIn.duration(260).reduceMotion(ReduceMotion.System)}
               key={`${date}-${event.id}`}
               style={[
                 styles.calendarEventLine,
@@ -129,7 +131,7 @@ export function CalendarDayCell({
               <Text numberOfLines={1} style={styles.calendarEventLineText}>
                 {(!isRangeEvent || isStart || startsWeek) ? event.title : ''}
               </Text>
-            </View>
+            </Reanimated.View>
           );
         })}
         {hiddenEventCount > 0 && (

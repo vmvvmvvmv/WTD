@@ -270,6 +270,7 @@ export function CalendarPanel({
         <CalendarDaySheet
           accentTone={accentTone}
           events={selectedEvents}
+          onAddEvent={() => draft.openEditor(selectedDate)}
           isExpanded={isDaySheetExpanded}
           onDismiss={() => setIsDaySheetOpen(false)}
           onEditEvent={editEvent}

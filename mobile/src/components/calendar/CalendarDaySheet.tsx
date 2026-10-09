@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useState } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
-import Reanimated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
+import Reanimated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
@@ -16,7 +17,7 @@ import { useCalendarDaySheetDrag } from './useCalendarDaySheetDrag';
 const TEXT = {
   adjust: '주의',
   day: '일',
-  emptyTitle: '일정이 없습니다.',
+  emptyTitle: '이 날은 일정이 없어요',
   good: '좋음',
   indoor: '실내',
   move: '이동',
@@ -26,6 +27,7 @@ const TEXT = {
 
 type Props = {
   accentTone: string;
+  onAddEvent?: () => void;
   events: CalendarEvent[];
   isExpanded?: boolean;
   onDismiss: () => void;
@@ -97,6 +99,7 @@ export function CalendarDaySheet({
   accentTone,
   events,
   isExpanded = false,
+  onAddEvent,
   onDismiss,
   onEditEvent,
   onExpandStateChange,
@@ -115,6 +118,11 @@ export function CalendarDaySheet({
   weatherLabel,
 }: Props) {
   const dragHandlers = useCalendarDaySheetDrag({ isExpanded, onDismiss, onExpandStateChange });
+  // 옷차림 카드는 기본으로 접어 두고, 펼친 일정만 추천을 불러옵니다(일정마다 요청이 가지 않게).
+  const [openOutfitIds, setOpenOutfitIds] = useState<string[]>([]);
+  const toggleOutfit = (eventId: string) => {
+    setOpenOutfitIds((current) => (current.includes(eventId) ? current.filter((id) => id !== eventId) : [...current, eventId]));
+  };
 
   return (
     <Animated.View style={[styles.calendarDaySheet, style]}>
@@ -162,6 +170,17 @@ export function CalendarDaySheet({
             <View style={styles.calendarEventBody}>
               <Text style={styles.calendarSelectionEmptyTitle}>{TEXT.emptyTitle}</Text>
             </View>
+            {onAddEvent && (
+              <Pressable
+                accessibilityLabel="이 날짜에 일정 추가"
+                accessibilityRole="button"
+                onPress={onAddEvent}
+                style={({ pressed }) => [styles.calendarEmptyAddButton, pressed && styles.pressedFeedback]}
+              >
+                <Ionicons color={accentTone} name="add" size={17} />
+                <Text style={[styles.calendarEmptyAddText, { color: accentTone }]}>일정 추가</Text>
+              </Pressable>
+            )}
           </View>
         ) : events.map((event, index) => {
           const risk = riskByEvent?.[event.id];
@@ -171,9 +190,11 @@ export function CalendarDaySheet({
           const weatherIconStyle = ACTIVITY_WEATHER_ICONS[weatherKind];
           const forecastLabel = risk ? activityForecastLabel(risk) : '';
           return (
-            // 날짜를 바꾸면 일정이 위에서부터 차례로 살짝 올라오며 나타납니다.
+            // 날짜를 바꾸면 일정이 차례로 올라오며 나타나고, 지운 일정은 흐려지며 사라지면서 아래 일정이 그 자리로 올라옵니다.
             <Reanimated.View
               entering={FadeInDown.delay(Math.min(index, 5) * 50).duration(220).reduceMotion(ReduceMotion.System)}
+              exiting={FadeOut.duration(160).reduceMotion(ReduceMotion.System)}
+              layout={LinearTransition.duration(200).reduceMotion(ReduceMotion.System)}
               key={event.id}
               style={styles.calendarEventGroup}
             >
@@ -210,7 +231,23 @@ export function CalendarDaySheet({
                   <AppActionIcon name="delete" size={24} />
                 </Pressable>
               </View>
-              <OutfitCardContainer enabled={outfitEnabled} event={event} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} />
+              {outfitEnabled && (
+                <Pressable
+                  accessibilityLabel={`${event.title} 옷차림 ${openOutfitIds.includes(event.id) ? '접기' : '보기'}`}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: openOutfitIds.includes(event.id) }}
+                  onPress={() => toggleOutfit(event.id)}
+                  style={({ pressed }) => [styles.calendarOutfitToggle, pressed && styles.pressedFeedback]}
+                >
+                  <Text style={[styles.calendarOutfitToggleText, { color: accentTone }]}>{openOutfitIds.includes(event.id) ? '옷차림 접기' : '옷차림 보기'}</Text>
+                  <Ionicons color={accentTone} name={openOutfitIds.includes(event.id) ? 'chevron-up' : 'chevron-down'} size={15} />
+                </Pressable>
+              )}
+              {outfitEnabled && openOutfitIds.includes(event.id) && (
+                <Reanimated.View entering={FadeInDown.duration(200).reduceMotion(ReduceMotion.System)} exiting={FadeOut.duration(140).reduceMotion(ReduceMotion.System)}>
+                  <OutfitCardContainer enabled={outfitEnabled} event={event} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} />
+                </Reanimated.View>
+              )}
             </Reanimated.View>
           );
         })}
