@@ -125,6 +125,10 @@ export function formatCurrentBasis(item?: CurrentDustItem | null, now = new Date
   if (!item?.dataTime) return '현재 데이터를 불러오는 중';
   const measuredAt = parseMeasurementTime(item.dataTime);
   if (!measuredAt) return `${item.dataTime} 기준`;
+  // 실시간 값이 없어 서버가 저장된 하루 평균으로 대신 보낸 경우, 지금 값으로 오해하지 않게 날짜만 밝힙니다.
+  if (item.source === 'stored_daily_latest') {
+    return `${measuredAt.getMonth() + 1}월 ${measuredAt.getDate()}일 하루 평균 · 실시간 측정값 없음`;
+  }
   const timestamp = [
     measuredAt.getFullYear(),
     String(measuredAt.getMonth() + 1).padStart(2, '0'),
