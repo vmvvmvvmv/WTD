@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# 훅 스크립트는 Windows에서도 LF로 둔다(셔뱅 줄이 CRLF면 실행이 깨질 수 있음)
+.githooks/* text eol=lf
