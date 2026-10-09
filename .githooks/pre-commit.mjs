@@ -59,7 +59,7 @@ if (problems.length > 0) {
 // 3) 모바일 TypeScript 변경 시 타입 검사
 if (staged.some((file) => /^mobile\/.*\.(ts|tsx)$/.test(file))) {
   console.error('[pre-commit] 모바일 타입 검사(tsc) 실행 중...');
-  const result = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tsconfig.json'], { cwd: 'mobile', shell: true, stdio: 'inherit' });
+  const result = spawnSync('npx tsc --noEmit -p tsconfig.json', { cwd: 'mobile', shell: true, stdio: 'inherit' });
   if (result.status !== 0) {
     console.error('\n[pre-commit] 타입 오류가 있어 커밋을 막았습니다. 위 오류를 고친 뒤 다시 커밋하세요.\n');
     process.exit(1);
