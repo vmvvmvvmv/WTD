@@ -603,7 +603,6 @@ export function HomePanel({
   const [carouselIndex, setCarouselIndex] = useState(1);
   const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
   const [mapPreviewRetryCount, setMapPreviewRetryCount] = useState(0);
-  const [selectedOutfitEventId, setSelectedOutfitEventId] = useState<string | null>(null);
   const infoSlideWidth = windowWidth;
   const infoSlideHeight = Math.max(146, Math.ceil(146 * fontScale));
   const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
@@ -688,16 +687,8 @@ export function HomePanel({
     () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent, todayDateLabel, currentTimeLabel),
     [activityGuideRiskByEvent, currentTimeLabel, todayCalendarEvents, todayDateLabel],
   );
-  const remainingOutfitEvents = useMemo(() => todayCalendarEvents.filter((event) => {
-    const endTime = event.endTime || event.time;
-    return event.date > todayDateLabel || endTime >= currentTimeLabel;
-  }), [currentTimeLabel, todayCalendarEvents, todayDateLabel]);
-  const selectedOutfitEvent = remainingOutfitEvents.find((event) => event.id === selectedOutfitEventId);
-  const outfitEvents = useMemo(() => selectedOutfitEvent
-    ? [selectedOutfitEvent, ...remainingOutfitEvents.filter((event) => event.id !== selectedOutfitEvent.id)]
-    : remainingOutfitEvents, [remainingOutfitEvents, selectedOutfitEvent]);
-  const activeOutfitEvent = outfitEvents[0];
-  // 남은 일정이 없으면 지금부터 저녁까지를 하나의 외출로 보고 하루 날씨 기준 옷차림을 보여줍니다.
+  // 오늘 옷차림은 일정과 관계없이 지금부터 저녁까지를 하나의 외출로 보고 하루 날씨로 추천합니다.
+  // 일정별 날씨는 위의 활동 가이드가 보여줍니다.
   const currentHour = now.getHours();
   const dayOutfitEvents = useMemo<CalendarEvent[]>(() => [{
     activityType: 'outdoor',
@@ -708,7 +699,6 @@ export function HomePanel({
     time: `${String(currentHour).padStart(2, '0')}:00`,
     title: '외출',
   }], [currentHour, todayDateLabel]);
-  const displayedOutfitEvents = activeOutfitEvent ? outfitEvents : dayOutfitEvents;
   return (
     <View>
       <View style={styles.homeHeroBanner}>
@@ -842,14 +832,12 @@ export function HomePanel({
         </View>
         {activityGuideRows.length > 0 && <View style={styles.activityGuideList}>
           {activityGuideRows.map((item) => {
-            const selected = activeOutfitEvent?.id === item.id;
             const completed = item.isCompleted;
             return (
               <View key={item.id} style={styles.activityGuideItemGroup}>
                 <Pressable
-                  accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''} 옷차림 추천 보기`}
-                  accessibilityState={{ selected }}
-                  onPress={() => setSelectedOutfitEventId(item.id)}
+                  accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''}, 캘린더에서 보기`}
+                  onPress={onOpenCalendar}
                   style={({ pressed }) => [styles.activityGuideRow, completed && styles.activityGuideRowCompleted, pressed && styles.pressedFeedback]}
                 >
                   <View
@@ -927,18 +915,14 @@ export function HomePanel({
           <View style={styles.homeOutfitSectionTitleGroup}>
             <Text style={styles.homeOutfitSectionTitle}>오늘 옷차림</Text>
             <Text numberOfLines={1} style={styles.homeOutfitSectionMeta}>
-              {outfitEvents.length > 1
-                ? `${outfitEvents.length}개 일정의 날씨를 함께 반영했어요`
-                : activeOutfitEvent
-                  ? `${activeOutfitEvent.time} · ${activeOutfitEvent.title}`
-                  : `지금부터 ${dayOutfitEvents[0].endTime === '23:59' ? '자정' : '밤 10시'}까지 날씨를 반영했어요`}
+              {`지금부터 ${dayOutfitEvents[0].endTime === '23:59' ? '자정' : '밤 10시'}까지 날씨를 반영했어요`}
             </Text>
           </View>
           <View style={styles.homeOutfitHeaderIcon}>
             <HomeMotionActionIcon name="outfit" size={25} />
           </View>
         </View>
-        <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={displayedOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
+        <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={dayOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
       </View>}
       <Pressable
         accessibilityLabel={"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}
