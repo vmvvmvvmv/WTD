@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -17,6 +18,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { buildOutfitWeatherAlert } from '../../features/outfit/outfitWeatherAlert';
 import { useOutfitRecommendation, type OutfitLoadStatus } from '../../features/outfit/useOutfitRecommendation';
 import type { CalendarEvent, OutfitFigure, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
 import { MustHaveIcon, OutfitIcon } from './OutfitIcon';
@@ -115,6 +117,23 @@ function MustHaveChip({ item, index }: { item: OutfitRecommendation['must_have']
   );
 }
 
+const ALERT_ICONS = { rain: 'umbrella-outline', snow: 'snow-outline', wind: 'flag-outline' } as const;
+
+// 비·눈·강풍이 있으면 카드 맨 위에서 몇 시에 어떤 날씨인지 먼저 알려줍니다.
+function WeatherAlertRow({ result }: { result: OutfitRecommendation }) {
+  const alert = buildOutfitWeatherAlert(result);
+  if (!alert) return null;
+  return (
+    <View accessibilityLabel={`${alert.title}. ${alert.detail}`} accessibilityRole="alert" accessible style={outfitStyles.weatherAlert}>
+      <Ionicons color={outfitStyles.weatherAlertTitle.color} name={ALERT_ICONS[alert.kind]} size={18} />
+      <View style={outfitStyles.weatherAlertBody}>
+        <Text style={outfitStyles.weatherAlertTitle}>{alert.title}</Text>
+        <Text style={outfitStyles.weatherAlertDetail}>{alert.detail}</Text>
+      </View>
+    </View>
+  );
+}
+
 export function OutfitCard({ figure, onRetry, result, showBothFigures = false, showRetry = false }: {
   figure: OutfitFigure;
   onRetry?: () => void;
@@ -137,6 +156,7 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
         entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)}
         style={[outfitStyles.card, outfitStyles.dualCard]}
       >
+        <WeatherAlertRow result={result} />
         <View style={outfitStyles.dualVisualRow}>
           <View style={outfitStyles.dualVisualPanel}>
             <Text style={outfitStyles.dualVisualLabel}>남성 옷차림</Text>
@@ -186,6 +206,7 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
         </View>
         <View style={outfitStyles.sourcePill}><Text style={outfitStyles.source}>{result.source === 'llm' ? 'AI 추천' : '기본 추천'}</Text></View>
       </View>
+      <WeatherAlertRow result={result} />
       <TempRangeBar maximum={result.weather_snapshot.feels_max} minimum={result.weather_snapshot.feels_min} />
       {!!result.must_have.length && <View style={outfitStyles.chipRow}>{result.must_have.map((item, index) => <MustHaveChip index={index} item={item} key={`${item.type}-${item.level}`} />)}</View>}
       <View style={outfitStyles.outfitRow}>{clothes.map((item, index) => <Animated.Text entering={SlideInRight.delay(index * 80).duration(OUTFIT_MOTION.transition).reduceMotion(ReduceMotion.System)} key={`${item}-${index}`} style={outfitStyles.outfitItem}>{item}</Animated.Text>)}</View>

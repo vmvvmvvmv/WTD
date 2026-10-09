@@ -227,9 +227,14 @@ export type OutfitRecommendation = {
     wind_max?: number | null;
     has_rain?: boolean;
     has_snow?: boolean;
-    weather_condition?: 'normal' | 'rain' | 'snow' | 'strong_wind' | string;
+    // 일정 시간대 안에서 비(또는 강수확률 60% 이상)가 있는 시간. "15:00"~"17:00"
+    rain_end?: string | null;
+    rain_hours?: number;
+    rain_start?: string | null;
+    total_hours?: number;
+    weather_condition?: 'normal' | 'rain' | 'showers' | 'snow' | 'strong_wind' | string;
   };
-  weather_condition?: 'normal' | 'rain' | 'snow' | 'strong_wind' | string;
+  weather_condition?: 'normal' | 'rain' | 'showers' | 'snow' | 'strong_wind' | string;
 };
 
 
