@@ -26,7 +26,7 @@ import type { WebView as WebViewType } from 'react-native-webview';
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
 import { buildCalendarRiskByEvent } from '../components/calendar/calendarForecast';
 import { buildOutingAccentTheme } from '../theme/appTheme';
-import { bauhausColors } from '../theme/bauhaus';
+import { bauhausColors, textColors } from '../theme/bauhaus';
 import { DataPanel } from '../components/data/DataPanel';
 import { WeatherDataPanel } from '../components/data/WeatherDataPanel';
 import type { WeatherDataMetricKey } from '../components/data/WeatherDataPanel';
@@ -1986,7 +1986,7 @@ export function AppContent() {
               </Pressable>
             )}
             {favoriteRegions.length === 0 && (
-              <Text style={styles.homeRegionSearchEmpty}>지역 검색에서 ☆를 눌러 즐겨찾기를 추가해 보세요.</Text>
+              <Text style={styles.homeRegionSearchEmpty}>지역 검색 결과의 별을 눌러 즐겨찾기를 추가해 보세요.</Text>
             )}
             {favoriteRegions.map((region) => {
               const selected = isSameRegion(region, selectedRegion);
@@ -2042,7 +2042,7 @@ export function AppContent() {
                     pressed && !isSameRegion(gpsRegion, selectedRegion) && styles.pressedFeedback,
                   ]}
                 >
-                  <Text style={[styles.homeGpsIcon, !isSameRegion(gpsRegion, selectedRegion) && { color: accentTone }]}>⌖</Text>
+                  <Ionicons color={isSameRegion(gpsRegion, selectedRegion) ? textColors.disabled : accentTone} name="locate" size={20} />
                 </Pressable>
               )}
             </View>
@@ -2077,7 +2077,7 @@ export function AppContent() {
                         onPress={() => toggleHomeSuggestionFavorite(station)}
                         style={({ pressed }) => [styles.homeRegionSuggestionStarButton, pressed && styles.pressedFeedback]}
                       >
-                        <Text style={[styles.homeRegionSuggestionStar, alreadyFavorite && styles.homeRegionSuggestionStarActive]}>★</Text>
+                        <Ionicons color={alreadyFavorite ? '#E2B93B' : textColors.disabled} name={alreadyFavorite ? 'star' : 'star-outline'} size={22} />
                       </Pressable>
                     </View>
                   );
