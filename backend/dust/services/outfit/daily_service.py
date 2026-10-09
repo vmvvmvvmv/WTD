@@ -5,6 +5,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
+from .aggregation import rain_condition
 from .constants import SYSTEM_PROMPT
 from .context_builder import OutfitContextError, OutfitRequest, build_outfit_request
 from .data_provider import load_schedule_snapshot
@@ -12,13 +13,13 @@ from .llm_client import build_llm_client, llm_input_for
 from .occasion import classify_occasion
 from .repository import get_cached_recommendation, save_cached_recommendation
 from .response_parser import validate_llm_output
-from .rule_engine import build_rule_result
+from .rule_engine import build_rule_result, rain_window_label
 from .service import CACHE_TTL, OutfitDataUnavailable, _base_response, _llm_allowed
 
 
 logger = logging.getLogger(__name__)
 MAX_DAILY_SCHEDULES = 12
-CONDITION_PRIORITY = {"snow": 4, "rain": 3, "strong_wind": 2, "normal": 1}
+CONDITION_PRIORITY = {"snow": 5, "rain": 4, "strong_wind": 3, "showers": 2, "normal": 1}
 
 
 def _requests(payload: dict) -> list[OutfitRequest]:
@@ -57,16 +58,27 @@ def merge_daily_snapshots(snapshots: list[dict]) -> dict:
         "pm25_max": max(_values(snapshots, "pm25_max"), default=None),
         "has_snow": any(snapshot.get("has_snow") for snapshot in snapshots),
         "has_rain": any(snapshot.get("has_rain") for snapshot in snapshots),
+        "rain_hours": sum(int(snapshot.get("rain_hours") or 0) for snapshot in snapshots),
+        "total_hours": sum(int(snapshot.get("total_hours") or 0) for snapshot in snapshots),
+        "rain_start": min((snapshot["rain_start"] for snapshot in snapshots if snapshot.get("rain_start")), default=None),
+        "rain_end": max((snapshot["rain_end"] for snapshot in snapshots if snapshot.get("rain_end")), default=None),
         "data_gaps": list(dict.fromkeys(gap for snapshot in snapshots for gap in snapshot.get("data_gaps", []))),
     }
     result["temp_range"] = round(result["feels_max"] - result["feels_min"], 1) if result["feels_min"] is not None and result["feels_max"] is not None else None
     condition = max((snapshot.get("weather_condition", "normal") for snapshot in snapshots), key=lambda value: CONDITION_PRIORITY.get(value, 0), default="normal")
+    # 하루 기본 복장은 짧은 일정 하나의 비 때문에 바꾸지 않는다. 일정 전체에서 비가 차지하는 비율로 다시 판단한다.
+    if result["total_hours"]:
+        rain_kind = rain_condition(result["rain_hours"], result["total_hours"], result["rain_mm_max"], None)
+    else:  # 비 시간 정보가 없는 스냅숏은 예전 기준(비가 있거나 강수확률 60% 이상이면 rain)을 따른다.
+        rain_kind = "rain" if result["has_rain"] or (result["rain_prob_max"] is not None and result["rain_prob_max"] >= 60) else None
     if result["has_snow"]:
         condition = "snow"
-    elif result["has_rain"] or (result["rain_prob_max"] is not None and result["rain_prob_max"] >= 60):
+    elif rain_kind == "rain":
         condition = "rain"
     elif result["wind_max"] is not None and result["wind_max"] >= 9:
         condition = "strong_wind"
+    elif rain_kind == "showers" or condition == "rain":
+        condition = "showers"
     result["weather_condition"] = condition
     return {key: round(value, 1) if isinstance(value, float) else value for key, value in result.items()}
 
@@ -78,6 +90,8 @@ def _severity(rule_result: dict) -> int:
         return 4
     if condition == "rain":
         return 3
+    if condition == "showers":
+        return 2
     if condition == "strong_wind":
         return 2
     if rule_result["must_have"]:
@@ -98,6 +112,9 @@ def _schedule_tip(request: OutfitRequest, rule_result: dict) -> dict | None:
         message = "나갈 때 생각보다 추울 수 있어요. 보온용품을 챙기세요."
     elif condition == "rain":
         message = "우산 챙기셨나요? 방수 겉옷도 있으면 좋아요."
+    elif condition == "showers":
+        window = rain_window_label(rule_result["weather_snapshot"])
+        message = f"{window}에 비 예보가 있어요. 우산을 챙기세요." if window else "잠깐 비 예보가 있어요. 우산을 챙기세요."
     elif condition == "strong_wind":
         message = "바람이 강해요. 바람막이가 있으면 좋겠어요."
     elif rule_result["occasion"] in {"running", "sport"}:
@@ -130,7 +147,7 @@ def _cache_key(entries: list[tuple[OutfitRequest, dict]], rule_result: dict) -> 
         "sensitivity": requests[0].sensitivity,
     }
     digest = hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-    return f"outfit:daily:v3:{digest}"
+    return f"outfit:daily:v4:{digest}"
 
 
 def recommend_daily_outfit(payload: dict, *, client_key: str = "") -> dict:

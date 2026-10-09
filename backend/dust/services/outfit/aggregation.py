@@ -1,8 +1,11 @@
 import math
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Iterable
 
-from .constants import DATA_GAP_LABELS
+from django.utils import timezone
+
+from .constants import DATA_GAP_LABELS, HEAVY_RAIN_MM, SHORT_SCHEDULE_HOURS, SUSTAINED_RAIN_RATIO
 
 
 @dataclass(frozen=True)
@@ -13,6 +16,7 @@ class WeatherPoint:
     rain_probability: float | None = None
     precipitation_type: str = ""
     label: str = ""
+    measured_at: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -45,7 +49,29 @@ def _precipitation_flags(point: WeatherPoint) -> tuple[bool, bool]:
     return has_snow, has_rain
 
 
-def aggregate_schedule_window(weather_points: list[WeatherPoint], air_points: list[AirPoint]) -> dict:
+def _is_rainy(point: WeatherPoint, has_rain: bool) -> bool:
+    return has_rain or (point.rain_probability is not None and point.rain_probability >= 60)
+
+
+def _hour_label(value: datetime) -> str:
+    return timezone.localtime(value).strftime("%H:00") if timezone.is_aware(value) else value.strftime("%H:00")
+
+
+def rain_condition(rain_hours: int, total_hours: int, rain_mm_max: float | None, window_hours: float | None) -> str | None:
+    """비가 있으면 옷까지 바꿀 비(rain)인지, 우산만 챙길 잠깐 비(showers)인지 고른다."""
+    if rain_hours <= 0:
+        return None
+    short_schedule = window_hours is not None and window_hours <= SHORT_SCHEDULE_HOURS
+    heavy = rain_mm_max is not None and rain_mm_max >= HEAVY_RAIN_MM
+    sustained = total_hours > 0 and rain_hours / total_hours >= SUSTAINED_RAIN_RATIO
+    return "rain" if short_schedule or heavy or sustained else "showers"
+
+
+def aggregate_schedule_window(
+    weather_points: list[WeatherPoint],
+    air_points: list[AirPoint],
+    window: tuple[datetime, datetime] | None = None,
+) -> dict:
     feels = _numbers(wind_chill(point.temperature, point.wind_speed) if point.temperature is not None else None for point in weather_points)
     rain_probabilities = _numbers(point.rain_probability for point in weather_points)
     rain_amounts = _numbers(point.rain_mm for point in weather_points)
@@ -55,6 +81,15 @@ def aggregate_schedule_window(weather_points: list[WeatherPoint], air_points: li
     precipitation_flags = [_precipitation_flags(point) for point in weather_points]
     has_snow = any(snow for snow, _rain in precipitation_flags)
     has_rain = any(rain for _snow, rain in precipitation_flags)
+    # 비 시간 비율은 일정 시간대에 걸친 시각만 센다(앞뒤 1시간 여유분은 기온 집계에만 쓴다).
+    in_window = [
+        (point, rain)
+        for point, (_snow, rain) in zip(weather_points, precipitation_flags)
+        if window is None or point.measured_at is None or window[0] - timedelta(hours=1) < point.measured_at < window[1]
+    ] or list(zip(weather_points, (rain for _snow, rain in precipitation_flags)))
+    rainy_times = sorted(point.measured_at for point, rain in in_window if _is_rainy(point, rain) and point.measured_at is not None)
+    rain_hours = sum(1 for point, rain in in_window if _is_rainy(point, rain))
+    window_hours = (window[1] - window[0]).total_seconds() / 3600 if window else None
     gaps = []
     if not feels:
         gaps.append(DATA_GAP_LABELS["temperature"])
@@ -71,10 +106,13 @@ def aggregate_schedule_window(weather_points: list[WeatherPoint], air_points: li
     wind_max = max(winds) if winds else None
     rain_prob_max = max(rain_probabilities) if rain_probabilities else None
     rain_mm_max = max(rain_amounts) if rain_amounts else None
+    rain_kind = rain_condition(rain_hours, len(in_window), rain_mm_max, window_hours)
     if has_snow:
         weather_condition = "snow"
-    elif has_rain or (rain_prob_max is not None and rain_prob_max >= 60):
+    elif rain_kind == "rain":
         weather_condition = "rain"
+    elif rain_kind == "showers" and not (wind_max is not None and wind_max >= 9):
+        weather_condition = "showers"
     elif wind_max is not None and wind_max >= 9:
         weather_condition = "strong_wind"
     else:
@@ -89,6 +127,10 @@ def aggregate_schedule_window(weather_points: list[WeatherPoint], air_points: li
         "wind_max": round(wind_max, 1) if wind_max is not None else None,
         "has_snow": has_snow,
         "has_rain": has_rain,
+        "rain_hours": rain_hours,
+        "total_hours": len(in_window),
+        "rain_start": _hour_label(rainy_times[0]) if rainy_times else None,
+        "rain_end": _hour_label(rainy_times[-1] + timedelta(hours=1)) if rainy_times else None,
         "weather_condition": weather_condition,
         "pm10_max": round(max(pm10_values), 1) if pm10_values else None,
         "pm25_max": round(max(pm25_values), 1) if pm25_values else None,
