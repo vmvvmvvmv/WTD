@@ -280,7 +280,7 @@ export function CalendarPanel({
           pressed && styles.pressedFeedback,
         ]}
       >
-        <AppActionIcon name="schedule" size={38} style={styles.calendarFloatingAddIcon} />
+        <AppActionIcon name="schedule" size={38} />
       </Pressable>
 
       <CalendarEventEditor
