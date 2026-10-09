@@ -165,6 +165,7 @@ export const styles = StyleSheet.create({
   homeHeroBannerForecastTimeCurrent: { color: '#246FD6', fontWeight: '700' },
   homeHeroBannerForecastTemp: { color: textColors.heading, fontSize: 15, fontWeight: '900' },
   homeHeroBannerForecastRain: { color: textColors.muted, fontSize: 9, fontWeight: '600' },
+  homeHeroBannerForecastRainActive: { color: bauhausColors.blue, fontSize: 10, fontWeight: '900' },
   homeHeroBannerAirRow: { borderTopColor: '#DCE4F0', borderTopWidth: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, paddingTop: 9 },
   homeHeroBannerAirText: { color: textColors.muted, flexBasis: '48%', fontSize: 9, fontWeight: '600' },
   homeMapPreviewCard: { backgroundColor: '#FFFFFF', borderBottomColor: '#E7EDF5', borderBottomWidth: 1, marginTop: 12, overflow: 'hidden' },
