@@ -17,6 +17,11 @@
 - 백엔드: `backend`에서 `venv\Scripts\python.exe manage.py test dust app` (가상환경 `backend\venv`, Python 3.11. 시스템 `python`은 3.14·Django 6이라 쓰지 않는다)
 - 모바일: `mobile`에서 `npm run typecheck`, `npm run lint`, `node --test src/**/*.test.mjs`
 
+## 자동 검사 (훅)
+- 커밋 전 검사 `.githooks/pre-commit`이 비밀 파일(.env, google-services.json, 키 파일), 키·토큰 모양 문자열, 로컬 .env의 실제 비밀 값이 커밋에 섞였는지 확인하고, 모바일 TS 파일이 바뀌었으면 `tsc`를 실행한다. 막히면 원인을 고친다. `--no-verify`로 우회하지 않는다.
+- 새 PC에서 클론했다면 한 번 실행한다: `git config core.hooksPath .githooks`
+- Claude Code에서는 `.claude/settings.json`의 훅이 `.env` 읽기를 막는다.
+
 ## 작업 기록
 - 작업을 마치면 두 곳에 남긴다.
   1. `WEATHERTODO_HANDOFF.md` 맨 아래에 번호를 이어 섹션을 추가한다(날짜·작성자·변경 요약·검증 결과).
