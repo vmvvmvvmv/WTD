@@ -7,6 +7,7 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
+import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
 import { buildHomeActivityGuideItems, type ActivityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
@@ -648,11 +649,15 @@ export function HomePanel({
       const itemDate = item.date || item.measuredAt?.slice(0, 10) || '';
       const itemTime = item.hour?.slice(0, 5) || item.measuredAt?.slice(11, 16) || '--:--';
       const isCurrent = itemDate === todayDateLabel && Number(itemTime.slice(0, 2)) === now.getHours();
+      const rainProbability = toNumber(item.rain_probability);
+      const visualKind = getWeatherVisualKind(item.label);
       return {
         isCurrent,
+        // 비·눈이 예보됐거나 강수확률 60% 이상인 시간은 파란색으로 강조합니다.
+        isRainy: visualKind === 'rain' || visualKind === 'snow' || (rainProbability ?? 0) >= 60 || (toNumber(item.rain_mm) ?? 0) > 0,
         key: `${itemDate || item.measuredAt || 'hour'}-${item.hour || index}`,
         label: item.label || '날씨 확인 중',
-        rainProbability: toNumber(item.rain_probability),
+        rainProbability,
         temperature: toNumber(item.temperature),
         timeLabel: isCurrent
           ? '지금'
@@ -772,11 +777,11 @@ export function HomePanel({
                       style={[styles.homeHeroBannerForecastItem, item.isCurrent && styles.homeHeroBannerForecastItemCurrent]}
                     >
                       <Text style={[styles.homeHeroBannerForecastTime, item.isCurrent && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
-                      <Ionicons color="#6A7FA8" name={getWeatherIcon(item.label)} size={21} />
+                      <Ionicons color={item.isRainy ? bauhausColors.blue : '#6A7FA8'} name={getWeatherIcon(item.label)} size={21} />
                       <Text style={styles.homeHeroBannerForecastTemp}>
                         {item.temperature === undefined ? '-' : `${Math.round(item.temperature)}°`}
                       </Text>
-                      <Text style={styles.homeHeroBannerForecastRain}>
+                      <Text style={[styles.homeHeroBannerForecastRain, item.isRainy && styles.homeHeroBannerForecastRainActive]}>
                         {item.rainProbability === undefined ? '강수 -' : `강수 ${Math.round(item.rainProbability)}%`}
                       </Text>
                     </View>
