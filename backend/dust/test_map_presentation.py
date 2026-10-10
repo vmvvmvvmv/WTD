@@ -1,4 +1,5 @@
 import os
+from unittest.mock import patch
 
 from django.test import SimpleTestCase
 
@@ -23,6 +24,7 @@ class MapPresentationTests(SimpleTestCase):
     def test_mobile_map_response_contains_legend_and_semantic_tokens(self):
         response = self.client.get('/dust/mobile-map/', {'view': 'preview', 'app_test_token': os.environ.get('APP_TEST_TOKEN', '')})
         self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'dust/mobile_map.html')
         self.assertContains(response, 'id="map-legend"')
         self.assertContains(response, '--air-good: #3D7FEA')
         self.assertContains(response, '정보 없음')
@@ -40,3 +42,10 @@ class MapPresentationTests(SimpleTestCase):
         response = self.client.get('/dust/mobile-map/', {'mode': 'dust', 'app_test_token': os.environ.get('APP_TEST_TOKEN', '')})
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "let mapMode = 'dust'")
+
+    @patch('dust.views.NAVER_MAP_CLIENT_ID', '</script><script>alert(1)</script>')
+    def test_map_client_id_cannot_close_inline_script(self):
+        response = self.client.get('/dust/mobile-map/', {'app_test_token': os.environ.get('APP_TEST_TOKEN', '')})
+        html = response.content.decode()
+        self.assertNotIn('</script><script>alert(1)</script>', html)
+        self.assertIn('\\u003C/script\\u003E', html)
