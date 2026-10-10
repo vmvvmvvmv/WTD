@@ -30,10 +30,12 @@ export function monthLabel(year: number, month: number) {
   return `${year}년 ${month + 1}월`;
 }
 
+export type CalendarMonthCell = { date: string; day: number; inMonth: boolean } | null;
+
 export function buildMonthCells(year: number, month: number) {
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const cells: Array<{ date: string; day: number; inMonth: boolean } | null> = [];
+  const cells: CalendarMonthCell[] = [];
   for (let index = 0; index < firstDay; index += 1) cells.push(null);
   for (let day = 1; day <= daysInMonth; day += 1) {
     cells.push({ date: formatDate(year, month, day), day, inMonth: true });

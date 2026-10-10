@@ -1,47 +1,25 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
-import { useReducedMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
-import { AppActionIcon } from '../shared/AppActionIcon';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
+import { AppActionIcon } from '../shared/AppActionIcon';
+import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
-import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
-import { buildCalendarRiskByEvent, buildSelectedCalendarForecast, type CalendarLocationForecast } from './calendarForecast';
-import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
-import type { CalendarLocationCandidate } from './calendarLocation';
-import {
-  addDays,
-  buildMonthCells,
-  buildWeekCells,
-  eventTone,
-  formatDate,
-  isDateInEventRange,
-  dayLabel,
-  monthLabel,
-  parseDateParts,
-  startOfWeek,
-  weekLabel,
-} from './calendarUtils';
-import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarTimeline } from './CalendarTimeline';
 import { CalendarViewTabs } from './CalendarViewTabs';
 import { CalendarYearGrid } from './CalendarYearGrid';
+import { buildCalendarRiskByEvent, buildSelectedCalendarForecast, type CalendarLocationForecast } from './calendarForecast';
+import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
+import type { CalendarLocationCandidate } from './calendarLocation';
+import { addDays, buildMonthCells, buildWeekCells, dayLabel, eventTone, isDateInEventRange, monthLabel, parseDateParts, weekLabel } from './calendarUtils';
 import { topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
+import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
-
-const DAY_SHEET_HEIGHT = 300;
-
-type CalendarViewMode = 'list' | 'day' | 'week' | 'month' | 'year';
-const VIEW_MODES: Array<{ key: CalendarViewMode; label: string }> = [
-  { key: 'list', label: '목록' },
-  { key: 'day', label: '일' },
-  { key: 'week', label: '주' },
-  { key: 'month', label: '월' },
-  { key: 'year', label: '년' },
-];
+import { useCalendarNavigation, VIEW_MODES } from './useCalendarNavigation';
 
 export function CalendarPanel({
   accentBorderTone,
@@ -95,29 +73,21 @@ export function CalendarPanel({
   weatherMidTermItems?: WeatherMidTermItem[];
 }) {
   const windowSize = useWindowDimensions();
-  const [selectedDate, setSelectedDate] = useState(todayDateLabel);
-  const [monthTransitionDirection, setMonthTransitionDirection] = useState(1);
-  const [visibleMonth, setVisibleMonth] = useState(() => {
-    const parts = parseDateParts(todayDateLabel);
-    return { month: parts.month, year: parts.year };
-  });
-  // 켜 둔 채 날짜가 바뀌면, 어제(=예전 오늘)를 보고 있던 경우에만 새 오늘로 옮깁니다.
-  const previousTodayRef = useRef(todayDateLabel);
-  useEffect(() => {
-    const previousToday = previousTodayRef.current;
-    previousTodayRef.current = todayDateLabel;
-    if (previousToday === todayDateLabel) return;
-    const next = parseDateParts(todayDateLabel);
-    const previous = parseDateParts(previousToday);
-    setSelectedDate((current) => (current === previousToday ? todayDateLabel : current));
-    setVisibleMonth((current) => (current.year === previous.year && current.month === previous.month ? { month: next.month, year: next.year } : current));
-  }, [todayDateLabel]);
-  const [isDaySheetOpen, setIsDaySheetOpen] = useState(false);
-  const [isDaySheetExpanded, setIsDaySheetExpanded] = useState(false);
-  const [shouldRenderDaySheet, setShouldRenderDaySheet] = useState(false);
   const draft = useCalendarEventDraft(todayDateLabel, defaultLocation);
-  const sheetProgress = useRef(new Animated.Value(0)).current;
-  const sheetSizeProgress = useRef(new Animated.Value(0)).current;
+  const sheet = useCalendarDaySheet(windowSize.height);
+  const {
+    changeViewMode,
+    goToday,
+    movePeriod,
+    selectedDate,
+    selectYearMonth,
+    setSelectedDate,
+    transitionDirection,
+    viewAnimatedStyle,
+    viewMode,
+    visibleMonth,
+    weekStart,
+  } = useCalendarNavigation(todayDateLabel, sheet.close);
 
   const sortedEvents = useMemo(
     () => [...events].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
@@ -127,9 +97,6 @@ export function CalendarPanel({
     () => sortedEvents.filter((event) => isDateInEventRange(selectedDate, event)),
     [selectedDate, sortedEvents],
   );
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
-  // 일·주 보기는 고른 날짜(가 들어 있는 주)를 보여줍니다.
-  const weekStart = startOfWeek(selectedDate);
   const monthCells = useMemo(() => {
     if (viewMode === 'week') return buildWeekCells(weekStart);
     if (viewMode === 'day') return [{ date: selectedDate, day: parseDateParts(selectedDate).day, inMonth: true }];
@@ -207,127 +174,10 @@ export function CalendarPanel({
     [selectedEvents, selectedRiskByEvent],
   );
 
-  // The day sheet has two independent animations:
-  // - sheetProgress slides the sheet in/out after a date is selected.
-  // - sheetSizeProgress expands/collapses the already-open sheet.
-  const compactSheetHeight = Math.min(380, Math.max(DAY_SHEET_HEIGHT, Math.round(windowSize.height * 0.42)));
-  const expandedSheetHeight = Math.max(compactSheetHeight, windowSize.height - 120);
-  const animatedDaySheetHeight = sheetSizeProgress.interpolate({ inputRange: [0, 1], outputRange: [compactSheetHeight, expandedSheetHeight] });
-  const calendarBottom = Animated.multiply(sheetProgress, animatedDaySheetHeight);
-  const sheetTranslateY = Animated.multiply(Animated.subtract(1, sheetProgress), animatedDaySheetHeight);
-
-  const closeDaySheet = () => {
-    setIsDaySheetOpen(false);
-    setIsDaySheetExpanded(false);
-    sheetSizeProgress.setValue(0);
-  };
-
-  // 화살표·스와이프 한 칸: 일 보기는 하루, 주 보기는 7일, 월 보기는 한 달, 년 보기는 1년.
-  const moveMonth = (offset: number) => {
-    setMonthTransitionDirection(offset >= 0 ? 1 : -1);
-    if (viewMode === 'week' || viewMode === 'day') {
-      const nextDate = addDays(selectedDate, offset * (viewMode === 'week' ? 7 : 1));
-      const parts = parseDateParts(nextDate);
-      setSelectedDate(nextDate);
-      setVisibleMonth({ month: parts.month, year: parts.year });
-    } else {
-      const next = new Date(visibleMonth.year, visibleMonth.month + offset * (viewMode === 'year' ? 12 : 1), 1);
-      setVisibleMonth({ month: next.getMonth(), year: next.getFullYear() });
-    }
-    closeDaySheet();
-  };
-
-  // 다른 기간을 보다가 "오늘"을 누르면 오늘이 있는 기간으로 (방향에 맞게) 넘어가고 오늘을 고릅니다.
-  const [todayYear, todayMonth] = todayDateLabel.split('-').map(Number);
-  const isViewingTodayMonth = visibleMonth.year === todayYear && visibleMonth.month === todayMonth - 1;
-  const isViewingToday = viewMode === 'day' ? selectedDate === todayDateLabel
-    : viewMode === 'week' ? weekStart === startOfWeek(todayDateLabel)
-      : viewMode === 'year' ? visibleMonth.year === todayYear : isViewingTodayMonth;
-  const goToday = () => {
-    const isForward = viewMode === 'week' || viewMode === 'day'
-      ? todayDateLabel >= selectedDate
-      : todayYear * 12 + todayMonth - 1 >= visibleMonth.year * 12 + visibleMonth.month;
-    setMonthTransitionDirection(isForward ? 1 : -1);
-    setVisibleMonth({ month: todayMonth - 1, year: todayYear });
-    setSelectedDate(todayDateLabel);
-    closeDaySheet();
-  };
-
-  const changeViewMode = (mode: CalendarViewMode) => {
-    if (mode === viewMode) return;
-    if ((mode === 'week' || mode === 'day') && viewMode !== 'week' && viewMode !== 'day' && !selectedDate.startsWith(formatDate(visibleMonth.year, visibleMonth.month, 1).slice(0, 8))) {
-      // 보던 달 밖의 날짜가 골라져 있으면, 보던 달(이번 달이면 오늘)의 주로 엽니다.
-      setSelectedDate(isViewingTodayMonth ? todayDateLabel : formatDate(visibleMonth.year, visibleMonth.month, 1));
-    }
-    if (mode === 'month' && (viewMode === 'week' || viewMode === 'day')) {
-      const parts = parseDateParts(selectedDate);
-      setVisibleMonth({ month: parts.month, year: parts.year });
-    }
-    closeDaySheet();
-    setViewMode(mode);
-  };
-
-  // 보기를 바꿀 때: 더 큰 단위(일→주→월→년)로 가면 살짝 줄어들며, 작은 단위로 가면 살짝 커지며 나타납니다(줌 느낌).
-  const reduceMotion = useReducedMotion();
-  const viewProgress = useRef(new Animated.Value(1)).current;
-  const previousViewModeRef = useRef(viewMode);
-  const [viewZoomFrom, setViewZoomFrom] = useState(1);
-  useLayoutEffect(() => {
-    const order = VIEW_MODES.map((mode) => mode.key);
-    const previous = previousViewModeRef.current;
-    previousViewModeRef.current = viewMode;
-    if (previous === viewMode || reduceMotion) return;
-    setViewZoomFrom(order.indexOf(viewMode) > order.indexOf(previous) ? 1.05 : 0.95);
-    viewProgress.setValue(0);
-    Animated.timing(viewProgress, { duration: 240, toValue: 1, useNativeDriver: true }).start();
-  }, [reduceMotion, viewMode, viewProgress]);
-  const viewAnimatedStyle = {
-    opacity: viewProgress,
-    transform: [{ scale: viewProgress.interpolate({ inputRange: [0, 1], outputRange: [viewZoomFrom, 1] }) }],
-  };
-
-  const selectYearMonth = (month: number) => {
-    setVisibleMonth({ month, year: visibleMonth.year });
-    setViewMode('month');
-  };
-
   const selectDate = (nextDate: string, options?: { openSheet?: boolean }) => {
     setSelectedDate(nextDate);
-    setIsDaySheetOpen(options?.openSheet !== false);
+    sheet.setIsOpen(options?.openSheet !== false);
   };
-
-  const setDaySheetExpanded = (expanded: boolean) => {
-    setIsDaySheetExpanded(expanded);
-    Animated.timing(sheetSizeProgress, {
-      duration: 220,
-      toValue: expanded ? 1 : 0,
-      useNativeDriver: false,
-    }).start();
-  };
-
-  useEffect(() => {
-    if (isDaySheetOpen) {
-      setShouldRenderDaySheet(true);
-      Animated.timing(sheetProgress, {
-        duration: 220,
-        toValue: 1,
-        useNativeDriver: false,
-      }).start();
-      return;
-    }
-
-    Animated.timing(sheetProgress, {
-      duration: 180,
-      toValue: 0,
-      useNativeDriver: false,
-    }).start(({ finished }) => {
-      if (finished) setShouldRenderDaySheet(false);
-      if (finished) {
-        setIsDaySheetExpanded(false);
-        sheetSizeProgress.setValue(0);
-      }
-    });
-  }, [isDaySheetOpen, sheetProgress, sheetSizeProgress]);
 
   const saveEvent = () => {
     draft.saveEvent({
@@ -335,7 +185,7 @@ export function CalendarPanel({
       onAddEvents,
       onSaved: (date) => {
         setSelectedDate(date);
-        setIsDaySheetOpen(true);
+        sheet.setIsOpen(true);
       },
       onUpdateEvent,
       onUpdateEventSeries,
@@ -364,7 +214,7 @@ export function CalendarPanel({
 
   return (
     <View style={styles.calendarPanel}>
-      <Animated.View style={[styles.calendarFullStage, { bottom: calendarBottom }]}>
+      <Animated.View style={[styles.calendarFullStage, { bottom: sheet.calendarBottom }]}>
         <CalendarViewTabs accentTone={accentTone} onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
@@ -377,13 +227,13 @@ export function CalendarPanel({
             dates={timelineDates}
             events={sortedEvents}
             getEventTone={eventTone}
-            onGoToday={isViewingToday ? undefined : goToday}
-            onMove={moveMonth}
+            onGoToday={goToday}
+            onMove={movePeriod}
             onSelectDate={selectDate}
             selectedDate={selectedDate}
             title={viewMode === 'week' ? weekLabel(weekStart) : dayLabel(selectedDate)}
             todayDateLabel={todayDateLabel}
-            transitionDirection={monthTransitionDirection}
+            transitionDirection={transitionDirection}
             weatherRiskByDate={weatherRiskByDate}
           />
         )}
@@ -392,11 +242,11 @@ export function CalendarPanel({
             accentSoftTone={accentSoftTone}
             accentTone={accentTone}
             eventDates={yearEventDates}
-            onGoToday={isViewingToday ? undefined : goToday}
-            onMoveYear={moveMonth}
+            onGoToday={goToday}
+            onMoveYear={movePeriod}
             onSelectMonth={selectYearMonth}
             todayDateLabel={todayDateLabel}
-            transitionDirection={monthTransitionDirection}
+            transitionDirection={transitionDirection}
             year={visibleMonth.year}
           />
         )}
@@ -410,27 +260,27 @@ export function CalendarPanel({
             getEventTone={eventTone}
             monthCells={monthCells}
             monthTitle={monthLabel(visibleMonth.year, visibleMonth.month)}
-            onGoToday={isViewingToday ? undefined : goToday}
-            onMoveMonth={moveMonth}
+            onGoToday={goToday}
+            onMoveMonth={movePeriod}
             onSelectDate={selectDate}
             selectedDate={selectedDate}
             todayDateLabel={todayDateLabel}
-            transitionDirection={monthTransitionDirection}
+            transitionDirection={transitionDirection}
             weatherRiskByDate={weatherRiskByDate}
           />
         )}
         </Animated.View>
       </Animated.View>
 
-      {shouldRenderDaySheet && (
+      {sheet.shouldRender && (
         <CalendarDaySheet
           accentTone={accentTone}
           events={selectedEvents}
           onAddEvent={() => draft.openEditor(selectedDate)}
-          isExpanded={isDaySheetExpanded}
-          onDismiss={() => setIsDaySheetOpen(false)}
+          isExpanded={sheet.isExpanded}
+          onDismiss={() => sheet.setIsOpen(false)}
           onEditEvent={editEvent}
-          onExpandStateChange={setDaySheetExpanded}
+          onExpandStateChange={sheet.setExpanded}
           onRemoveEvent={removeEvent}
           outfitEnabled={outfitEnabled}
           outfitFallbackLocation={defaultLocation ?? undefined}
@@ -439,7 +289,7 @@ export function CalendarPanel({
           pm10={selectedForecast.pm10}
           riskByEvent={selectedRiskByEvent}
           selectedDate={selectedDate}
-          style={{ height: animatedDaySheetHeight, maxHeight: animatedDaySheetHeight, transform: [{ translateY: sheetTranslateY }] }}
+          style={{ height: sheet.animatedHeight, maxHeight: sheet.animatedHeight, transform: [{ translateY: sheet.translateY }] }}
           temperature={selectedForecast.temperature}
           todayDateLabel={todayDateLabel}
           weatherRisks={selectedWeatherRisks}
@@ -448,7 +298,7 @@ export function CalendarPanel({
       )}
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
-      <Animated.View style={[styles.calendarFloatingAddDock, { bottom: Animated.add(calendarBottom, Animated.subtract(20, Animated.multiply(sheetProgress, 4))) }]}>
+      <Animated.View style={[styles.calendarFloatingAddDock, { bottom: Animated.add(sheet.calendarBottom, Animated.subtract(20, Animated.multiply(sheet.progress, 4))) }]}>
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}

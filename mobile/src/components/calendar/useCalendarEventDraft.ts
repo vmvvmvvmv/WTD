@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import type { CalendarEvent } from '../../types/dust';
-import type { CalendarActivityInput } from './CalendarEventEditor';
+import type { CalendarActivityInput } from './editor/ActivityTypeSelector';
 import type { CalendarRepeatMode } from './calendarRepeat';
 import { buildRepeatedEvents, nextDefaultRepeatEndDate } from './calendarRepeat';
 import {
