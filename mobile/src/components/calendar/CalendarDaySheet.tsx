@@ -7,8 +7,8 @@ import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/da
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
-import { getWeatherVisualKind } from '../../utils/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
+import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 import type { CalendarEvent, OutfitFigure, OutfitSensitivity } from '../../types/dust';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
 import { eventDateLabel, eventRangeLength, formatDateDisplay, formatSelectedDateTitle } from './calendarUtils';
@@ -73,15 +73,17 @@ function MetricChip({
   label,
   tone,
   value,
+  weatherKind,
 }: {
-  icon: keyof typeof Ionicons.glyphMap;
+  icon?: keyof typeof Ionicons.glyphMap;
   label: string;
   tone: string;
   value: string;
+  weatherKind?: import('../shared/WeatherIcon').WeatherIconKind;
 }) {
   return (
     <View accessibilityLabel={`${label} ${value}`} accessible style={styles.calendarMetricChip}>
-      <Ionicons color={tone} name={icon} size={14} />
+      {weatherKind ? <WeatherIcon kind={weatherKind} size={18} /> : !!icon && <Ionicons color={tone} name={icon} size={14} />}
       <Text style={[styles.calendarMetricChipValue, { color: tone }]}>
         <Text style={styles.calendarMetricChipLabel}>{label} </Text>
         {value}
@@ -140,9 +142,9 @@ export function CalendarDaySheet({
           )}
           {/* 날씨 아이콘은 일정 줄과 같은 채운 아이콘 세트를 씁니다. */}
           <MetricChip
-            icon={ACTIVITY_WEATHER_ICONS[getWeatherVisualKind(weatherLabel)].name}
+            weatherKind={weatherIconKind(weatherLabel)}
             label="날씨"
-            tone={ACTIVITY_WEATHER_ICONS[getWeatherVisualKind(weatherLabel)].color}
+            tone={weatherIconKind(weatherLabel) === 'clear' ? '#F3B43F' : '#3D7FEA'}
             value={weatherLabel || '확인 중'}
           />
         </View>
@@ -151,7 +153,7 @@ export function CalendarDaySheet({
         <View style={styles.calendarWeatherRiskRow}>
           {weatherRisks.map((risk) => (
             <View key={risk.key} style={[styles.calendarWeatherRiskPill, { backgroundColor: `${risk.tone}14`, borderColor: `${risk.tone}55` }]}>
-              <Ionicons color={risk.tone} name={risk.icon} size={13} />
+              {risk.imageKind ? <WeatherIcon kind={risk.imageKind} size={15} /> : <Ionicons color={risk.tone} name={risk.icon} size={13} />}
               <Text style={[styles.calendarWeatherRiskText, { color: risk.tone }]}>{risk.label}</Text>
             </View>
           ))}
@@ -201,7 +203,7 @@ export function CalendarDaySheet({
             >
               <View style={styles.calendarEventRow}>
                 <View accessibilityLabel={forecastLabel || undefined} style={[styles.calendarEventIcon, { backgroundColor: weatherIconStyle.background }]}>
-                  <Ionicons color={weatherIconStyle.color} name={weatherIconStyle.name} size={26} />
+                  <WeatherIcon kind={weatherIconStyle.kind} size={30} />
                 </View>
                 <View style={styles.calendarEventBody}>
                   <Text style={styles.calendarEventTitle}>{event.title}</Text>

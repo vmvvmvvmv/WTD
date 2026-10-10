@@ -9,14 +9,6 @@ export function getWeatherVisualKind(label?: string): WeatherVisualKind {
   return 'clear';
 }
 
-export function getWeatherIcon(label?: string) {
-  const kind = getWeatherVisualKind(label);
-  if (kind === 'rain') return 'rainy-outline';
-  if (kind === 'snow') return 'snow-outline';
-  if (kind === 'cloudy') return 'cloudy-outline';
-  return 'sunny-outline';
-}
-
 export function normalizeWeatherState(data: unknown): WeatherState | null {
   const item = data as {
     humidity?: unknown;

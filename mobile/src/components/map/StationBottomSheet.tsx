@@ -7,6 +7,7 @@ import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { StationDustItem, WeatherState } from '../../types/dust';
 import { formatMapValue, getO3Label, getO3Tone, getPm10Label, getPm10Progress, getPm10Tone, getPm25Label, getPm25Tone, toNumber } from '../../utils/dust';
+import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 
 const SHEET_COLLAPSED_HEIGHT = 204;
 const SHEET_EXPANDED_HEIGHT = 338;
@@ -209,7 +210,7 @@ function WeatherStationContent({
     <>
       <View style={styles.stationWeatherSummaryRow}>
         <View style={[styles.stationWeatherHeroIcon, { backgroundColor: getTemperatureSoftTone(temperature) }]}>
-          <Ionicons color={tone} name={weatherIconName(label)} size={28} />
+          <WeatherIcon kind={weatherIconKind(label, windSpeed)} size={32} />
         </View>
         <View style={styles.stationWeatherHeroText}>
           <Text style={styles.stationWeatherHeroTitle}>
@@ -256,13 +257,6 @@ function StationMetric({
       {!!grade && <Text style={[styles.stationMetricGrade, { color: tone }]}>{grade}</Text>}
     </View>
   );
-}
-
-function weatherIconName(label?: string): keyof typeof Ionicons.glyphMap {
-  if (label === '비') return 'rainy-outline';
-  if (label === '눈') return 'snow-outline';
-  if (label === '흐림' || label === '안개') return 'cloudy-outline';
-  return 'sunny-outline';
 }
 
 function formatWeatherMeasuredAt(value?: string) {

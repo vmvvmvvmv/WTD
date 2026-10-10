@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -25,6 +24,7 @@ import { MustHaveIcon, OutfitIcon } from './OutfitIcon';
 import { OUTFIT_MOTION } from './motion';
 import { outfitStyles } from './outfitStyles';
 import { OutfitVisual } from './OutfitVisual';
+import { WeatherIcon } from '../shared/WeatherIcon';
 
 export type OutfitFallbackLocation = {
   city?: string;
@@ -117,15 +117,13 @@ function MustHaveChip({ item, index }: { item: OutfitRecommendation['must_have']
   );
 }
 
-const ALERT_ICONS = { rain: 'umbrella-outline', snow: 'snow-outline', wind: 'flag-outline' } as const;
-
 // 비·눈·강풍이 있으면 카드 맨 위에서 몇 시에 어떤 날씨인지 먼저 알려줍니다.
 function WeatherAlertRow({ result }: { result: OutfitRecommendation }) {
   const alert = buildOutfitWeatherAlert(result);
   if (!alert) return null;
   return (
     <View accessibilityLabel={`${alert.title}. ${alert.detail}`} accessibilityRole="alert" accessible style={outfitStyles.weatherAlert}>
-      <Ionicons color={outfitStyles.weatherAlertTitle.color} name={ALERT_ICONS[alert.kind]} size={18} />
+      <WeatherIcon kind={alert.kind} size={22} />
       <View style={outfitStyles.weatherAlertBody}>
         <Text style={outfitStyles.weatherAlertTitle}>{alert.title}</Text>
         <Text style={outfitStyles.weatherAlertDetail}>{alert.detail}</Text>

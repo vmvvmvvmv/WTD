@@ -4,9 +4,11 @@ import type { CalendarEvent } from '../../types/dust';
 import { semanticColors } from '../../theme/semanticColors';
 import { isDateInEventRange } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
+import type { WeatherIconKind } from '../shared/WeatherIcon';
 
 export type CalendarWeatherRiskIndicator = {
   icon: keyof typeof Ionicons.glyphMap;
+  imageKind?: WeatherIconKind;
   key: 'thunder' | 'snowCold' | 'heat' | 'rain' | 'wind' | 'caution';
   label: string;
   priority: number;
@@ -55,6 +57,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
   if (hasSnowOrCold(risk)) {
     indicators.push({
       icon: 'snow-outline',
+      imageKind: 'snow',
       key: 'snowCold',
       label: '\uB208\u00B7\uC800\uC628 \uC8FC\uC758',
       priority: 50,
@@ -64,6 +67,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
   if (hasThunder(risk)) {
     indicators.push({
       icon: 'thunderstorm-outline',
+      imageKind: 'thunder',
       key: 'thunder',
       label: '\uCC9C\uB465\u00B7\uBC88\uAC1C \uC8FC\uC758',
       priority: 40,
@@ -74,6 +78,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
     const highTemperature = risk?.temperatureMax ?? risk?.temperature;
     indicators.push({
       icon: 'sunny-outline',
+      imageKind: 'clear',
       key: 'heat',
       label: typeof highTemperature === 'number' ? `\uACE0\uC628 \uC8FC\uC758 ${Math.round(highTemperature)}\u00B0C` : '\uACE0\uC628 \uC8FC\uC758',
       priority: 35,
@@ -83,6 +88,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
   if (hasRain(risk)) {
     indicators.push({
       icon: 'rainy-outline',
+      imageKind: 'rain',
       key: 'rain',
       label: risk?.rainTimeRange ? `${risk.rainTimeRange} \uBE44 \uC608\uC0C1` : '\uBE44 \uC608\uC0C1',
       priority: 30,
@@ -92,6 +98,7 @@ export function weatherRiskIndicators(risk?: CalendarRiskResult): CalendarWeathe
   if (hasWind(risk)) {
     indicators.push({
       icon: 'leaf-outline',
+      imageKind: 'wind',
       key: 'wind',
       label: risk?.windTimeRange ? `${risk.windTimeRange} \uAC15\uD48D \uC8FC\uC758` : '\uAC15\uD48D \uC8FC\uC758',
       priority: 20,
