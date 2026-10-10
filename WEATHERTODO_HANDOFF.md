@@ -730,3 +730,14 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 홈 "산책하기 좋은 시간" 줄 아이콘: Ionicons walk-outline → 앱 그림체의 걷는 사람 PNG(`AppActionIcon name="activityOutdoor" size={26}`), 좋은 시간이 없으면 흐리게(opacity 0.45). 쓰지 않게 된 bauhaus import 제거. 커밋 `72e7d49`.
 - 54장의 "남은 연결"은 Codex 리팩터(`bd91009`)의 `useNotificationSettings.ts`에 이미 들어갔다(등록 요청 `dustSpikeAlerts`, effect 의존성, 토글 메시지). 남은 것은 운영 서버 migrate와 timer 추가.
 - 검증: pre-commit tsc 통과, 모바일 테스트 34건.
+
+## 56. 2026-10-10 AppContent 훅 분리 + 안 쓰는 기능 제거 (Claude)
+
+- 백엔드(`dd60bdb`): 앱에 화면이 없는 챗봇 API `/dust/chat/`과 전용 도우미 함수 26개 제거(views.py 3830 → 3221줄). 다른 기능과 함께 쓰는 함수는 AST 도달 분석으로 남겼다. 채팅 기록 테이블 `DustChatLog`는 데이터 보존을 위해 모델·테이블을 그대로 둔다(지우려면 마이그레이션 필요). 상세 데이터용 API(`/dust/past/`, `/dust/weather/past/` 등)는 웹사이트에서 쓸 예정이라 남긴다. 백엔드 테스트 88건 통과.
+- 모바일(`8d50d2f`):
+  - 새 훅: `features/dashboard/useDashboardData.ts`(현재값·과거·예측·날씨 불러오기, 캐시 먼저 표시, 지역이 바뀌면 늦은 응답 무시, 홈에서 10분마다·앱 복귀 시 갱신), `features/region/useRegions.ts`(선택 지역·GPS·즐겨찾기, 저장, 가까운 측정소 찾기), `features/stations/useStations.ts`(측정소 목록·캐시, `ensureMapStations`).
+  - AppContent 1777 → 1008줄, useState 46 → 12, useEffect 20 → 12. 남은 역할: 탭 이동, 지역 전환 애니메이션, 홈 검색·즐겨찾기 패널, 토스트, 저장값 복원, 화면 조립.
+  - 제거: 숨겨 둔 상세 데이터 화면 전체(`DETAIL_DATA_ENABLED`, DataPanel, WeatherDataPanel, 홈·지도 진입 버튼), 화면 없는 챗봇 상태·API 호출, 어디서도 import하지 않는 파일 21개(옛 로그인·회원가입·마이페이지·비밀번호·프로필 화면, AppCard·ChatPanel·MetricGauge·ThemeToggle·ThemeProvider, api/auth·user, utils/airQuality·csv·date), 쓰지 않는 export 25개, 쓰지 않는 스타일 386개(appStyles 906 → 496줄).
+  - 작은 동작 정리: 즐겨찾기 저장을 setState 안의 부수효과 대신 effect 한 곳에서, 읽지 않던 `isLoading`·`currentNotice` 상태 제거. 지도 WebView가 보내는 `station-detail` 메시지는 이제 무시한다.
+  - 검증: tsc·eslint(오류·unused 0)·테스트 34건·babel 통과. **실기기 확인 필요**: 첫 실행 위치 잡기, 지역 바꾸기·즐겨찾기 추가/삭제(앱 재시작 후 유지), 당겨서 새로고침, 지도 마커·검색·뒤로가기, 캘린더·설정 화면.
+- 웹 로그인·회원 기능(백엔드)은 사용자 결정 대기로 그대로 둔다.
