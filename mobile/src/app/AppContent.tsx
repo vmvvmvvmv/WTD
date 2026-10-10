@@ -808,14 +808,14 @@ export function AppContent() {
                     const selected = isSameRegion(gpsRegion, selectedRegion);
                     return (
                       <Pressable
-                        accessibilityLabel={`현재 위치 ${gpsRegion.city} ${gpsRegion.region}${selected ? ', 보는 중' : ''}`}
+                        accessibilityLabel={`현재 지역 ${gpsRegion.city} ${gpsRegion.region}${selected ? ', 보는 중' : ''}`}
                         accessibilityRole="button"
                         accessibilityState={{ selected }}
                         disabled={selected}
                         onPress={() => applyRegion(gpsRegion, `${gpsRegion.city} ${gpsRegion.region} 기준으로 돌아왔습니다.`)}
                         style={({ pressed }) => [styles.favoritePickerRow, pressed && styles.pressedFeedback]}
                       >
-                        <Ionicons color={bauhausColors.red} name="navigate" size={17} style={styles.favoritePickerIcon} />
+                        <View style={styles.favoritePickerIconBox}><AppActionIcon name="location" size={22} /></View>
                         <Text numberOfLines={1} style={styles.favoritePickerName}>
                           <Text style={selected && { color: accentTone }}>{gpsRegion.region}</Text>
                           <Text style={styles.favoritePickerCity}>{`  ${gpsRegion.city}`}</Text>
@@ -823,7 +823,7 @@ export function AppContent() {
                         {selected ? (
                           <Text style={[styles.favoritePickerStatus, { color: accentTone }]}>✓ 보는 중</Text>
                         ) : (
-                          <Text style={styles.favoritePickerStatus}>현재 위치</Text>
+                          <Text style={styles.favoritePickerStatus}>현재 지역</Text>
                         )}
                       </Pressable>
                     );
