@@ -173,6 +173,8 @@ export const styles = StyleSheet.create({
   calendarViewTabs: { backgroundColor: 'rgba(255,255,255,0.58)', flexDirection: 'row', gap: 22, justifyContent: 'center', paddingTop: 8 },
   calendarViewTab: { paddingBottom: 7, paddingHorizontal: 4, paddingTop: 4 },
   calendarViewTabIndicator: { borderRadius: 1, bottom: 0, height: 2, position: 'absolute' },
+  calendarViewTabIndicatorDragging: { borderRadius: 2, height: 4 },
+  calendarViewTabTextDragging: { transform: [{ scale: 1.12 }] },
   calendarViewStage: { flex: 1, minHeight: 0 },
   calendarViewTabText: { color: textColors.muted, fontSize: 13, fontWeight: '700' },
   calendarYearGrid: { borderTopWidth: 1, borderColor: '#e6ebf0' },
