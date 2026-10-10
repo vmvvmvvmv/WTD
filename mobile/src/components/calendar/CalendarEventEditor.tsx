@@ -84,7 +84,7 @@ type Props = {
   activityInput: CalendarActivityInput;
   endDate: string;
   endTime: string;
-  isEditing?: boolean;
+  isRepeatLocked?: boolean;
   isOpen: boolean;
   location: string;
   mapPickerUrl?: string;
@@ -706,7 +706,7 @@ export function CalendarEventEditor({
   activityInput,
   endDate,
   endTime,
-  isEditing = false,
+  isRepeatLocked = false,
   isOpen,
   location,
   mapPickerUrl,
@@ -935,25 +935,21 @@ export function CalendarEventEditor({
                 startTime={startTime}
               />
             </View>
-            {!isEditing && (
-              <>
-                <View style={styles.calendarSheetDivider} />
-                <View style={styles.calendarSheetRow}>
-                  <Ionicons color="#8a94a3" name="repeat-outline" size={20} />
-                  <RepeatSelector
-                    accentSoftTone={accentSoftTone}
-                    accentTone={accentTone}
-                    onChangeRepeatEndDate={onChangeRepeatEndDate}
-                    onChangeRepeatMode={onChangeRepeatMode}
-                    onChangeRepeatWeekdays={onChangeRepeatWeekdays}
-                    repeatEndDate={repeatEndDate}
-                    repeatMode={repeatMode}
-                    repeatWeekdays={repeatWeekdays}
-                    startDate={startDate}
-                  />
-                </View>
-              </>
-            )}
+            <View style={styles.calendarSheetDivider} />
+            <View pointerEvents={isRepeatLocked ? 'none' : 'auto'} style={[styles.calendarSheetRow, isRepeatLocked && styles.calendarSheetRowLocked]}>
+              <Ionicons color="#8a94a3" name="repeat-outline" size={20} />
+              <RepeatSelector
+                accentSoftTone={accentSoftTone}
+                accentTone={accentTone}
+                onChangeRepeatEndDate={onChangeRepeatEndDate}
+                onChangeRepeatMode={onChangeRepeatMode}
+                onChangeRepeatWeekdays={onChangeRepeatWeekdays}
+                repeatEndDate={repeatEndDate}
+                repeatMode={repeatMode}
+                repeatWeekdays={repeatWeekdays}
+                startDate={startDate}
+              />
+            </View>
             <View style={styles.calendarSheetDivider} />
             <View style={styles.calendarSheetRow}>
               <Ionicons color="#8a94a3" name="compass-outline" size={20} />

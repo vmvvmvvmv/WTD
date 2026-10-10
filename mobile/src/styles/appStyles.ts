@@ -196,6 +196,8 @@ export const styles = StyleSheet.create({
   calendarTimelineHourLine: { borderColor: '#e6ebf0', borderTopWidth: 1, flex: 1 },
   calendarTimelineColumns: { bottom: 0, flexDirection: 'row', position: 'absolute', right: 0, top: 0 },
   calendarTimelineColumn: { borderColor: '#eef2f6', borderLeftWidth: 1, flex: 1, position: 'relative' },
+  // 일정 블록이 놓이는 영역. 오른쪽을 비워 빈 시간을 누를 자리와 숨 쉴 틈을 남깁니다.
+  calendarTimelineBlockArea: { bottom: 0, left: 2, position: 'absolute', top: 0 },
   calendarTimelineBlock: { borderRadius: 4, overflow: 'hidden', paddingHorizontal: 4, paddingVertical: 3, position: 'absolute' },
   calendarTimelineBlockTitle: { color: '#ffffff', fontSize: 11, fontWeight: '800', lineHeight: 14 },
   calendarTimelineBlockTime: { color: 'rgba(255,255,255,0.86)', fontSize: 10, fontWeight: '600', lineHeight: 13 },
@@ -244,6 +246,7 @@ export const styles = StyleSheet.create({
   calendarSheetTitleInput: { color: textColors.primary, flex: 1, fontSize: 22, fontWeight: '900', paddingVertical: 0 },
   calendarColorDot: { borderRadius: 999, height: 14, width: 14 },
   calendarSheetDivider: { backgroundColor: '#eef1f5', height: 1 },
+  calendarSheetRowLocked: { opacity: 0.45 },
   calendarSheetRow: { alignItems: 'center', flexDirection: 'row', gap: 16, minHeight: 64 },
   calendarSheetDateTimeBlock: { alignItems: 'stretch', paddingVertical: 10 },
   calendarSheetRowAction: { alignItems: 'center', flex: 1, flexDirection: 'row', gap: 10, justifyContent: 'space-between', minHeight: 44 },

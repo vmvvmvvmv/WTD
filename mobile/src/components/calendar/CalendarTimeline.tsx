@@ -158,6 +158,7 @@ export function CalendarTimeline({
                   onPress={() => onSelectDate(date)}
                   style={[styles.calendarTimelineColumn, isWeek && date === selectedDate && { backgroundColor: `${accentTone}0d` }]}
                 >
+                  <View pointerEvents="box-none" style={[styles.calendarTimelineBlockArea, { right: isWeek ? 2 : 28 }]}>
                   {blocksByDate[date].map((block) => {
                     const tone = block.event.sensitive ? bauhausColors.amber : getEventTone(block.event);
                     const height = Math.max(22, ((block.endMinute - block.startMinute) / 60) * HOUR_HEIGHT - 2);
@@ -183,6 +184,7 @@ export function CalendarTimeline({
                       </Pressable>
                     );
                   })}
+                  </View>
                   {date === todayDateLabel && (
                     <View pointerEvents="none" style={[styles.calendarTimelineNow, { top: (minuteNow / 60) * HOUR_HEIGHT }]}>
                       <View style={styles.calendarTimelineNowDot} />
