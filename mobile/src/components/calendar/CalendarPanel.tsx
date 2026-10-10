@@ -346,12 +346,14 @@ export function CalendarPanel({
         </View>
         {viewMode === 'year' ? (
           <CalendarYearGrid
+            accentSoftTone={accentSoftTone}
             accentTone={accentTone}
             eventDates={yearEventDates}
             onGoToday={isViewingToday ? undefined : goToday}
             onMoveYear={moveMonth}
             onSelectMonth={selectYearMonth}
             todayDateLabel={todayDateLabel}
+            transitionDirection={monthTransitionDirection}
             year={visibleMonth.year}
           />
         ) : (
