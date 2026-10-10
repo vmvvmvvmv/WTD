@@ -803,3 +803,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 새 모양: 머리 줄 '지역 바꾸기'(secondary 12/700) + '즐겨찾기 N곳'(muted 11). 행은 한 줄(min 46): 아이콘(현재 위치 빨간 navigate / 즐겨찾기 노란 별) · 이름 15/700 · 시도 12 muted, 오른쪽 상태('✓ 보는 중' 강조색 / '현재 위치' muted), 즐겨찾기 행만 삭제 ✕. 현재 위치 행은 보는 지역이어도 표시(누를 수 없음). 안쪽 ScrollView maxHeight 280(nestedScrollEnabled).
 - 기본 가이드 머리 문구: '오늘 등록된 일정이 없어 기본 가이드로 안내드립니다'(flex:1, 줄바꿈 허용).
 - 검증: tsc·eslint 오류 0·babel, 실기기 스크린샷으로 패널 모양과 sticky 확인.
+- `42d1a04` 지역 바꾸기의 GPS 행: '현재 위치' → '현재 지역', 아이콘 Ionicons navigate(빨강) → 앱 그림체 위치 핀 PNG(AppActionIcon location).
