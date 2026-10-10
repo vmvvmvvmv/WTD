@@ -888,18 +888,7 @@ export function HomePanel({
 
         <View style={activeHomeSection !== 'guide' && styles.homeSectionHidden}>
           {activityGuideRows.length === 0 && (
-            <View style={styles.homeSectionEmptyRow}>
-              <Text style={styles.activityGuideEmptyText}>일정이 없어 오늘 날씨로 본 기본 가이드예요</Text>
-              <Pressable
-                accessibilityLabel="일정 추가하러 가기"
-                accessibilityRole="button"
-                onPress={onOpenCalendar}
-                style={({ pressed }) => [styles.activityGuideAddChip, pressed && styles.pressedFeedback]}
-              >
-                <Ionicons color={accentTone} name="add" size={17} />
-                <Text style={[styles.activityGuideAddChipText, { color: accentTone }]}>일정 추가</Text>
-              </Pressable>
-            </View>
+            <Text style={styles.activityGuideEmptyText}>일정이 없어 오늘 날씨로 본 기본 가이드예요</Text>
           )}
           {defaultActivityGuides.length > 0 && (
             <View style={styles.activityGuideList}>
@@ -987,7 +976,8 @@ export function HomePanel({
               );
             })}
           </View>}
-          {activityGuideRows.length > 0 && <Pressable
+          {/* \uC77C\uC815\uC774 \uC788\uB4E0 \uC5C6\uB4E0 \uBAA9\uB85D \uC544\uB798\uC5D0 \uAC19\uC740 '\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30' \uBC84\uD2BC\uC744 \uB461\uB2C8\uB2E4. */}
+          <Pressable
             accessibilityLabel={"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}
             onPress={onOpenCalendar}
             style={({ pressed }) => [styles.activityGuideAddScheduleButton, pressed && styles.pressedFeedback]}
@@ -997,7 +987,7 @@ export function HomePanel({
             </View>
             <Text style={[styles.activityGuideAddScheduleText, { color: accentTone }]}>{"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}</Text>
             <Ionicons color={accentTone} name="chevron-forward" size={16} />
-          </Pressable>}
+          </Pressable>
         </View>
 
         {outfitEnabled && (
