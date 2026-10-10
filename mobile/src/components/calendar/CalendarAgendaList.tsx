@@ -5,7 +5,7 @@ import Reanimated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { isMultiDayEvent } from './calendarTimelineLayout';
 import { parseDateParts, weekdayLabels } from './calendarUtils';
 

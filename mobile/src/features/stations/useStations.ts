@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 
 import { getKoreaStations } from '../../api/dustEndpoints';
 import type { StationDustItem } from '../../types/dust';
-import { normalizeLatLng } from '../../utils/dust';
+import { normalizeLatLng } from '../../utils/geo';
 import { loadStationCache, saveStationCache } from './stationCache';
 
 // 전국 측정소 목록(지도·지역 검색·가까운 측정소 찾기에 공통으로 씀)을 불러오고 캐시합니다.

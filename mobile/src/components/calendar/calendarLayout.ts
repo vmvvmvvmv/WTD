@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { eventRangeLength, isDateInEventRange, type CalendarMonthCell } from './calendarUtils';
 
 export function buildCalendarEventCounts(monthCells: CalendarMonthCell[], events: CalendarEvent[]) {

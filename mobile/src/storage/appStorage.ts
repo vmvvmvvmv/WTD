@@ -14,13 +14,12 @@ import {
   OUTFIT_SETTINGS_STORAGE_KEY,
   SELECTED_REGION_STORAGE_KEY,
 } from '../constants/dust';
-import type { CalendarEvent, NotificationSettings, OutfitSettings, RegionState, StationDustItem } from '../types/dust';
-import {
-  parseStoredFavoriteRegions,
-  parseStoredMapRecentSearches,
-  parseStoredNotificationSettings,
-  parseStoredRegion,
-} from '../utils/dust';
+import type { CalendarEvent } from '../types/calendar';
+import type { StationDustItem } from '../types/dust';
+import type { OutfitSettings } from '../types/outfit';
+import type { RegionState } from '../types/region';
+import type { NotificationSettings } from '../types/settings';
+import { parseStoredFavoriteRegions, parseStoredMapRecentSearches, parseStoredNotificationSettings, parseStoredRegion } from './parseStoredValues';
 
 export type StoredAppState = {
   calendarEvents: CalendarEvent[];

@@ -1,4 +1,5 @@
-import type { NotificationSettings, OutfitSettings } from '../types/dust';
+import type { OutfitSettings } from '../types/outfit';
+import type { NotificationSettings } from '../types/settings';
 
 // Default region used before GPS is available.
 export const DEFAULT_CITY = '\uC11C\uC6B8';

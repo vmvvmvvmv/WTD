@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 
 const DEFAULT_DURATION_MINUTES = 60;
 

@@ -4,8 +4,10 @@ import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
-import type { StationDustItem, WeatherState } from '../../types/dust';
-import { formatMapValue, getO3Label, getO3Tone, getPm10Label, getPm10Progress, getPm10Tone, getPm25Label, getPm25Tone, toNumber } from '../../utils/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { WeatherState } from '../../types/weather';
+import { getO3Label, getO3Tone, getPm10Label, getPm10Progress, getPm10Tone, getPm25Label, getPm25Tone } from '../../features/airQuality/airQualityGrade';
+import { formatMapValue, toNumber } from '../../utils/format';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 
 const SHEET_COLLAPSED_HEIGHT = 204;

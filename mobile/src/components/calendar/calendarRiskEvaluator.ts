@@ -1,5 +1,7 @@
-import type { CalendarEvent, HourlyDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
-import { toNumber } from '../../utils/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
+import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
+import { toNumber } from '../../utils/format';
 import { isRainyWeather, isThunderWeather } from '../../features/outing/outingIndex';
 import { semanticColors } from '../../theme/semanticColors';
 import { addMinutesToDateTime } from './calendarUtils';

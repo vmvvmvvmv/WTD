@@ -3,8 +3,11 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
-import type { CurrentDustItem, RegionState, WeatherState } from '../../types/dust';
-import { formatCurrentBasis, isSameRegion } from '../../utils/dust';
+import type { CurrentDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import type { WeatherState } from '../../types/weather';
+import { formatCurrentBasis } from '../../features/dashboard/currentBasis';
+import { isSameRegion } from '../../features/region/regionUtils';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 import { accentTone } from '../../theme/appTheme';

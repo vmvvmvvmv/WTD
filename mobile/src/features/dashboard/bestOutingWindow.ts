@@ -1,5 +1,6 @@
-import type { HourlyDustItem, WeatherHourlyItem } from '../../types/dust';
-import { toNumber } from '../../utils/dust';
+import type { HourlyDustItem } from '../../types/dust';
+import type { WeatherHourlyItem } from '../../types/weather';
+import { toNumber } from '../../utils/format';
 import { calculateOutingIndex, isRainyWeather, isThunderWeather } from '../outing/outingIndex';
 
 export type BestOutingWindow = {

@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../types/dust';
+import type { CalendarEvent } from '../types/calendar';
 
 export type CalendarNotificationSyncActions = {
   cancel: (ids: string[]) => Promise<void>;

@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 
 export const weekdayLabels = ['일', '월', '화', '수', '목', '금', '토'];
 export const minuteOptions = Array.from({ length: 12 }, (_, index) => String(index * 5).padStart(2, '0'));

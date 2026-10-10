@@ -1,4 +1,4 @@
-﻿import { AccessibilityInfo, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
@@ -7,8 +7,11 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
-import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
-import { toNumber } from '../../utils/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { HourlyDustItem, PastDustItem, PredictionResponse } from '../../types/dust';
+import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
+import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
+import { toNumber } from '../../utils/format';
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { bestOutingWindowText, findBestOutingWindow } from '../../features/dashboard/bestOutingWindow';
 import { buildDefaultActivityGuides } from '../../features/dashboard/defaultActivityGuides';

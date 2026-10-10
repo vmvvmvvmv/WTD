@@ -8,8 +8,11 @@ import type { WebView as WebViewType } from 'react-native-webview';
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
 import { AppActionIcon } from '../shared/AppActionIcon';
-import type { RegionState, StationDustItem, WeatherState } from '../../types/dust';
-import { isSameRegion, stationIdentity, uniqueStations } from '../../utils/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import type { WeatherState } from '../../types/weather';
+import { isSameRegion } from '../../features/region/regionUtils';
+import { stationIdentity, uniqueStations } from '../../features/stations/stationUtils';
 import { StationBottomSheet } from './StationBottomSheet';
 import { accentBorderTone, accentTone } from '../../theme/appTheme';
 

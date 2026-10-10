@@ -5,8 +5,7 @@ import type { CalendarForecastContext } from '../../components/calendar/calendar
 import { cancelCalendarEventNotifications, configureDustNotifications, scheduleCalendarEventNotifications } from '../../notifications/expoPush';
 import { replaceCalendarNotifications } from '../../notifications/calendarNotificationSync';
 import { loadCalendarNotificationIds, saveCalendarNotificationIds } from '../../storage/appStorage';
-import type { CalendarEvent } from '../../types/dust';
-import { wait } from '../../utils/dust';
+import type { CalendarEvent } from '../../types/calendar';
 
 export function useCalendarReminderSync(
   events: CalendarEvent[],
@@ -31,7 +30,7 @@ export function useCalendarReminderSync(
     const syncVersion = ++syncVersionRef.current;
 
     const sync = async () => {
-      await wait(250);
+      await new Promise((resolve) => setTimeout(resolve, 250));
       if (cancelled || syncVersionRef.current !== syncVersion) return;
       const previousIds = await loadCalendarNotificationIds();
       if (cancelled || syncVersionRef.current !== syncVersion) return;

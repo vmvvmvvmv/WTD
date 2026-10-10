@@ -7,7 +7,7 @@ import Reanimated, { FadeIn, ReduceMotion, useAnimatedStyle, useReducedMotion, u
 import { styles } from '../../styles/appStyles';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import { bauhausColors } from '../../theme/bauhaus';
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { accentSoftTone, accentTone } from '../../theme/appTheme';
 

@@ -1,6 +1,8 @@
 import { getHourlyWeather, getMidTermWeather } from '../../api/dustEndpoints';
-import type { StationDustItem, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
-import { addDays, toCompactDate, toNumber } from '../../utils/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
+import { addDays, toCompactDate } from '../../utils/date';
+import { toNumber } from '../../utils/format';
 import { buildDashboardWeatherHourlyItems } from '../dashboard/dashboardData';
 
 export function weatherStateFromHourlyItem(item?: WeatherHourlyItem): WeatherState | null {

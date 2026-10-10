@@ -29,8 +29,13 @@ import { useNotificationSettings } from '../notifications/useNotificationSetting
 import { loadStoredAppState, saveOutfitSettings } from '../storage/appStorage';
 import { styles } from '../styles/appStyles';
 import { bauhausColors } from '../theme/bauhaus';
-import type { OutfitSettings, RegionState, StationDustItem, TabKey } from '../types/dust';
-import { normalizeLatLng, toNumber, isSameRegion } from '../utils/dust';
+import type { StationDustItem } from '../types/dust';
+import type { TabKey } from '../types/navigation';
+import type { OutfitSettings } from '../types/outfit';
+import type { RegionState } from '../types/region';
+import { isSameRegion } from '../features/region/regionUtils';
+import { toNumber } from '../utils/format';
+import { normalizeLatLng } from '../utils/geo';
 import { buildMobileMapUrl } from '../utils/mobileMapUrl';
 import { useTodayLabel } from '../utils/useTodayLabel';
 import { accentTone } from '../theme/appTheme';
