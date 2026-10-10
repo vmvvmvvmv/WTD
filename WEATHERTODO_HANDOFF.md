@@ -717,3 +717,10 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 일정 알림을 끄면 저장된 예약 ID만 비우던 문제를 수정했다. 기존 예약을 실제로 취소한 뒤 빈 목록을 저장하며, 해당 경로의 회귀 테스트를 추가했다.
 - 병행 작업에서 추가된 미세먼지 나쁨 알림 스위치를 서버 기기 등록에 연결했다. 설정을 바꾸면 `dustSpikeAlerts` 값이 전송된다. 일정 제목은 서버로 보내지 않고 날짜·시간만 보낸다.
 - 검증: 모바일 TypeScript typecheck 통과, Node 테스트 34건 통과, 전체 ESLint 캐시 없이 실행해 오류 0(기존 경고 60개). `npm run lint`는 `.expo` 캐시 쓰기 권한 오류로 종료되어 같은 ESLint를 `--no-cache`로 실행했다. 실기기에서 일정 알림 켜기·끄기, 지도 검색·최근 검색, 미세먼지 나쁨 알림 설정을 확인해야 한다.
+
+## 56. 2026-10-10 지도 템플릿 분리와 오래된 경로 정리 (Codex)
+
+- `dust.views.mobile_map`에 들어 있던 지도 HTML·CSS·JavaScript 약 1,110줄을 `dust/templates/dust/mobile_map.html`로 옮겼다. 뷰는 좌표·모드·지도 UI 설정을 검증하고 템플릿에 전달한다. 앱이 사용하는 `/dust/mobile-map/` URL과 WebView 호출 방식은 유지했다.
+- 템플릿의 인라인 JavaScript 값은 `_script_json`으로 `<`, `>`, `&`를 이스케이프한다. Naver Maps 클라이언트 ID도 JavaScript 문자열로 안전하게 넣고 SDK URL에는 URL 인코딩해 붙인다.
+- 존재하지 않는 `build/index.html`을 가리키던 Django React SPA catch-all과 `build` 템플릿·정적 파일 설정을 제거했다. 기존 `/app/` 페이지와 `/api/`, `/dust/`, `/outfit/` 라우팅은 유지했다. 모바일에서 참조되지 않는 임시 `screens/MapScreen.tsx`도 제거했다.
+- 검증: 지도 렌더링·비/눈/바람 아이콘·모드 전환·스크립트 입력 이스케이프·오래된 경로 404·기존 `/app/` 템플릿 테스트 포함 백엔드 88건 통과, 모바일 TypeScript typecheck 통과. 실기기 WebView에서 실제 지도 SDK 로드·마커·검색은 추가 확인 필요.

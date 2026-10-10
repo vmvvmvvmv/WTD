@@ -1,0 +1,1110 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <style>
+      :root { {{ map_css_variables|safe }} }
+      html, body {
+        width: 100%;
+        height: 100%;
+        min-height: 100vh;
+        margin: 0;
+        overflow: hidden;
+        padding: 0;
+      }
+      body {
+        background: #f4f8fc;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        inset: 0;
+        position: fixed;
+      }
+      #map {
+        height: 100vh;
+        inset: 0;
+        margin: 0;
+        min-height: 1px;
+        min-width: 1px;
+        overflow: hidden;
+        padding: 0;
+        position: fixed;
+        transform: translateZ(0);
+        width: 100vw;
+      }
+      .empty {
+        align-items: center;
+        color: #687180;
+        display: flex;
+        font-size: 14px;
+        height: 100%;
+        justify-content: center;
+        padding: 24px;
+        text-align: center;
+      }
+      .marker {
+        align-items: center;
+        background: var(--air-good);
+        border: 2px solid #ffffff;
+        border-radius: 999px;
+        box-shadow: 0 3px 10px rgba(40,86,140,.28);
+        color: #fff;
+        display: flex;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-size: 12px;
+        font-weight: 800;
+        height: 36px;
+        justify-content: center;
+        line-height: 1;
+        overflow: hidden;
+        padding: 0;
+        text-align: center;
+        width: 36px;
+        position: relative;
+        z-index: 2;
+      }
+      .picker-gps-marker {
+        align-items: center;
+        background: #ffffff;
+        border: 3px solid #e85c6b;
+        border-radius: 999px 999px 999px 0;
+        box-shadow: 0 3px 10px rgba(232,92,107,.28);
+        display: flex;
+        height: 28px;
+        justify-content: center;
+        transform: rotate(-45deg);
+        width: 28px;
+      }
+      .picker-gps-marker::after {
+        background: #e85c6b;
+        border-radius: 999px;
+        content: '';
+        display: block;
+        height: 9px;
+        width: 9px;
+      }
+      .marker-wrap {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        position: relative;
+        transform: translateX(-1px);
+      }
+      .weather-badges {
+        display: flex;
+        gap: 2px;
+        pointer-events: none;
+        position: absolute;
+        right: -13px;
+        top: -10px;
+        z-index: 4;
+      }
+      .weather-badge {
+        align-items: center;
+        background: rgba(255,255,255,.98);
+        border: 1px solid #c9dcf3;
+        border-radius: 999px;
+        box-shadow: 0 2px 7px rgba(31,65,115,.2);
+        display: flex;
+        height: 23px;
+        justify-content: center;
+        width: 23px;
+      }
+      .weather-badge img { display: block; height: 19px; object-fit: contain; width: 19px; }
+      .weather-badge.rain { color: #3D7FEA; animation: rainPulse 1.8s ease-in-out infinite; }
+      .weather-badge.snow { color: #65A1D8; animation: snowFloat 2.4s ease-in-out infinite; }
+      .weather-badge.wind { color: #475569; animation: windDrift 1.6s ease-in-out infinite; }
+      .marker-wrap.weather-rain .marker {
+        box-shadow: 0 0 0 3px rgba(61,127,234,.42), 0 3px 10px rgba(40,86,140,.28);
+      }
+      .marker-wrap.weather-heavy-rain .marker {
+        box-shadow: 0 0 0 4px rgba(61,127,234,.62), 0 3px 12px rgba(40,86,140,.32);
+        animation: rainRing 1.5s ease-in-out infinite;
+      }
+      .marker-wrap.weather-snow .marker {
+        border-style: dashed;
+        box-shadow: 0 0 0 3px rgba(101,161,216,.52), 0 3px 10px rgba(40,86,140,.24);
+      }
+      .wind-trail {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        left: 18px;
+        pointer-events: none;
+        position: absolute;
+        top: 17px;
+        transform: rotate(var(--wind-angle));
+        transform-origin: 0 50%;
+        z-index: 1;
+      }
+      .wind-trail i {
+        animation: windFlow 1.5s ease-in-out infinite;
+        background: rgba(71,85,105,.72);
+        border-radius: 999px;
+        display: block;
+        height: 2px;
+        width: 20px;
+      }
+      .wind-trail i:nth-child(2) { animation-delay: 140ms; margin-left: 4px; width: 27px; }
+      .wind-trail i:nth-child(3) { animation-delay: 280ms; margin-left: 1px; width: 23px; }
+      .wind-trail.strong i { background: rgba(31,65,115,.86); height: 3px; }
+      @keyframes rainPulse { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(2px); } }
+      @keyframes snowFloat { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(6deg); } }
+      @keyframes windDrift { 0%, 100% { transform: translateX(-1px); } 50% { transform: translateX(2px); } }
+      @keyframes windFlow { 0%, 100% { opacity: .44; transform: translateX(0); } 50% { opacity: 1; transform: translateX(5px); } }
+      @keyframes rainRing { 0%, 100% { box-shadow: 0 0 0 3px rgba(61,127,234,.48), 0 3px 10px rgba(40,86,140,.28); } 50% { box-shadow: 0 0 0 5px rgba(61,127,234,.24), 0 3px 12px rgba(40,86,140,.32); } }
+      @media (prefers-reduced-motion: reduce) {
+        .weather-badge, .wind-trail i, .marker-wrap.weather-heavy-rain .marker { animation: none !important; }
+      }
+      .marker-label {
+        background: rgba(255,255,255,.96);
+        border: 1px solid #d7e4f2;
+        border-radius: 12px;
+        box-shadow: 0 3px 12px rgba(48,84,120,.14);
+        color: #17202a;
+        font-size: 12px;
+        font-weight: 900;
+        line-height: 1;
+        max-width: 86px;
+        overflow: hidden;
+        padding: 6px 9px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .marker-label.selected {
+        border-color: #3d7fea;
+        border-width: 2px;
+        box-shadow: 0 4px 14px rgba(48,84,120,.2);
+      }
+      .marker.good { background: var(--air-good); }
+      .marker.moderate { background: var(--air-moderate); }
+      .marker.bad { background: var(--air-bad); }
+      .marker.verybad { background: var(--air-very-bad); }
+      .marker.unknown {
+        background: var(--unavailable);
+        box-shadow: 0 2px 7px rgba(71,85,105,.2);
+        color: transparent;
+        font-size: 0;
+        height: 18px;
+        width: 18px;
+      }
+      .marker.weather-cold { background: var(--weather-cold); }
+      .marker.weather-cool { background: var(--weather-cool); }
+      .marker.weather-mild { background: var(--weather-mild); }
+      .marker.weather-warm { background: var(--weather-warm); }
+      .marker.weather-hot { background: var(--weather-hot); }
+      .marker.selected {
+        border-color: #ffffff;
+        border-width: 3px;
+        box-shadow: 0 4px 16px rgba(31,65,115,.34);
+        transform: scale(1.16);
+      }
+      .marker.unknown.selected { height: 24px; width: 24px; }
+      .map-legend {
+        align-items: center;
+        backdrop-filter: blur(8px);
+        background: rgba(255,255,255,.94);
+        border: 1px solid #d7e4f2;
+        border-radius: 12px;
+        bottom: 10px;
+        box-shadow: 0 3px 12px rgba(48,84,120,.14);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px 9px;
+        left: 10px;
+        max-width: calc(100vw - 20px);
+        padding: 7px 9px;
+        pointer-events: none;
+        position: fixed;
+        z-index: 20;
+      }
+      .map-legend.hidden { display: none; }
+      .legend-item { align-items: center; color: #475569; display: flex; font-size: 9px; font-weight: 800; gap: 4px; white-space: nowrap; }
+      .legend-dot { border: 1px solid rgba(255,255,255,.9); border-radius: 999px; box-shadow: 0 1px 3px rgba(31,65,115,.16); height: 9px; width: 9px; }
+      .legend-scale { align-items: center; display: flex; gap: 5px; }
+      .legend-gradient { border: 1px solid rgba(255,255,255,.9); border-radius: 999px; height: 7px; width: 64px; }
+      .legend-gradient.weather { background: linear-gradient(90deg, var(--weather-cold), var(--weather-cool), var(--weather-mild), var(--weather-warm), var(--weather-hot)); }
+      .legend-gradient.dust { background: linear-gradient(90deg, var(--air-good), var(--air-moderate), var(--air-bad), var(--air-very-bad)); }
+      .legend-events { border-left: 1px solid #d7e4f2; padding-left: 8px; }
+      .legend-weather-icon { display: inline-block; height: 15px; object-fit: contain; vertical-align: middle; width: 15px; }
+      .legend-weather-group { align-items: center; display: inline-flex; gap: 2px; }
+      .info {
+        background: #ffffff;
+        border: 1px solid #d7e4f2;
+        border-radius: 0;
+        box-shadow: 0 5px 18px rgba(48,84,120,.16);
+        color: #17202a;
+        font-size: 13px;
+        line-height: 1.45;
+        min-width: 190px;
+        padding: 10px;
+      }
+      .info strong {
+        display: block;
+        font-size: 15px;
+        margin-bottom: 8px;
+      }
+      .info .grid {
+        display: grid;
+        column-gap: 12px;
+        grid-template-columns: 1fr 1fr;
+      }
+      .info .metric {
+        background: transparent;
+        border: 0;
+        border-bottom: 1px solid #e5edf5;
+        border-radius: 0;
+        padding: 7px 2px;
+      }
+      .info .label {
+        color: #687180;
+        display: block;
+        font-size: 11px;
+        font-weight: 700;
+      }
+      .info .value {
+        color: #17202a;
+        display: block;
+        font-size: 14px;
+        font-weight: 900;
+        margin-top: 2px;
+      }
+      .muted {
+        color: #687180;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="map"></div>
+    <div id="map-legend" class="map-legend" aria-label="지도 색상 범례"></div>
+    <script>
+      const mapElement = document.getElementById('map');
+      const naverMapClientId = {{ client_id_js|safe }};
+      let mapMode = '{{ initial_mode }}';
+      const pickerMode = {{ picker_mode_js|safe }};
+      const viewMode = {{ view_mode_js|safe }};
+      const basicMode = {{ basic_mode_js|safe }};
+      const initialLat = {{ initial_lat_js|safe }};
+      const initialLng = {{ initial_lng_js|safe }};
+      const initialZoom = {{ initial_zoom }};
+      const appTestToken = {{ app_test_token_js|safe }};
+      const mapUi = {{ map_ui_js|safe }};
+      const mapLegend = document.getElementById('map-legend');
+
+      function mapDebug(event, details) {
+        const payload = {
+          event,
+          details: Object.assign({ view: viewMode }, details || {}),
+          href: window.location.href.replace(/app_test_token=[^&]+/g, 'app_test_token=[hidden]'),
+          userAgent: navigator.userAgent
+        };
+        try {
+          fetch('/dust/mobile-map/log/', {
+            method: 'POST',
+            headers: Object.assign(
+              { 'Content-Type': 'application/json' },
+              appTestToken ? { 'X-App-Test-Token': appTestToken } : {}
+            ),
+            body: JSON.stringify(payload)
+          }).catch(function() {});
+        } catch (error) {}
+      }
+
+      function safeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+          return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+          }[char];
+        });
+      }
+
+      function showMapError(message) {
+        mapDebug('map_error', { message });
+        mapElement.innerHTML = '<div class="empty">' + safeHtml(message) + '</div>';
+        if (window.ReactNativeWebView) {
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'map-error',
+            message
+          }));
+        }
+      }
+
+      function viewportSize() {
+        const viewport = window.visualViewport || {};
+        const docRect = document.documentElement.getBoundingClientRect ? document.documentElement.getBoundingClientRect() : {};
+        return {
+          width: Math.max(
+            1,
+            Math.round(viewport.width || 0),
+            window.innerWidth || 0,
+            document.documentElement.clientWidth || 0,
+            Math.round(docRect.width || 0),
+            window.screen && window.screen.width ? window.screen.width : 0
+          ),
+          height: Math.max(
+            1,
+            Math.round(viewport.height || 0),
+            window.innerHeight || 0,
+            document.documentElement.clientHeight || 0,
+            Math.round(docRect.height || 0),
+            window.screen && window.screen.height ? window.screen.height : 0
+          )
+        };
+      }
+
+      function ensureMapElementSize() {
+        const viewport = viewportSize();
+        const width = viewport.width;
+        const height = viewport.height;
+        mapElement.style.width = width + 'px';
+        mapElement.style.height = height + 'px';
+        mapElement.style.minWidth = width + 'px';
+        mapElement.style.minHeight = height + 'px';
+        document.documentElement.style.width = width + 'px';
+        document.documentElement.style.height = height + 'px';
+        document.body.style.width = width + 'px';
+        document.body.style.height = height + 'px';
+        void mapElement.offsetHeight;
+        const rect = mapElement.getBoundingClientRect ? mapElement.getBoundingClientRect() : {};
+        return {
+          width: Math.round(rect.width || mapElement.clientWidth || width),
+          height: Math.round(rect.height || mapElement.clientHeight || height),
+          clientWidth: mapElement.clientWidth || 0,
+          clientHeight: mapElement.clientHeight || 0,
+          rectWidth: Math.round(rect.width || 0),
+          rectHeight: Math.round(rect.height || 0),
+          windowWidth: window.innerWidth || 0,
+          windowHeight: window.innerHeight || 0,
+          visualViewportWidth: window.visualViewport ? Math.round(window.visualViewport.width || 0) : 0,
+          visualViewportHeight: window.visualViewport ? Math.round(window.visualViewport.height || 0) : 0
+        };
+      }
+
+      function afterLayout(callback) {
+        requestAnimationFrame(function() {
+          ensureMapElementSize();
+          requestAnimationFrame(function() {
+            const size = ensureMapElementSize();
+            callback(size);
+          });
+        });
+      }
+
+      function waitForMapElementSize(callback, attempt) {
+        const currentAttempt = attempt || 0;
+        const size = ensureMapElementSize();
+        if (size.width > 1 && size.height > 1) {
+          afterLayout(callback);
+          return;
+        }
+        if (currentAttempt >= 30) {
+          mapDebug('map_size_wait_timeout', size);
+          afterLayout(callback);
+          return;
+        }
+        if (currentAttempt === 0 || currentAttempt === 10 || currentAttempt === 20) {
+          mapDebug('map_size_waiting', Object.assign({ attempt: currentAttempt }, size));
+        }
+        setTimeout(() => waitForMapElementSize(callback, currentAttempt + 1), 100);
+      }
+
+      if (!naverMapClientId) {
+        showMapError('Naver Maps client ID is missing.');
+      }
+
+      function isMissingValue(value) {
+        return value === null || value === undefined || value === '' || value === '-';
+      }
+
+      function gradeClass(pm10) {
+        if (isMissingValue(pm10)) return 'unknown';
+        const value = Number(pm10);
+        if (!Number.isFinite(value)) return 'unknown';
+        const thresholds = mapUi.dust.thresholds;
+        if (value <= thresholds[0]) return 'good';
+        if (value <= thresholds[1]) return 'moderate';
+        if (value <= thresholds[2]) return 'bad';
+        return 'verybad';
+      }
+
+      function weatherGradeClass(value) {
+        if (isMissingValue(value)) return 'unknown';
+        const temperature = Number(value);
+        if (!Number.isFinite(temperature)) return 'unknown';
+        if (temperature <= 0) return 'weather-cold';
+        if (temperature <= 12) return 'weather-cool';
+        if (temperature <= 26) return 'weather-mild';
+        if (temperature < 33) return 'weather-warm';
+        return 'weather-hot';
+      }
+
+      function stationMetricValue(station) {
+        return mapMode === 'weather' ? station.weatherTemperature : station.pm10;
+      }
+
+      function markerClass(station) {
+        return mapMode === 'weather' ? weatherGradeClass(station.weatherTemperature) : gradeClass(station.pm10);
+      }
+
+      function markerValue(station) {
+        const sourceValue = stationMetricValue(station);
+        if (isMissingValue(sourceValue)) return '';
+        const value = Number(sourceValue);
+        if (!Number.isFinite(value)) return '';
+        if (value > 999) return '999';
+        return String(Math.round(value));
+      }
+
+      function displayValue(value, fallback = '?') {
+        if (isMissingValue(value)) return fallback;
+        return value;
+      }
+
+      function escapeHtml(value) {
+        return String(value || '').replace(/[&<>"']/g, function(char) {
+          return {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+          }[char];
+        });
+      }
+
+      function markerLabel(station) {
+        return station.city || station.name || station.sido || '';
+      }
+
+      function weatherEventPresentation(station) {
+        const label = String(station.weatherLabel || '').toLowerCase();
+        const rainMm = Number(station.weatherRainMm);
+        const windSpeed = Number(station.weatherWindSpeed);
+        const windDirection = Number(station.weatherWindDirection);
+        const hasSnow = label.includes('눈') || label.includes('snow');
+        const hasRain = !hasSnow && (
+          label.includes('비') ||
+          label.includes('소나기') ||
+          label.includes('rain') ||
+          (Number.isFinite(rainMm) && rainMm > 0)
+        );
+        const hasWind = Number.isFinite(windSpeed) && windSpeed >= 5;
+        const hasStrongWind = Number.isFinite(windSpeed) && windSpeed >= 9;
+        const classes = [];
+        const badges = [];
+        if (hasSnow) {
+          classes.push('weather-snow');
+          badges.push('<span class="weather-badge snow" aria-label="눈" title="눈"><img alt="" src="/static/dust/icons/map-weather-snow.png"></span>');
+        } else if (hasRain) {
+          classes.push(Number.isFinite(rainMm) && rainMm >= 5 ? 'weather-heavy-rain' : 'weather-rain');
+          badges.push('<span class="weather-badge rain" aria-label="비" title="비"><img alt="" src="/static/dust/icons/map-weather-rain.png"></span>');
+        }
+        if (hasStrongWind) badges.push('<span class="weather-badge wind" aria-label="강풍" title="강풍"><img alt="" src="/static/dust/icons/map-weather-wind.png"></span>');
+        let windTrail = '';
+        if (hasWind) {
+          classes.push(hasStrongWind ? 'weather-strong-wind' : 'weather-windy');
+          const angle = Number.isFinite(windDirection) ? (windDirection + 180) % 360 : 0;
+          const lines = hasStrongWind ? '<i></i><i></i><i></i>' : '<i></i>';
+          windTrail = '<span class="wind-trail ' + (hasStrongWind ? 'strong' : '') + '" aria-label="' + (hasStrongWind ? '강풍' : '바람') + '" style="--wind-angle:' + angle + 'deg">' + lines + '</span>';
+        }
+        return {
+          badges: badges.length ? '<div class="weather-badges">' + badges.slice(0, 2).join('') + '</div>' : '',
+          className: classes.join(' '),
+          windTrail
+        };
+      }
+
+      function updateLegend() {
+        if (!mapLegend) return;
+        if (pickerMode) {
+          mapLegend.classList.add('hidden');
+          return;
+        }
+        mapLegend.classList.remove('hidden');
+        const metricLegend = mapMode === 'weather'
+          ? '<span class="legend-item legend-scale"><span>추움</span><span class="legend-gradient weather"></span><span>더움</span></span>'
+          : '<span class="legend-item legend-scale"><span>좋음</span><span class="legend-gradient dust"></span><span>매우 나쁨</span></span>';
+        const eventLegend = '<span class="legend-item legend-events">' +
+          '<span class="legend-weather-group"><img class="legend-weather-icon" alt="" src="/static/dust/icons/map-weather-rain.png">비</span>' +
+          '<span class="legend-weather-group"><img class="legend-weather-icon" alt="" src="/static/dust/icons/map-weather-snow.png">눈</span>' +
+          '<span class="legend-weather-group"><img class="legend-weather-icon" alt="" src="/static/dust/icons/map-weather-wind.png">강풍</span>' +
+          '</span>';
+        mapLegend.innerHTML = metricLegend + eventLegend;
+      }
+
+      function markerLimitByZoom(zoom) {
+        if (zoom <= 7) return 90;
+        if (zoom <= 8) return 150;
+        if (zoom <= 9) return 260;
+        if (zoom <= 10) return 420;
+        if (zoom <= 11) return 620;
+        return 1000;
+      }
+
+      function stationKey(station) {
+        const coords = normalizeLatLng(station.lat, station.lng) || { lat: station.lat || '', lng: station.lng || '' };
+        return [
+          station.sido || '',
+          station.city || '',
+          station.name || '',
+          station.addr || '',
+          coords.lat || '',
+          coords.lng || ''
+        ].join('|');
+      }
+
+      function normalizeLatLng(latValue, lngValue) {
+        let lat = Number(latValue);
+        let lng = Number(lngValue);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+        if (Math.abs(lat) > 90 && Math.abs(lng) <= 90) {
+          const nextLat = lng;
+          lng = lat;
+          lat = nextLat;
+        }
+        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+        return { lat, lng };
+      }
+
+      function compactText(value) {
+        return String(value || '').replace(/\s/g, '').toLowerCase();
+      }
+
+      function isInsideBounds(bounds, station) {
+        if (!bounds || typeof bounds.hasLatLng !== 'function') return true;
+        const coords = normalizeLatLng(station.lat, station.lng);
+        if (!coords) return false;
+        return bounds.hasLatLng(new naver.maps.LatLng(coords.lat, coords.lng));
+      }
+
+      function selectVisibleStations(stations, map, forcedKey) {
+        const zoom = map.getZoom();
+        const bounds = map.getBounds();
+        const limit = markerLimitByZoom(zoom);
+        const cellSize = zoom <= 7 ? 0.58 : zoom <= 8 ? 0.36 : zoom <= 9 ? 0.19 : zoom <= 10 ? 0.1 : zoom <= 11 ? 0.045 : 0.01;
+        const selectedByCell = new window.Map();
+        let forcedStation = null;
+
+        stations.forEach((station) => {
+          const coords = normalizeLatLng(station.lat, station.lng);
+          if (!coords) return;
+          const lat = coords.lat;
+          const lng = coords.lng;
+          if (forcedKey && stationKey(station) === forcedKey) forcedStation = station;
+          if (!isInsideBounds(bounds, station) && !(forcedKey && stationKey(station) === forcedKey)) return;
+          const markerSource = stationMetricValue(station);
+          const value = isMissingValue(markerSource) ? NaN : Number(markerSource);
+          const score = Number.isFinite(value) ? value : -1;
+          const cellKey = Math.floor(lat / cellSize) + ':' + Math.floor(lng / cellSize);
+          const existing = selectedByCell.get(cellKey);
+          const existingSource = existing ? stationMetricValue(existing) : null;
+          const existingValue = existing && !isMissingValue(existingSource) ? Number(existingSource) : -1;
+          const existingScore = Number.isFinite(existingValue) ? existingValue : -1;
+          if (!existing || score > existingScore) selectedByCell.set(cellKey, station);
+        });
+
+        const selected = Array.from(selectedByCell.values()).slice(0, limit);
+        if (forcedStation && !selected.some((station) => stationKey(station) === forcedKey)) {
+          selected.push(forcedStation);
+        }
+        return selected;
+      }
+
+      function renderMap(stations) {
+        updateLegend();
+        const ensuredSize = ensureMapElementSize();
+        mapDebug('map_render_start', {
+          stationCount: Array.isArray(stations) ? stations.length : 0,
+          initialLat,
+          initialLng,
+          initialZoom,
+          mapElementWidth: mapElement.clientWidth,
+          mapElementHeight: mapElement.clientHeight,
+          ensuredWidth: ensuredSize.width,
+          ensuredHeight: ensuredSize.height,
+          windowWidth: ensuredSize.windowWidth,
+          windowHeight: ensuredSize.windowHeight
+        });
+        const initialCenter = new naver.maps.LatLng(initialLat || 36.5, initialLng || 127.8);
+        const map = new naver.maps.Map(mapElement, {
+          center: initialCenter,
+          zoom: initialLat && initialLng ? initialZoom : 7,
+          minZoom: 6,
+          zoomControl: false
+        });
+        window.__naverMapReady = true;
+        mapDebug('map_created', {
+          childCount: mapElement.children.length,
+          centerLat: map.getCenter && typeof map.getCenter().lat === 'function' ? map.getCenter().lat() : '',
+          centerLng: map.getCenter && typeof map.getCenter().lng === 'function' ? map.getCenter().lng() : '',
+          zoom: map.getZoom ? map.getZoom() : ''
+        });
+        let opened = null;
+        let focusedKey = null;
+        let activeMarkers = [];
+        let lastMarkerClick = { key: null, time: 0 };
+        let pickerMarker = null;
+
+        function setPickerMarker(lat, lng) {
+          const position = new naver.maps.LatLng(lat, lng);
+          if (pickerMarker) {
+            pickerMarker.setPosition(position);
+            return;
+          }
+          pickerMarker = new naver.maps.Marker({
+            position,
+            map,
+            zIndex: 5000,
+            icon: {
+              content: '<div class="picker-gps-marker"></div>',
+              size: new naver.maps.Size(42, 42),
+              anchor: new naver.maps.Point(21, 21)
+            }
+          });
+        }
+
+        function compactAddressName(address) {
+          if (!address) return '';
+          const parts = String(address).split(/\s+/).filter(Boolean);
+          const district = parts.find((part) => /[가-힣]+(동|읍|면|리)$/.test(part));
+          const city = parts.find((part) => /[가-힣]+(시|군|구)$/.test(part));
+          return district || city || parts.slice(-2).join(' ') || address;
+        }
+
+        function reverseGeocodePickerLocation(lat, lng, fallbackLabel) {
+          return new Promise((resolve) => {
+            if (!naver.maps.Service || typeof naver.maps.Service.reverseGeocode !== 'function') {
+              resolve({
+                address: '',
+                city: '',
+                label: fallbackLabel,
+                region: fallbackLabel
+              });
+              return;
+            }
+            naver.maps.Service.reverseGeocode({
+              coords: new naver.maps.LatLng(lat, lng),
+              orders: [
+                naver.maps.Service.OrderType.ADDR,
+                naver.maps.Service.OrderType.ROAD_ADDR
+              ].join(',')
+            }, (status, response) => {
+              const results = response && response.v2 && Array.isArray(response.v2.results) ? response.v2.results : [];
+              const result = results.find((item) => item.name === 'roadaddr') || results[0];
+              const area = result && result.region ? result.region : null;
+              const land = result && result.land ? result.land : null;
+              const area1 = area && area.area1 ? area.area1.name : '';
+              const area2 = area && area.area2 ? area.area2.name : '';
+              const area3 = area && area.area3 ? area.area3.name : '';
+              const area4 = area && area.area4 ? area.area4.name : '';
+              const road = land && land.name ? land.name : '';
+              const number1 = land && land.number1 ? land.number1 : '';
+              const number2 = land && land.number2 ? land.number2 : '';
+              const lotNumber = [number1, number2].filter(Boolean).join('-');
+              const address = [area1, area2, area3 || area4, road, lotNumber].filter(Boolean).join(' ');
+              const region = area3 || area4 || area2 || area1 || compactAddressName(address) || fallbackLabel;
+              resolve({
+                address,
+                city: area1 || '',
+                label: compactAddressName(address) || region || fallbackLabel,
+                region
+              });
+            });
+          });
+        }
+
+        function clearMarkers() {
+          activeMarkers.forEach((marker) => marker.setMap(null));
+          activeMarkers = [];
+        }
+
+        let lastMarkerRenderSignature = '';
+        let markerRenderTimer = null;
+
+        function markerRenderSignature() {
+          const bounds = map.getBounds && map.getBounds();
+          const sw = bounds && bounds.getSW ? bounds.getSW() : null;
+          const ne = bounds && bounds.getNE ? bounds.getNE() : null;
+          const zoom = map.getZoom ? map.getZoom() : '';
+          return [
+            zoom,
+            focusedKey || '',
+            mapMode,
+            sw && typeof sw.lat === 'function' ? sw.lat().toFixed(2) : '',
+            sw && typeof sw.lng === 'function' ? sw.lng().toFixed(2) : '',
+            ne && typeof ne.lat === 'function' ? ne.lat().toFixed(2) : '',
+            ne && typeof ne.lng === 'function' ? ne.lng().toFixed(2) : ''
+          ].join('|');
+        }
+
+        function scheduleRenderMarkers(force) {
+          if (markerRenderTimer) clearTimeout(markerRenderTimer);
+          markerRenderTimer = setTimeout(() => {
+            markerRenderTimer = null;
+            renderMarkers(force);
+          }, force ? 0 : 80);
+        }
+
+        function renderMarkers(force) {
+          const signature = markerRenderSignature();
+          if (!force && signature === lastMarkerRenderSignature) return;
+          lastMarkerRenderSignature = signature;
+          clearMarkers();
+          if (pickerMode) return;
+          const showLabels = map.getZoom() >= 8;
+          const visibleStations = selectVisibleStations(stations, map, focusedKey);
+          visibleStations.forEach((station) => {
+            const coords = normalizeLatLng(station.lat, station.lng);
+            if (!coords) return;
+            const lat = coords.lat;
+            const lng = coords.lng;
+            const isFocused = stationKey(station) === focusedKey;
+            const weatherEvent = weatherEventPresentation(station);
+            const marker = new naver.maps.Marker({
+              position: new naver.maps.LatLng(lat, lng),
+              map,
+              zIndex: isFocused ? 3000 : 1000,
+              icon: {
+                content:
+                  '<div class="marker-wrap ' + weatherEvent.className + '">' +
+                  weatherEvent.windTrail +
+                  weatherEvent.badges +
+                  '<div class="marker ' + markerClass(station) + (isFocused ? ' selected' : '') + '">' + markerValue(station) + '</div>' +
+                  (showLabels ? '<div class="marker-label ' + (isFocused ? 'selected' : '') + '">' + escapeHtml(markerLabel(station)) + '</div>' : '') +
+                  '</div>',
+                size: new naver.maps.Size(92, showLabels ? 72 : 42),
+                anchor: new naver.maps.Point(46, 19)
+              }
+            });
+            const info = new naver.maps.InfoWindow({
+              content:
+                '<div class="info">' +
+                '<strong>' + (station.name || station.city || '측정소') + '</strong>' +
+                '<div class="grid">' +
+                '<div class="metric"><span class="label">PM10</span><span class="value">' + displayValue(station.pm10) + ' ug/m3</span></div>' +
+                '<div class="metric"><span class="label">PM2.5</span><span class="value">' + displayValue(station.pm25) + ' ug/m3</span></div>' +
+                '<div class="metric"><span class="label">O3</span><span class="value">' + displayValue(station.o3) + ' ppm</span></div>' +
+                '<div class="metric"><span class="label">NO2</span><span class="value">' + displayValue(station.no2) + ' ppm</span></div>' +
+                '<div class="metric"><span class="label">기온</span><span class="value">' + displayValue(station.weatherTemperature) + '</span></div>' +
+                '<div class="metric"><span class="label">습도</span><span class="value">' + displayValue(station.weatherHumidity) + '%</span></div>' +
+                '<div class="metric"><span class="label">바람</span><span class="value">' + displayValue(station.weatherWindSpeed) + ' m/s</span></div>' +
+                '<div class="metric"><span class="label">강수</span><span class="value">' + displayValue(station.weatherRainMm) + ' mm</span></div>' +
+                '</div>' +
+                '<div class="muted">' + (station.addr || '') + '</div>' +
+                '<div class="muted">' + (station.time || '') + '</div>' +
+                '</div>'
+            });
+            naver.maps.Event.addListener(marker, 'click', () => {
+            
+            
+              focusedKey = stationKey(station);
+              const key = stationKey(station);
+              const now = Date.now();
+              map.panTo(marker.getPosition());
+              setTimeout(renderMarkers, 0);
+              if (window.ReactNativeWebView) {
+                window.ReactNativeWebView.postMessage(JSON.stringify({
+                  type: lastMarkerClick.key === key && now - lastMarkerClick.time < 360 ? 'station-detail' : 'station-selected',
+                  station
+                }));
+                lastMarkerClick = { key, time: now };
+                return;
+              }
+              if (opened) opened.close();
+              info.open(map, marker);
+              opened = info;
+            });
+            activeMarkers.push(marker);
+          });
+        }
+
+        window.focusStation = function(payload) {
+          const data = typeof payload === 'object' && payload ? payload : { lat: arguments[0], lng: arguments[1] };
+          const coords = normalizeLatLng(data.lat, data.lng);
+          if (!coords) return;
+          const requestedKey = data.key || '';
+          const target = stations.find((station) => {
+            if (requestedKey && stationKey(station) === requestedKey) return true;
+            const stationCoords = normalizeLatLng(station.lat, station.lng);
+            if (!stationCoords) return false;
+            const sameCoords = Math.abs(stationCoords.lat - coords.lat) < 0.000001 && Math.abs(stationCoords.lng - coords.lng) < 0.000001;
+            const sameName = compactText(station.name || station.city) === compactText(data.name || data.city);
+            const sameSido = !data.sido || station.sido === data.sido;
+            return sameCoords || (sameName && sameSido);
+          });
+          focusedKey = target ? stationKey(target) : null;
+          const targetCoords = target ? normalizeLatLng(target.lat, target.lng) : coords;
+          if (pickerMode && window.ReactNativeWebView) {
+            setPickerMarker(targetCoords.lat, targetCoords.lng);
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'map-picked',
+              location: {
+                label: target ? (target.name || target.city || '지도 선택 위치') : (data.label || data.name || data.city || '지도 선택 위치'),
+                address: target ? target.addr : (data.address || ''),
+                city: target ? target.sido : (data.city || ''),
+                lat: targetCoords.lat,
+                lng: targetCoords.lng,
+                region: target ? (target.city || target.name || '') : (data.region || ''),
+                source: target ? 'station' : (data.source || 'naver_local')
+              }
+            }));
+          } else if (target && window.ReactNativeWebView) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'station-selected',
+              station: target
+            }));
+          }
+          const next = new naver.maps.LatLng(targetCoords.lat, targetCoords.lng);
+          const nextZoom = Math.max(map.getZoom(), 12);
+          if (typeof map.morph === 'function') {
+            map.morph(next, nextZoom);
+          } else {
+            map.panTo(next);
+            setTimeout(() => map.setZoom(nextZoom, true), 260);
+          }
+          setTimeout(() => map.setZoom(nextZoom, true), 520);
+          setTimeout(() => {
+            map.setCenter(next);
+            map.setZoom(nextZoom, true);
+            scheduleRenderMarkers(true);
+          }, 900);
+        };
+
+        if (window.__pendingFocusStation) {
+          const pending = window.__pendingFocusStation;
+          window.__pendingFocusStation = null;
+          setTimeout(() => window.focusStation(pending), 120);
+        }
+
+        window.setMapMode = function(nextMode) {
+          mapMode = nextMode === 'weather' ? 'weather' : 'dust';
+          updateLegend();
+          scheduleRenderMarkers(true);
+        };
+
+        if (pickerMode) {
+          naver.maps.Event.addListener(map, 'click', async (event) => {
+            const coord = event.coord || event.latlng;
+            if (!coord || !window.ReactNativeWebView) return;
+            const lat = typeof coord.lat === 'function' ? coord.lat() : coord.y;
+            const lng = typeof coord.lng === 'function' ? coord.lng() : coord.x;
+            if (typeof lat !== 'number' || typeof lng !== 'number') return;
+            setPickerMarker(lat, lng);
+            const resolvedLocation = await reverseGeocodePickerLocation(lat, lng, '지도 선택 위치');
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'map-picked',
+              location: {
+                label: '지도 선택 위치',
+                address: resolvedLocation.address,
+                city: resolvedLocation.city,
+                lat,
+                lng,
+                region: resolvedLocation.region,
+                source: 'naver_map'
+              }
+            }));
+          });
+        }
+
+        /*
+        stations.forEach((station) => {
+          if (typeof station.lat !== 'number' || typeof station.lng !== 'number') return;
+          const marker = new naver.maps.Marker({
+            position: new naver.maps.LatLng(station.lat, station.lng),
+            map,
+            icon: {
+              content: '<div class="marker ' + markerClass(station) + '">' + markerValue(station) + '</div>',
+              size: new naver.maps.Size(42, 42),
+              anchor: new naver.maps.Point(19, 19)
+            }
+          });
+          const info = new naver.maps.InfoWindow({
+            content:
+              '<div class="info">' +
+              '<strong>' + (station.name || station.city || '측정소') + '</strong>' +
+              '<div class="grid">' +
+              '<div class="metric"><span class="label">PM10</span><span class="value">' + (station.pm10 ?? '-') + ' ug/m3</span></div>' +
+              '<div class="metric"><span class="label">PM2.5</span><span class="value">' + (station.pm25 ?? '-') + ' ug/m3</span></div>' +
+              '<div class="metric"><span class="label">O3</span><span class="value">' + (station.o3 ?? '-') + ' ppm</span></div>' +
+              '<div class="metric"><span class="label">NO2</span><span class="value">' + (station.no2 ?? '-') + ' ppm</span></div>' +
+              '</div>' +
+              '<div class="muted">' + (station.time || '') + '</div>' +
+              '</div>'
+          });
+          naver.maps.Event.addListener(marker, 'click', () => {
+            map.panTo(marker.getPosition());
+            if (window.ReactNativeWebView) {
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'station-selected',
+                station
+              }));
+              return;
+            }
+            if (opened) opened.close();
+            info.open(map, marker);
+            opened = info;
+          });
+        });
+        */
+        naver.maps.Event.addListener(map, 'idle', () => {
+        
+        
+          mapDebug('map_idle', {
+            childCount: mapElement.children.length,
+            markerCount: activeMarkers.length,
+            width: mapElement.clientWidth,
+            height: mapElement.clientHeight,
+            zoom: map.getZoom ? map.getZoom() : ''
+          });
+          scheduleRenderMarkers(false);
+        });
+        scheduleRenderMarkers(true);
+        setTimeout(() => {
+          mapDebug('map_render_after_2s', {
+            childCount: mapElement.children.length,
+            markerCount: activeMarkers.length,
+            width: mapElement.clientWidth,
+            height: mapElement.clientHeight,
+            zoom: map.getZoom ? map.getZoom() : ''
+          });
+        }, 2000);
+      }
+
+      function renderBasicMap() {
+        const ensuredSize = ensureMapElementSize();
+        mapDebug('basic_map_render_start', {
+          initialLat,
+          initialLng,
+          initialZoom,
+          mapElementWidth: mapElement.clientWidth,
+          mapElementHeight: mapElement.clientHeight,
+          ensuredWidth: ensuredSize.width,
+          ensuredHeight: ensuredSize.height,
+          windowWidth: ensuredSize.windowWidth,
+          windowHeight: ensuredSize.windowHeight
+        });
+        const center = new naver.maps.LatLng(initialLat || 36.5, initialLng || 127.8);
+        const map = new naver.maps.Map(mapElement, {
+          center,
+          zoom: initialLat && initialLng ? initialZoom : 7,
+          minZoom: 6,
+          zoomControl: false
+        });
+        window.__naverMapReady = true;
+        mapDebug('basic_map_created', {
+          childCount: mapElement.children.length,
+          centerLat: map.getCenter && typeof map.getCenter().lat === 'function' ? map.getCenter().lat() : '',
+          centerLng: map.getCenter && typeof map.getCenter().lng === 'function' ? map.getCenter().lng() : '',
+          zoom: map.getZoom ? map.getZoom() : ''
+        });
+        setTimeout(() => {
+          mapDebug('basic_map_after_2s', {
+            childCount: mapElement.children.length,
+            width: mapElement.clientWidth,
+            height: mapElement.clientHeight,
+            bodyChildCount: document.body.children.length,
+            bodyHtmlLength: document.body.innerHTML.length,
+            mapHtmlLength: mapElement.innerHTML.length,
+            imageCount: document.images.length,
+            zoom: map.getZoom ? map.getZoom() : ''
+          });
+        }, 2000);
+      }
+
+      function isNaverMapsReady() {
+        return !!(
+          window.naver &&
+          window.naver.maps &&
+          typeof window.naver.maps.Map === 'function' &&
+          typeof window.naver.maps.LatLng === 'function' &&
+          typeof window.naver.maps.Marker === 'function' &&
+          window.naver.maps.Event
+        );
+      }
+
+      function waitForNaverMaps(callback, attempt) {
+        const currentAttempt = attempt || 0;
+        if (isNaverMapsReady()) {
+          callback();
+          return;
+        }
+        if (currentAttempt >= 40) {
+          showMapError('Naver Maps SDK is incomplete. Check Dynamic Map service URL and API key restrictions.');
+          return;
+        }
+        if (currentAttempt === 0 || currentAttempt === 10 || currentAttempt === 25) {
+          mapDebug('naver_sdk_waiting', {
+            attempt: currentAttempt,
+            hasNaver: !!window.naver,
+            hasMaps: !!(window.naver && window.naver.maps),
+            hasMap: !!(window.naver && window.naver.maps && window.naver.maps.Map),
+            hasLatLng: !!(window.naver && window.naver.maps && window.naver.maps.LatLng)
+          });
+        }
+        setTimeout(() => waitForNaverMaps(callback, currentAttempt + 1), 150);
+      }
+
+      function startMapAfterSdkReady() {
+        mapDebug('naver_sdk_ready', {
+          hasMap: typeof window.naver.maps.Map === 'function',
+          hasLatLng: typeof window.naver.maps.LatLng === 'function',
+          hasMarker: typeof window.naver.maps.Marker === 'function'
+        });
+        if (basicMode) {
+          waitForMapElementSize(() => renderBasicMap());
+          return;
+        }
+        const stationFetchOptions = appTestToken
+          ? { headers: { 'X-App-Test-Token': appTestToken } }
+          : undefined;
+        waitForNaverMaps(() => {
+          fetch('/dust/korea-stations/', stationFetchOptions)
+            .then((response) => {
+              mapDebug('station_fetch_response', { status: response.status, ok: response.ok });
+              if (!response.ok) throw new Error('HTTP ' + response.status);
+              return response.json();
+            })
+            .then((data) => {
+              try {
+                mapDebug('station_fetch_success', { count: Array.isArray(data.items) ? data.items.length : 0 });
+                waitForMapElementSize(() => renderMap(data.items || []));
+              } catch (error) {
+                showMapError('Map render failed: ' + (error && error.message ? error.message : 'unknown error'));
+              }
+            })
+            .catch((error) => {
+              showMapError('Station data load failed: ' + (error && error.message ? error.message : 'network error'));
+            });
+          setTimeout(() => {
+            if (!window.__naverMapReady) {
+              showMapError('Naver map did not initialize. Check Web service URL and API key restrictions.');
+            }
+          }, 6000);
+        });
+      }
+
+      window.__startNaverMap = function() {
+        mapDebug('naver_sdk_callback');
+        waitForNaverMaps(startMapAfterSdkReady);
+      };
+
+      if (naverMapClientId) {
+        mapDebug('naver_sdk_script_append', { hasClientId: true });
+        const sdkScript = document.createElement('script');
+        sdkScript.src = 'https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=' + encodeURIComponent(naverMapClientId) + '&submodules=geocoder&callback=__startNaverMap';
+        sdkScript.async = true;
+        sdkScript.onerror = function() {
+          mapDebug('naver_sdk_script_error');
+          showMapError('Naver Maps SDK script failed to load. Check network and Dynamic Map settings.');
+        };
+        document.head.appendChild(sdkScript);
+      }
+    </script>
+  </body>
+</html>

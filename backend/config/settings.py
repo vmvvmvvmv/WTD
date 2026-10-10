@@ -112,12 +112,7 @@ ROOT_URLCONF = 'config.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # React build/index.html을 템플릿으로 서빙하기 위해 build 폴더 추가
-        'DIRS': [
-            os.path.join(BASE_DIR, 'build'),
-            'app',
-            'api',
-        ],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -251,8 +246,6 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
-    # React build 정적 파일 (JS, CSS)
-    os.path.join(BASE_DIR, 'build', 'static'),
 ]
 # collectstatic 결과물 경로 (배포 시 사용)
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
