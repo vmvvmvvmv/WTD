@@ -863,3 +863,14 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
   - 캘린더 스타일 218개 → `styles/calendarStyles.ts`. `appStyles.ts`가 합쳐서 `styles`로 내보내므로 컴포넌트 import는 그대로.
 - 확인: tsc, eslint(경고 12 → 9), `npm test` 45건, 기기에서 주·월·날짜 시트·일정 입력 화면 그대로.
 - 남은 구조 과제: `AppContent.tsx` 1026줄.
+
+## 68. 2026-10-11 AppContent 정리 + 전체 구조 점검 (Claude, 동작 변화 없음)
+- `c756afa` `AppContent.tsx` 1026 → 592줄. 분리: `home/HomeHeader`(지역명·날씨 칩·기준시각·즐겨찾기 바꾸기), `home/HomeRegionSearchPanel`, `home/RegionLoadingOverlay`(+`useRegionTransition`), `shared/BottomToast`(키보드 높이 추적 포함), `shared/LocationGate`, `shared/ScreenChrome`(ScreenTransition·WeatherBackdrop), `map/useMapTabLifecycle`(지도 탭 나갈 때·5분 초기화·뒤로가기·마커 메시지), `utils/mobileMapUrl`.
+- 기기 확인: 홈 머리·즐겨찾기·지역 검색(뒤로가기로 닫힘)·지도 탭 진입/뒤로가기 → 홈.
+- 전체 점검에서 남은 구조 과제(우선순위):
+  1. 백엔드 `dust/views.py` 3111줄·함수 110개 — HTTP 뷰와 에어코리아/기상청 API 호출·측정소 찾기·예측 보정·저장이 한 파일. `services/`로 나누고 뷰는 얇게.
+  2. `components/home/HomePanel.tsx` 1073줄 — 날씨 모션(비·눈·바람·맑음 오버레이) ~400줄, 원형 게이지, 탭 3개가 한 파일.
+  3. 계층 섞임: 캘린더 계산 로직(`calendarRiskEvaluator`·`calendarUtils`·`calendarRepeat`…)이 `components/calendar`에, 다른 기능 로직은 `features/`에. 규칙: features=데이터·계산·훅, components=화면.
+  4. `theme/appTheme.buildOutingAccentTheme`가 외출지수를 계산하지만 결과(score)를 안 쓰고 항상 같은 파랑을 돌려줌 → 상수로 바꾸고, accentTone/softTone/borderTone을 모든 화면에 props로 내려보내는 것도 정리 가능.
+  5. `types/dust.ts` 한 파일에 모든 타입, `utils/dust.ts`에 성격 다른 함수 섞임.
+  6. 백엔드 `app/`·`api/` 앱은 로그인·회원 기능을 끈 뒤 모델(데이터)만 남은 상태.
