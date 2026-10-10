@@ -98,6 +98,7 @@ def upsert_notification_device(payload: Any) -> NotificationDevice:
             "pm10_threshold": pm10_threshold,
             "morning_summary": bool_from_payload(payload.get("morningSummary"), False),
             "weather_morning_alerts": weather_morning_alerts,
+            "dust_spike_alerts": bool_from_payload(payload.get("dustSpikeAlerts"), False),
             "include_favorites": bool_from_payload(payload.get("includeFavorites"), True),
             "regions": regions,
             "calendar_events": calendar_events,
@@ -113,6 +114,7 @@ def notification_device_response(device: NotificationDevice) -> dict[str, Any]:
         "enabled": device.enabled,
         "pm10Threshold": device.pm10_threshold,
         "weatherMorningAlerts": device.weather_morning_alerts,
+        "dustSpikeAlerts": device.dust_spike_alerts,
         "regions": device.regions,
         "calendarEvents": device.calendar_events,
     }

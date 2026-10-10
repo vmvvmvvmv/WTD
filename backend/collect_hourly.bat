@@ -40,6 +40,12 @@ echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 "%PYTHON_EXE%" manage.py check_data_freshness --max-dust-age-hours 3 --max-weather-age-hours 6 >> "%LOG_FILE%" 2>&1
 if errorlevel 1 goto :failed
 
+REM Push once a day when today's PM10 turns bad. Uses the data collected above.
+set "CURRENT_STEP=send_dust_spike_notifications"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py send_dust_spike_notifications >> "%LOG_FILE%" 2>&1
+if errorlevel 1 goto :failed
+
 echo [%date% %time%] hourly collection success >> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"
 exit /b 0
