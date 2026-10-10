@@ -458,7 +458,7 @@ export function CalendarPanel({
         activityInput={draft.activityInput}
         endDate={draft.endDate}
         endTime={draft.endTime}
-        isEditing={!!draft.editingEventId}
+        isRepeatLocked={draft.isRepeatLocked}
         isOpen={draft.isEditorOpen}
         location={draft.location}
         mapPickerUrl={mapPickerUrl}
