@@ -796,6 +796,73 @@ export function AppContent() {
                 {formatCurrentBasis(currentItem)}
               </Text>
             )}
+            {/* 즐겨찾기 지역 바꾸기: 머리 안에 있어서 화면을 내려도 머리와 함께 위에 붙어 있습니다. */}
+            {showFavoritePicker && (
+              <Animated.View style={[styles.favoritePicker, { opacity: homePanelOpacity, transform: [{ translateY: homePanelTranslateY }] }]}>
+                <View style={styles.favoritePickerHeader}>
+                  <Text style={styles.favoritePickerTitle}>지역 바꾸기</Text>
+                  <Text style={styles.favoritePickerCount}>즐겨찾기 {favoriteRegions.length}곳</Text>
+                </View>
+                <ScrollView nestedScrollEnabled style={styles.favoritePickerScroll}>
+                  {gpsRegion && (() => {
+                    const selected = isSameRegion(gpsRegion, selectedRegion);
+                    return (
+                      <Pressable
+                        accessibilityLabel={`현재 위치 ${gpsRegion.city} ${gpsRegion.region}${selected ? ', 보는 중' : ''}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                        disabled={selected}
+                        onPress={() => applyRegion(gpsRegion, `${gpsRegion.city} ${gpsRegion.region} 기준으로 돌아왔습니다.`)}
+                        style={({ pressed }) => [styles.favoritePickerRow, pressed && styles.pressedFeedback]}
+                      >
+                        <Ionicons color={bauhausColors.red} name="navigate" size={17} style={styles.favoritePickerIcon} />
+                        <Text numberOfLines={1} style={styles.favoritePickerName}>
+                          <Text style={selected && { color: accentTone }}>{gpsRegion.region}</Text>
+                          <Text style={styles.favoritePickerCity}>{`  ${gpsRegion.city}`}</Text>
+                        </Text>
+                        {selected ? (
+                          <Text style={[styles.favoritePickerStatus, { color: accentTone }]}>✓ 보는 중</Text>
+                        ) : (
+                          <Text style={styles.favoritePickerStatus}>현재 위치</Text>
+                        )}
+                      </Pressable>
+                    );
+                  })()}
+                  {favoriteRegions.map((region) => {
+                    const selected = isSameRegion(region, selectedRegion);
+                    return (
+                      <View key={`${region.city}-${region.region}`} style={styles.favoritePickerRow}>
+                        <Pressable
+                          accessibilityLabel={`${region.city} ${region.region}${selected ? ', 보는 중' : ''}`}
+                          accessibilityRole="button"
+                          accessibilityState={{ selected }}
+                          onPress={() => applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`)}
+                          style={({ pressed }) => [styles.favoritePickerSelectArea, pressed && styles.pressedFeedback]}
+                        >
+                          <Ionicons color="#E2B93B" name="star" size={17} style={styles.favoritePickerIcon} />
+                          <Text numberOfLines={1} style={styles.favoritePickerName}>
+                            <Text style={selected && { color: accentTone }}>{region.region}</Text>
+                            <Text style={styles.favoritePickerCity}>{`  ${region.city}`}</Text>
+                          </Text>
+                          {selected && <Text style={[styles.favoritePickerStatus, { color: accentTone }]}>✓ 보는 중</Text>}
+                        </Pressable>
+                        <Pressable
+                          accessibilityLabel={`${region.city} ${region.region} 즐겨찾기 삭제`}
+                          hitSlop={8}
+                          onPress={() => removeFavoriteRegion(region)}
+                          style={({ pressed }) => [styles.favoritePickerRemoveButton, pressed && styles.pressedFeedback]}
+                        >
+                          <Ionicons color={textColors.disabled} name="close" size={17} />
+                        </Pressable>
+                      </View>
+                    );
+                  })}
+                  {favoriteRegions.length === 0 && (
+                    <Text style={styles.homeRegionSearchEmpty}>지역 검색 결과의 별을 눌러 즐겨찾기를 추가해 보세요.</Text>
+                  )}
+                </ScrollView>
+              </Animated.View>
+            )}
           </View>
         ) : (
           <View style={styles.tabPageHeader}>
@@ -804,56 +871,6 @@ export function AppContent() {
             </View>
             <Ionicons color={bauhausColors.blue} name="options-outline" size={24} />
           </View>
-        )}
-        {activeTab === 'home' && showFavoritePicker && (
-          <Animated.View style={[styles.favoritePicker, { opacity: homePanelOpacity, transform: [{ translateY: homePanelTranslateY }] }]}>
-            <Text style={styles.favoritePickerTitle}>즐겨찾기 지역 선택</Text>
-            {gpsRegion && !isSameRegion(gpsRegion, selectedRegion) && (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => applyRegion(gpsRegion, `${gpsRegion.city} ${gpsRegion.region} 기준으로 돌아왔습니다.`)}
-                style={({ pressed }) => [styles.favoritePickerRow, pressed && styles.pressedFeedback]}
-              >
-                <Ionicons color={bauhausColors.red} name="navigate" size={17} style={styles.favoritePickerIcon} />
-                <View style={styles.homeRegionSuggestionTextGroup}>
-                  <Text style={styles.favoritePickerText}>{gpsRegion.region}</Text>
-                  <Text style={styles.homeRegionSuggestionMeta}>{gpsRegion.city} · 현재 위치</Text>
-                </View>
-                <Ionicons color="#B7C0CC" name="chevron-forward" size={18} />
-              </Pressable>
-            )}
-            {favoriteRegions.length === 0 && (
-              <Text style={styles.homeRegionSearchEmpty}>지역 검색 결과의 별을 눌러 즐겨찾기를 추가해 보세요.</Text>
-            )}
-            {favoriteRegions.map((region) => {
-              const selected = isSameRegion(region, selectedRegion);
-              return (
-                <View key={`${region.city}-${region.region}`} style={styles.favoritePickerRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`)}
-                    style={({ pressed }) => [styles.favoritePickerSelectArea, pressed && styles.pressedFeedback]}
-                  >
-                    <Ionicons color="#E2B93B" name="star" size={17} style={styles.favoritePickerIcon} />
-                    <View style={styles.homeRegionSuggestionTextGroup}>
-                      <Text style={[styles.favoritePickerText, selected && { color: accentTone }]}>{region.region}</Text>
-                      <Text style={styles.homeRegionSuggestionMeta}>{region.city}</Text>
-                    </View>
-                    {selected && <Ionicons color={accentTone} name="checkmark" size={20} />}
-                  </Pressable>
-                  <Pressable
-                    accessibilityLabel={`${region.city} ${region.region} 즐겨찾기 삭제`}
-                    hitSlop={8}
-                    onPress={() => removeFavoriteRegion(region)}
-                    style={({ pressed }) => [styles.favoritePickerRemoveButton, pressed && styles.pressedFeedback]}
-                  >
-                    <Ionicons color="#B7C0CC" name="close" size={17} />
-                  </Pressable>
-                </View>
-              );
-            })}
-          </Animated.View>
         )}
         {activeTab === 'home' && showHomeRegionSearch && (
           <Animated.View style={[styles.homeRegionSearchPanel, { opacity: homePanelOpacity, transform: [{ translateY: homePanelTranslateY }] }]}>
