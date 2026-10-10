@@ -70,6 +70,14 @@ function getHomeWeatherMotionKind(label?: string | null, windSpeed?: number | st
   return weatherKind;
 }
 
+type HomeSectionKey = 'guide' | 'outfit' | 'map';
+
+const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
+  { icon: 'schedule', key: 'guide', label: '활동 가이드' },
+  { icon: 'outfit', key: 'outfit', label: '옷차림' },
+  { icon: 'map', key: 'map', label: '날씨 지도' },
+];
+
 function HomeMotionActionIcon({ delayMs = 0, name, size }: { delayMs?: number; name: AppActionIconName; size: number }) {
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -596,6 +604,9 @@ export function HomePanel({
   const infoCarouselRef = useRef<ScrollView>(null);
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
   const [carouselIndex, setCarouselIndex] = useState(1);
+  const [homeSectionTab, setHomeSectionTab] = useState<HomeSectionKey>('guide');
+  const homeSectionTabs = HOME_SECTION_TABS.filter((tab) => outfitEnabled || tab.key !== 'outfit');
+  const activeHomeSection = homeSectionTabs.some((tab) => tab.key === homeSectionTab) ? homeSectionTab : 'guide';
   const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
   const [mapPreviewRetryCount, setMapPreviewRetryCount] = useState(0);
   const infoSlideWidth = windowWidth;
@@ -824,180 +835,170 @@ export function HomePanel({
         </View>
       </View>
 
-      <View
-        style={[
-          styles.activityGuideCard,
-          activityGuideRows.length === 0 && styles.activityGuideCardEmpty,
-          { shadowColor: accentTone },
-        ]}
-      >
-        <View style={styles.activityGuideHeader}>
-          <View style={styles.activityGuideHeaderTitleGroup}>
-            <Text style={styles.activityGuideTitle}>오늘 활동 가이드</Text>
-            {activityGuideRows.length === 0 && <Text style={styles.activityGuideEmptyText}>오늘 등록된 일정이 없어요</Text>}
-          </View>
-          {activityGuideRows.length === 0 ? (
-            <Pressable
-              accessibilityLabel="일정 추가하러 가기"
-              accessibilityRole="button"
-              onPress={onOpenCalendar}
-              style={({ pressed }) => [styles.activityGuideAddChip, pressed && styles.pressedFeedback]}
-            >
-              <Ionicons color={accentTone} name="add" size={17} />
-              <Text style={[styles.activityGuideAddChipText, { color: accentTone }]}>일정 추가</Text>
-            </Pressable>
-          ) : (
-            <Pressable
-              accessibilityLabel="캘린더 열기"
-              onPress={onOpenCalendar}
-              style={({ pressed }) => [
-                styles.activityGuideEditButton,
-                pressed && styles.pressedFeedback,
-              ]}
-            >
-              <HomeMotionActionIcon name="schedule" size={25} />
-            </Pressable>
-          )}
-        </View>
-        {activityGuideRows.length > 0 && <View style={styles.activityGuideList}>
-          {activityGuideRows.map((item) => {
-            const completed = item.isCompleted;
+      {/* 활동 가이드·옷차림·날씨 지도를 한 섹션의 탭으로 봅니다. 탭을 바꿔도 내용은 숨기기만 해서 다시 불러오지 않습니다. */}
+      <View style={styles.homeSectionCard}>
+        <View accessibilityRole="tablist" style={styles.homeSectionTabRow}>
+          {homeSectionTabs.map((tab) => {
+            const selected = tab.key === activeHomeSection;
             return (
-              <View key={item.id} style={styles.activityGuideItemGroup}>
-                <Pressable
-                  accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''}, 캘린더에서 보기`}
-                  onPress={onOpenCalendar}
-                  style={({ pressed }) => [styles.activityGuideRow, completed && styles.activityGuideRowCompleted, pressed && styles.pressedFeedback]}
-                >
-                  <View
-                    accessibilityLabel={item.forecastLabel || undefined}
-                    style={[styles.activityGuideIconBox, completed ? styles.activityGuideIconBoxCompleted : { backgroundColor: ACTIVITY_WEATHER_ICONS[item.weatherKind].background }]}
-                  >
-                    <WeatherIcon kind={ACTIVITY_WEATHER_ICONS[item.weatherKind].kind} size={29} style={completed ? { opacity: 0.45 } : undefined} />
-                  </View>
-                  <View style={styles.activityGuideTextGroup}>
-                    <View style={styles.activityGuideTitleRow}>
-                      <Text numberOfLines={1} style={[styles.activityGuideRowTitle, completed && styles.activityGuideRowTitleCompleted]}>{item.title}</Text>
-                      {completed ? (
-                        <View style={styles.activityGuideCompletedBadge}>
-                          <Ionicons color="#63748A" name="checkmark" size={11} />
-                          <Text style={styles.activityGuideCompletedBadgeText}>완료</Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.activityGuideRiskBadge, { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone }]}>
-                          <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
-                          <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.activityGuideMetaRow}>
-                      <Text style={[styles.activityGuideTimeText, completed && styles.activityGuideMetaCompleted]}>{item.timeLabel}</Text>
-                      {!!item.locationLabel && <><View style={styles.activityGuideMetaDivider} /><Text numberOfLines={1} style={[styles.activityGuideRowLocation, completed && styles.activityGuideMetaCompleted]}>{item.locationLabel}</Text></>}
-                    </View>
-                    {!completed && !!item.forecastLabel && (
-                      <Text
-                        numberOfLines={1}
-                        style={[styles.activityGuideForecast, { color: activityForecastColor(item.weatherKind) }]}
-                      >
-                        {item.forecastLabel}
-                      </Text>
-                    )}
-                    <Text numberOfLines={2} style={[styles.activityGuideRowDesc, completed && styles.activityGuideMetaCompleted]}>{completed ? '완료한 일정이에요.' : item.advice}</Text>
-                  </View>
-                  <Pressable
-                    accessibilityLabel={`${item.title} 일정 삭제`}
-                    hitSlop={8}
-                    onPress={(pressEvent) => {
-                      pressEvent.stopPropagation();
-                      const calendarEvent = todayCalendarEvents.find((event) => event.id === item.id);
-                      if (!calendarEvent) return;
-                      confirmCalendarEventRemoval(calendarEvent, {
-                        removeFollowing: () => onDeleteFollowingCalendarEvents?.(calendarEvent),
-                        removeOne: () => onDeleteCalendarEvent?.(item.id),
-                      });
-                    }}
-                    style={({ pressed }) => [styles.activityGuideDeleteButton, pressed && styles.pressedFeedback]}
-                  >
-                    <AppActionIcon name="delete" size={22} />
-                  </Pressable>
-                </Pressable>
-              </View>
+              <Pressable
+                accessibilityLabel={tab.label}
+                accessibilityRole="tab"
+                accessibilityState={{ selected }}
+                key={tab.key}
+                onPress={() => setHomeSectionTab(tab.key)}
+                style={({ pressed }) => [styles.homeSectionTab, selected && { borderBottomColor: accentTone }, pressed && styles.pressedFeedback]}
+              >
+                {selected ? <HomeMotionActionIcon name={tab.icon} size={24} /> : <AppActionIcon name={tab.icon} size={24} style={styles.homeSectionTabIconMuted} />}
+                <Text style={[styles.homeSectionTabText, selected && styles.homeSectionTabTextSelected]}>{tab.label}</Text>
+              </Pressable>
             );
           })}
-        </View>}
-        {activityGuideRows.length > 0 && <Pressable
-          accessibilityLabel={"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}
-          onPress={onOpenCalendar}
-          style={({ pressed }) => [styles.activityGuideAddScheduleButton, pressed && styles.pressedFeedback]}
-        >
-          <View style={styles.activityGuideAddScheduleIcon}>
-            <AppActionIcon name="schedule" size={27} />
-          </View>
-          <Text style={[styles.activityGuideAddScheduleText, { color: accentTone }]}>{"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}</Text>
-          <Ionicons color={accentTone} name="chevron-forward" size={16} />
-        </Pressable>}
-      </View>
-      {outfitEnabled && <View style={styles.homeOutfitSection}>
-        <View style={styles.homeOutfitSectionHeader}>
-          <View style={styles.homeOutfitSectionTitleGroup}>
-            <Text style={styles.homeOutfitSectionTitle}>오늘 옷차림</Text>
-            <Text numberOfLines={1} style={styles.homeOutfitSectionMeta}>
+        </View>
+
+        <View style={activeHomeSection !== 'guide' && styles.homeSectionHidden}>
+          {activityGuideRows.length === 0 && (
+            <View style={styles.homeSectionEmptyRow}>
+              <Text style={styles.activityGuideEmptyText}>오늘 등록된 일정이 없어요</Text>
+              <Pressable
+                accessibilityLabel="일정 추가하러 가기"
+                accessibilityRole="button"
+                onPress={onOpenCalendar}
+                style={({ pressed }) => [styles.activityGuideAddChip, pressed && styles.pressedFeedback]}
+              >
+                <Ionicons color={accentTone} name="add" size={17} />
+                <Text style={[styles.activityGuideAddChipText, { color: accentTone }]}>일정 추가</Text>
+              </Pressable>
+            </View>
+          )}
+          {activityGuideRows.length > 0 && <View style={styles.activityGuideList}>
+            {activityGuideRows.map((item) => {
+              const completed = item.isCompleted;
+              return (
+                <View key={item.id} style={styles.activityGuideItemGroup}>
+                  <Pressable
+                    accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''}, 캘린더에서 보기`}
+                    onPress={onOpenCalendar}
+                    style={({ pressed }) => [styles.activityGuideRow, completed && styles.activityGuideRowCompleted, pressed && styles.pressedFeedback]}
+                  >
+                    <View
+                      accessibilityLabel={item.forecastLabel || undefined}
+                      style={[styles.activityGuideIconBox, completed ? styles.activityGuideIconBoxCompleted : { backgroundColor: ACTIVITY_WEATHER_ICONS[item.weatherKind].background }]}
+                    >
+                      <WeatherIcon kind={ACTIVITY_WEATHER_ICONS[item.weatherKind].kind} size={29} style={completed ? { opacity: 0.45 } : undefined} />
+                    </View>
+                    <View style={styles.activityGuideTextGroup}>
+                      <View style={styles.activityGuideTitleRow}>
+                        <Text numberOfLines={1} style={[styles.activityGuideRowTitle, completed && styles.activityGuideRowTitleCompleted]}>{item.title}</Text>
+                        {completed ? (
+                          <View style={styles.activityGuideCompletedBadge}>
+                            <Ionicons color="#63748A" name="checkmark" size={11} />
+                            <Text style={styles.activityGuideCompletedBadgeText}>완료</Text>
+                          </View>
+                        ) : (
+                          <View style={[styles.activityGuideRiskBadge, { backgroundColor: item.riskSoftTone, borderColor: item.riskBorderTone }]}>
+                            <View style={[styles.activityGuideRiskDot, { backgroundColor: item.riskTone }]} />
+                            <Text style={[styles.activityGuideRiskBadgeText, { color: item.riskTone }]}>{item.riskLabel}</Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={styles.activityGuideMetaRow}>
+                        <Text style={[styles.activityGuideTimeText, completed && styles.activityGuideMetaCompleted]}>{item.timeLabel}</Text>
+                        {!!item.locationLabel && <><View style={styles.activityGuideMetaDivider} /><Text numberOfLines={1} style={[styles.activityGuideRowLocation, completed && styles.activityGuideMetaCompleted]}>{item.locationLabel}</Text></>}
+                      </View>
+                      {!completed && !!item.forecastLabel && (
+                        <Text
+                          numberOfLines={1}
+                          style={[styles.activityGuideForecast, { color: activityForecastColor(item.weatherKind) }]}
+                        >
+                          {item.forecastLabel}
+                        </Text>
+                      )}
+                      <Text numberOfLines={2} style={[styles.activityGuideRowDesc, completed && styles.activityGuideMetaCompleted]}>{completed ? '완료한 일정이에요.' : item.advice}</Text>
+                    </View>
+                    <Pressable
+                      accessibilityLabel={`${item.title} 일정 삭제`}
+                      hitSlop={8}
+                      onPress={(pressEvent) => {
+                        pressEvent.stopPropagation();
+                        const calendarEvent = todayCalendarEvents.find((event) => event.id === item.id);
+                        if (!calendarEvent) return;
+                        confirmCalendarEventRemoval(calendarEvent, {
+                          removeFollowing: () => onDeleteFollowingCalendarEvents?.(calendarEvent),
+                          removeOne: () => onDeleteCalendarEvent?.(item.id),
+                        });
+                      }}
+                      style={({ pressed }) => [styles.activityGuideDeleteButton, pressed && styles.pressedFeedback]}
+                    >
+                      <AppActionIcon name="delete" size={22} />
+                    </Pressable>
+                  </Pressable>
+                </View>
+              );
+            })}
+          </View>}
+          {activityGuideRows.length > 0 && <Pressable
+            accessibilityLabel={"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}
+            onPress={onOpenCalendar}
+            style={({ pressed }) => [styles.activityGuideAddScheduleButton, pressed && styles.pressedFeedback]}
+          >
+            <View style={styles.activityGuideAddScheduleIcon}>
+              <AppActionIcon name="schedule" size={27} />
+            </View>
+            <Text style={[styles.activityGuideAddScheduleText, { color: accentTone }]}>{"\uC77C\uC815 \uCD94\uAC00\uD558\uB7EC \uAC00\uAE30"}</Text>
+            <Ionicons color={accentTone} name="chevron-forward" size={16} />
+          </Pressable>}
+        </View>
+
+        {outfitEnabled && (
+          <View style={activeHomeSection !== 'outfit' && styles.homeSectionHidden}>
+            <Text numberOfLines={1} style={styles.homeSectionMeta}>
               {`지금부터 ${dayOutfitEvents[0].endTime === '23:59' ? '자정' : '밤 10시'}까지 날씨를 반영했어요`}
             </Text>
+            <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={dayOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
           </View>
-          <View style={styles.homeOutfitHeaderIcon}>
-            <HomeMotionActionIcon name="outfit" size={25} />
+        )}
+
+        <Pressable
+          accessibilityLabel={"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}
+          onPress={onOpenMap}
+          style={({ pressed }) => [activeHomeSection !== 'map' && styles.homeSectionHidden, pressed && styles.pressedFeedback]}
+        >
+          <View style={styles.homeMapPreviewFrame} pointerEvents="none">
+            {mapPreviewFailed || !mapPreviewUrl ? (
+              <View style={styles.homeMapPreviewFallback}>
+                <AppActionIcon name="map" size={37} />
+                <Text style={styles.homeMapPreviewFallbackText}>지도를 불러올 수 없어요</Text>
+              </View>
+            ) : (
+              <WebView
+                key={`${mapPreviewUrl}-${mapPreviewRetryCount}`}
+                source={{ uri: mapPreviewUrl }}
+                javaScriptEnabled
+                domStorageEnabled
+                androidLayerType="hardware"
+                mixedContentMode="always"
+                onLoad={() => {
+                  setMapPreviewFailed(false);
+                }}
+                onError={() => setMapPreviewFailed(true)}
+                onHttpError={() => setMapPreviewFailed(true)}
+                originWhitelist={['*']}
+                setSupportMultipleWindows={false}
+                thirdPartyCookiesEnabled
+                scrollEnabled={false}
+                showsHorizontalScrollIndicator={false}
+                showsVerticalScrollIndicator={false}
+                style={styles.homeMapPreviewWebView}
+              />
+            )}
           </View>
-        </View>
-        <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={dayOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
-      </View>}
-      <Pressable
-        accessibilityLabel={"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}
-        onPress={onOpenMap}
-        style={({ pressed }) => [styles.homeMapPreviewCard, { shadowColor: accentTone }, pressed && styles.pressedFeedback]}
-      >
-        <View style={styles.homeMapPreviewHeader}>
-          <View style={styles.homeMapPreviewTitleGroup}>
-            <Text style={styles.homeMapPreviewTitle}>{"\uC804\uAD6D \uB0A0\uC528 \uC9C0\uB3C4"}</Text>
+          <View style={styles.homeMapPreviewFooter}>
+            <Text style={[styles.homeMapPreviewLink, { color: accentTone }]}>{"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}</Text>
+            <Ionicons color={accentTone} name="chevron-forward" size={17} />
           </View>
-          <View style={styles.homeMapPreviewIconButton}>
-            <HomeMotionActionIcon delayMs={420} name="map" size={29} />
-          </View>
-        </View>
-        <View style={styles.homeMapPreviewFrame} pointerEvents="none">
-          {mapPreviewFailed || !mapPreviewUrl ? (
-            <View style={styles.homeMapPreviewFallback}>
-              <AppActionIcon name="map" size={37} />
-              <Text style={styles.homeMapPreviewFallbackText}>지도를 불러올 수 없어요</Text>
-            </View>
-          ) : (
-            <WebView
-              key={`${mapPreviewUrl}-${mapPreviewRetryCount}`}
-              source={{ uri: mapPreviewUrl }}
-              javaScriptEnabled
-              domStorageEnabled
-              androidLayerType="hardware"
-              mixedContentMode="always"
-              onLoad={() => {
-                setMapPreviewFailed(false);
-              }}
-              onError={() => setMapPreviewFailed(true)}
-              onHttpError={() => setMapPreviewFailed(true)}
-              originWhitelist={['*']}
-              setSupportMultipleWindows={false}
-              thirdPartyCookiesEnabled
-              scrollEnabled={false}
-              showsHorizontalScrollIndicator={false}
-              showsVerticalScrollIndicator={false}
-              style={styles.homeMapPreviewWebView}
-            />
-          )}
-        </View>
-        <View style={styles.homeMapPreviewFooter}>
-          <Text style={[styles.homeMapPreviewLink, { color: accentTone }]}>{"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}</Text>
-          <Ionicons color={accentTone} name="chevron-forward" size={17} />
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
     </View>
   );
 }
