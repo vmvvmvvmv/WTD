@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { StyleProp, ViewStyle } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Reanimated, { FadeIn, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
@@ -59,8 +59,11 @@ export function CalendarDayCell({
   // 날짜를 고르면 숫자가 한 번 톡 커졌다 돌아옵니다(애니메이션 줄이기 설정이면 생략).
   const reduceMotion = useReducedMotion();
   const dayScale = useSharedValue(1);
+  const hasMountedRef = useRef(false);
   useEffect(() => {
-    if (!isSelected || reduceMotion) return;
+    const isFirstRun = !hasMountedRef.current;
+    hasMountedRef.current = true;
+    if (isFirstRun || !isSelected || reduceMotion) return;
     dayScale.value = withSequence(withTiming(1.22, { duration: 110 }), withSpring(1, { damping: 9, stiffness: 260 }));
   }, [dayScale, isSelected, reduceMotion]);
   const dayScaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: dayScale.value }] }));
