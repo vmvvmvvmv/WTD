@@ -54,3 +54,16 @@ test('storage failure keeps the old reminder and rolls back the new one', async 
   }), /storage failed/);
   assert.deepEqual([...scheduled], ['old-reminder']);
 });
+
+test('turning reminders off clears storage and cancels the old reminder', async () => {
+  const scheduled = new Set(['old-reminder']);
+  let savedIds = ['old-reminder'];
+  await replaceCalendarNotifications(['old-reminder'], [], {
+    cancel: async (ids) => ids.forEach((id) => scheduled.delete(id)),
+    isCurrent: () => true,
+    save: async (ids) => { savedIds = ids; },
+    schedule: async () => { throw new Error('no events should be scheduled'); },
+  });
+  assert.deepEqual(savedIds, []);
+  assert.deepEqual([...scheduled], []);
+});
