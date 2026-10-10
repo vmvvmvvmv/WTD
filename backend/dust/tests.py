@@ -284,7 +284,6 @@ class OptionalFeatureRoutingTests(SimpleTestCase):
         from django.urls import resolve
         with self.settings(ENABLE_OPTIONAL_FEATURES=True):
             self._reload_urls()
-            self.assertEqual(resolve('/dust/chat/').url_name, 'dust_chat')
             self.assertEqual(resolve('/analyze/compact/a&b').url_name, 'ai_short')
 
 
