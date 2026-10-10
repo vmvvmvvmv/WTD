@@ -69,6 +69,12 @@ export function weekLabel(weekStart: string) {
   return `${start.month + 1}월 ${start.day}일 ~ ${end.month + 1}월 ${end.day}일`;
 }
 
+// "10월 11일 (일)"
+export function dayLabel(value: string) {
+  const { day, month, year } = parseDateParts(value);
+  return `${month + 1}월 ${day}일 (${weekdayLabels[new Date(year, month, day).getDay()]})`;
+}
+
 export function formatDateDisplay(value: string) {
   const { day, month, year } = parseDateParts(value);
   const date = new Date(year, month, day);

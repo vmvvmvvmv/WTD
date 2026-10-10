@@ -1,10 +1,9 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Animated, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
-import { bauhausColors } from '../../theme/bauhaus';
 import { useCalendarSlide } from './CalendarMonthGrid';
 import { buildMonthCells } from './calendarUtils';
+import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 
 type Props = {
   accentSoftTone: string;
@@ -25,22 +24,7 @@ export function CalendarYearGrid({ accentSoftTone, accentTone, eventDates, onGoT
 
   return (
     <View style={styles.calendarMonthCard}>
-      <View style={styles.calendarMonthHeader}>
-        <Pressable accessibilityLabel="이전 해" onPress={() => onMoveYear(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color={bauhausColors.blue} name="chevron-back" size={22} />
-        </Pressable>
-        <View style={styles.calendarMonthTitleGroup}>
-          <Text style={styles.calendarMonthTitle}>{year}년</Text>
-          {onGoToday && (
-            <Pressable accessibilityLabel="오늘로 이동" accessibilityRole="button" hitSlop={8} onPress={onGoToday} style={({ pressed }) => [styles.calendarTodayButton, pressed && styles.pressedFeedback]}>
-              <Text style={styles.calendarTodayButtonText}>오늘</Text>
-            </Pressable>
-          )}
-        </View>
-        <Pressable accessibilityLabel="다음 해" onPress={() => onMoveYear(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color={bauhausColors.blue} name="chevron-forward" size={22} />
-        </Pressable>
-      </View>
+      <CalendarPeriodHeader onGoToday={onGoToday} onMove={onMoveYear} title={`${year}년`} unitLabel="해" />
       {/* 월·주 보기와 같은 칸(흰 바탕·가는 선). 3달씩 4줄. */}
       <Animated.View style={[styles.calendarGrid, styles.calendarYearGrid, animatedStyle]} {...swipeHandlers}>
         {[0, 1, 2, 3].map((row) => (

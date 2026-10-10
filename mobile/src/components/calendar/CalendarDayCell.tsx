@@ -16,6 +16,8 @@ type Props = {
   accentSoftTone: string;
   accentTone: string;
   cellIndex: number;
+  // 일정 줄 자리를 미리 잡지 않습니다(주 보기 위쪽 날짜 줄).
+  compact?: boolean;
   date: string;
   day: number;
   eventCount: number;
@@ -25,7 +27,6 @@ type Props = {
   isRangeAnchor: boolean;
   isSelected: boolean;
   isToday: boolean;
-  maxEventLines?: number;
   onLayout?: () => void;
   onLongPress: () => void;
   onPress: () => void;
@@ -39,6 +40,7 @@ export function CalendarDayCell({
   accentSoftTone,
   accentTone,
   cellIndex,
+  compact,
   date,
   day,
   eventCount,
@@ -48,7 +50,6 @@ export function CalendarDayCell({
   isRangeAnchor,
   isSelected,
   isToday,
-  maxEventLines = 3,
   onLayout,
   onLongPress,
   onPress,
@@ -69,7 +70,7 @@ export function CalendarDayCell({
     dayScale.value = withSequence(withTiming(1.22, { duration: 110 }), withSpring(1, { damping: 9, stiffness: 260 }));
   }, [dayScale, isSelected, reduceMotion]);
   const dayScaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: dayScale.value }] }));
-  const visibleEventItems = eventItems.slice(0, maxEventLines);
+  const visibleEventItems = eventItems.slice(0, 3);
   const visibleEventCount = visibleEventItems.filter(Boolean).length;
   const hiddenEventCount = Math.max(0, eventCount - visibleEventCount);
 
@@ -101,7 +102,7 @@ export function CalendarDayCell({
         isToday && { color: accentTone },
         isSelected && { color: accentTone },
       ]}>{day}</Reanimated.Text>
-      <View style={styles.calendarEventLineStack}>
+      <View style={[styles.calendarEventLineStack, compact && styles.calendarEventLineStackCompact]}>
         {visibleEventItems.map((event, laneIndex) => {
           if (!event) {
             return <View key={`${date}-empty-lane-${laneIndex}`} style={styles.calendarEventLineSpacer} />;
