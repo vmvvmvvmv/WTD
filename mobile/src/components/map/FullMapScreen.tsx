@@ -11,10 +11,9 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import type { RegionState, StationDustItem, WeatherState } from '../../types/dust';
 import { isSameRegion, stationIdentity, uniqueStations } from '../../utils/dust';
 import { StationBottomSheet } from './StationBottomSheet';
+import { accentBorderTone, accentTone } from '../../theme/appTheme';
 
 type FullMapScreenProps = {
-  accentBorderTone: string;
-  accentTone: string;
   bottomToast: ReactNode;
   dismissMapSearchKeyboard: () => void;
   favoriteRegions: RegionState[];
@@ -53,8 +52,6 @@ type FullMapScreenProps = {
 
 // The full map surface stays separate from App so search, marker mode, and bottom sheet UI evolve together.
 export function FullMapScreen({
-  accentBorderTone,
-  accentTone,
   bottomToast,
   dismissMapSearchKeyboard,
   favoriteRegions,

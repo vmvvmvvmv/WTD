@@ -5,9 +5,9 @@ import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
 import type { RegionState, StationDustItem } from '../../types/dust';
 import { isSameRegion, stationIdentity } from '../../utils/dust';
+import { accentTone } from '../../theme/appTheme';
 
 type Props = {
-  accentTone: string;
   favoriteRegions: RegionState[];
   gpsRegion: RegionState | null;
   isLoadingStations: boolean;
@@ -23,7 +23,6 @@ type Props = {
 
 // 홈 '지역 검색' 패널: 검색어로 측정소(지역)를 찾아 기준 지역으로 바꾸거나 즐겨찾기에 넣습니다.
 export function HomeRegionSearchPanel({
-  accentTone,
   favoriteRegions,
   gpsRegion,
   isLoadingStations,

@@ -4,6 +4,7 @@ import { Pressable, Text, View } from 'react-native';
 import { styles } from '../../../styles/appStyles';
 import { textColors } from '../../../theme/bauhaus';
 import type { CalendarEvent } from '../../../types/dust';
+import { accentTone } from '../../../theme/appTheme';
 
 export type CalendarActivityInput = CalendarEvent['activityType'];
 
@@ -13,13 +14,9 @@ const activityOptions: Array<{ icon: keyof typeof Ionicons.glyphMap; label: stri
 ];
 
 export function ActivityTypeSelector({
-  accentSoftTone,
-  accentTone,
   activityInput,
   onChangeActivityInput,
 }: {
-  accentSoftTone: string;
-  accentTone: string;
   activityInput: CalendarActivityInput;
   onChangeActivityInput: (value: CalendarActivityInput) => void;
 }) {

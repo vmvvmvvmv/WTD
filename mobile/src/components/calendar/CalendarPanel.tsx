@@ -20,11 +20,9 @@ import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
 import { useCalendarNavigation, VIEW_MODES } from './useCalendarNavigation';
+import { accentTone } from '../../theme/appTheme';
 
 export function CalendarPanel({
-  accentBorderTone,
-  accentSoftTone,
-  accentTone,
   currentPm10,
   defaultLocation,
   events,
@@ -47,9 +45,6 @@ export function CalendarPanel({
   weatherHourlyItems,
   weatherMidTermItems,
 }: {
-  accentBorderTone: string;
-  accentSoftTone: string;
-  accentTone: string;
   currentPm10?: number;
   defaultLocation?: CalendarLocationCandidate | null;
   events: CalendarEvent[];
@@ -215,15 +210,13 @@ export function CalendarPanel({
   return (
     <View style={styles.calendarPanel}>
       <Animated.View style={[styles.calendarFullStage, { bottom: sheet.calendarBottom }]}>
-        <CalendarViewTabs accentTone={accentTone} onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
+        <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
           <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
         )}
         {(viewMode === 'day' || viewMode === 'week') && (
           <CalendarTimeline
-            accentSoftTone={accentSoftTone}
-            accentTone={accentTone}
             dates={timelineDates}
             events={sortedEvents}
             getEventTone={eventTone}
@@ -239,8 +232,6 @@ export function CalendarPanel({
         )}
         {viewMode === 'year' && (
           <CalendarYearGrid
-            accentSoftTone={accentSoftTone}
-            accentTone={accentTone}
             eventDates={yearEventDates}
             onGoToday={goToday}
             onMoveYear={movePeriod}
@@ -252,9 +243,6 @@ export function CalendarPanel({
         )}
         {viewMode === 'month' && (
           <CalendarMonthGrid
-            accentBorderTone={accentBorderTone}
-            accentSoftTone={accentSoftTone}
-            accentTone={accentTone}
             eventCountByDate={eventCountByDate}
             eventItemsByDate={eventItemsByDate}
             getEventTone={eventTone}
@@ -274,7 +262,6 @@ export function CalendarPanel({
 
       {sheet.shouldRender && (
         <CalendarDaySheet
-          accentTone={accentTone}
           events={selectedEvents}
           onAddEvent={() => draft.openEditor(selectedDate)}
           isExpanded={sheet.isExpanded}
@@ -314,8 +301,6 @@ export function CalendarPanel({
       </Animated.View>
 
       <CalendarEventEditor
-        accentSoftTone={accentSoftTone}
-        accentTone={accentTone}
         activityInput={draft.activityInput}
         endDate={draft.endDate}
         endTime={draft.endTime}

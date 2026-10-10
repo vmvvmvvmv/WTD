@@ -1,10 +1,10 @@
 import { Switch, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
+import { accentTone } from '../../theme/appTheme';
 
 // 설정 탭에서 반복해서 쓰는 알림 토글 행입니다.
-export function NotificationToggleRow({ accentTone, description, disabled, label, onValueChange, value }: {
-  accentTone: string;
+export function NotificationToggleRow({ description, disabled, label, onValueChange, value }: {
   // 스위치가 무엇을 하는지 알려주는 회색 한 줄(선택).
   description?: string;
   disabled?: boolean;
