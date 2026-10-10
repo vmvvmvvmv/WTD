@@ -805,3 +805,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 검증: tsc·eslint 오류 0·babel, 실기기 스크린샷으로 패널 모양과 sticky 확인.
 - `42d1a04` 지역 바꾸기의 GPS 행: '현재 위치' → '현재 지역', 아이콘 Ionicons navigate(빨강) → 앱 그림체 위치 핀 PNG(AppActionIcon location).
 - `701e4ed` 기본 가이드 줄마다 붙던 회색 '기본' 배지 제거(위 '기본 가이드' 안내 줄만 남김).
+- `fb77608` 배너 게이지 숫자 크기 자동 축소(`gaugeValueFontSize`, HomePanel.tsx): 원 안쪽 폭 70% 기준, 0.050은 28~31px, 1013은 30~35px, 43은 38px 그대로. numberOfLines 1, maxFontSizeMultiplier 1.2.
