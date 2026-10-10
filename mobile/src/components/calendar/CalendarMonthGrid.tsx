@@ -1,12 +1,11 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
 import { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
-import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import { CalendarDayCell } from './CalendarDayCell';
+import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 
 export type CalendarMonthCell = { date: string; day: number; inMonth: boolean } | null;
@@ -18,8 +17,6 @@ type Props = {
   eventCountByDate: Record<string, number>;
   eventItemsByDate: Record<string, Array<CalendarEvent | null>>;
   getEventTone: (event: CalendarEvent) => string;
-  // 주 보기처럼 칸이 길 때 더 많은 일정 줄을 보여줍니다.
-  maxEventLines?: number;
   monthCells: CalendarMonthCell[];
   monthTitle: string;
   // 이번 달이 아닐 때만 넘깁니다. 있으면 제목 옆에 "오늘" 버튼을 보여줍니다.
@@ -28,8 +25,6 @@ type Props = {
   onSelectDate: (date: string, options?: { openSheet?: boolean; trackTap?: boolean }) => void;
   resetSignal?: number;
   selectedDate: string;
-  // 이전/다음 버튼 읽기용 단위('달' 또는 '주').
-  stepUnitLabel?: string;
   todayDateLabel: string;
   transitionDirection: number;
   weatherRiskByDate?: Record<string, CalendarWeatherRiskIndicator | undefined>;
@@ -78,14 +73,12 @@ export function CalendarMonthGrid({
   eventCountByDate,
   eventItemsByDate,
   getEventTone,
-  maxEventLines,
   monthCells,
   monthTitle,
   onGoToday,
   onMoveMonth,
   onSelectDate,
   selectedDate,
-  stepUnitLabel = '달',
   todayDateLabel,
   transitionDirection,
   weatherRiskByDate,
@@ -94,7 +87,6 @@ export function CalendarMonthGrid({
     monthCells.slice(rowIndex * 7, rowIndex * 7 + 7)
   ));
   const { animatedStyle: monthAnimatedStyle, swipeHandlers } = useCalendarSlide(monthTitle, transitionDirection, onMoveMonth);
-  const handleMoveMonth = onMoveMonth;
 
   const handlePressEmptyDay = () => {
     onSelectDate(todayDateLabel, { openSheet: false, trackTap: false });
@@ -102,28 +94,7 @@ export function CalendarMonthGrid({
 
   return (
     <View style={styles.calendarMonthCard}>
-      <View style={styles.calendarMonthHeader}>
-        <Pressable accessibilityLabel={`\uC774\uC804 ${stepUnitLabel}`} onPress={() => handleMoveMonth(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color={bauhausColors.blue} name="chevron-back" size={22} />
-        </Pressable>
-        <View style={styles.calendarMonthTitleGroup}>
-          <Text style={styles.calendarMonthTitle}>{monthTitle}</Text>
-          {onGoToday && (
-            <Pressable
-              accessibilityLabel="오늘로 이동"
-              accessibilityRole="button"
-              hitSlop={8}
-              onPress={onGoToday}
-              style={({ pressed }) => [styles.calendarTodayButton, pressed && styles.pressedFeedback]}
-            >
-              <Text style={styles.calendarTodayButtonText}>오늘</Text>
-            </Pressable>
-          )}
-        </View>
-        <Pressable accessibilityLabel={`\uB2E4\uC74C ${stepUnitLabel}`} onPress={() => handleMoveMonth(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color={bauhausColors.blue} name="chevron-forward" size={22} />
-        </Pressable>
-      </View>
+      <CalendarPeriodHeader onGoToday={onGoToday} onMove={onMoveMonth} title={monthTitle} unitLabel="달" />
       <View style={styles.calendarWeekRow}>
         {weekDays.map((day, index) => (
           <Text key={day} style={[styles.calendarWeekText, index === 0 && styles.calendarWeekTextSunday, index === 6 && styles.calendarWeekTextSaturday]}>{day}</Text>
@@ -160,7 +131,6 @@ export function CalendarMonthGrid({
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}
                   key={cell.date}
-                  maxEventLines={maxEventLines}
                   onLongPress={() => onSelectDate(cell.date)}
                   onPress={() => onSelectDate(cell.date)}
                   range={null}
