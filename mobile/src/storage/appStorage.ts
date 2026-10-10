@@ -1,3 +1,4 @@
+import * as FileSystem from 'expo-file-system/legacy';
 import * as SecureStore from 'expo-secure-store';
 
 import { parseStoredCalendarEvents } from '../components/calendar/calendarStorage';
@@ -32,12 +33,66 @@ export type StoredAppState = {
   selectedRegion: RegionState | null;
 };
 
+// 보안 저장소(SecureStore)는 토큰 같은 작은 비밀값용입니다(값 하나 2KB 제한).
+// 일정·최근 검색·설정처럼 크거나 비밀이 아닌 값은 앱 전용 폴더의 파일에 저장합니다.
+const SECURE_KEYS = new Set<string>([NOTIFICATION_TOKEN_STORAGE_KEY]);
+const STORAGE_DIR = `${FileSystem.documentDirectory ?? ''}app-storage`;
+
+function storageFilePath(key: string) {
+  return `${STORAGE_DIR}/${key.replace(/[^a-zA-Z0-9_.-]/g, '_')}.json`;
+}
+
+async function ensureStorageDir() {
+  const info = await FileSystem.getInfoAsync(STORAGE_DIR);
+  if (!info.exists) await FileSystem.makeDirectoryAsync(STORAGE_DIR, { intermediates: true });
+}
+
+// 임시 파일에 다 쓴 뒤 바꿔 끼워서, 쓰는 도중 앱이 꺼져도 반쯤 쓴 파일이 남지 않게 합니다.
+async function writeFileAtomic(path: string, value: string) {
+  await ensureStorageDir();
+  const temporaryPath = `${path}.tmp`;
+  await FileSystem.writeAsStringAsync(temporaryPath, value);
+  await FileSystem.deleteAsync(path, { idempotent: true });
+  await FileSystem.moveAsync({ from: temporaryPath, to: path });
+}
+
+// 같은 키를 빠르게 여러 번 저장해도 마지막 값이 남도록 키마다 순서대로 씁니다.
+const writeQueues = new Map<string, Promise<void>>();
+
 async function safeGet(key: string) {
-  return SecureStore.getItemAsync(key).catch(() => null);
+  if (SECURE_KEYS.has(key) || !FileSystem.documentDirectory) return SecureStore.getItemAsync(key).catch(() => null);
+  const path = storageFilePath(key);
+  try {
+    if ((await FileSystem.getInfoAsync(path)).exists) return await FileSystem.readAsStringAsync(path);
+    // 바꿔 끼우는 도중(옛 파일 삭제 후, 새 파일 이동 전)에 꺼졌다면 임시 파일이 최신 값입니다.
+    if ((await FileSystem.getInfoAsync(`${path}.tmp`)).exists) return await FileSystem.readAsStringAsync(`${path}.tmp`);
+  } catch (caught) {
+    console.warn(`저장된 값을 읽지 못했습니다: ${key}`, caught);
+    return null;
+  }
+  // 예전 버전은 모든 값을 SecureStore에 저장했습니다. 처음 한 번 파일로 옮기고, 옮긴 뒤에만 지웁니다.
+  const legacy = await SecureStore.getItemAsync(key).catch(() => null);
+  if (legacy !== null) {
+    try {
+      await writeFileAtomic(path, legacy);
+      await SecureStore.deleteItemAsync(key).catch(() => {});
+    } catch (caught) {
+      console.warn(`예전 저장값을 파일로 옮기지 못했습니다: ${key}`, caught);
+    }
+  }
+  return legacy;
 }
 
 function saveString(key: string, value: string) {
-  return SecureStore.setItemAsync(key, value).catch(() => {});
+  if (SECURE_KEYS.has(key) || !FileSystem.documentDirectory) {
+    return SecureStore.setItemAsync(key, value).catch((caught) => console.warn(`저장하지 못했습니다: ${key}`, caught));
+  }
+  const previous = writeQueues.get(key) ?? Promise.resolve();
+  const next = previous
+    .then(() => writeFileAtomic(storageFilePath(key), value))
+    .catch((caught) => console.warn(`저장하지 못했습니다: ${key}`, caught));
+  writeQueues.set(key, next);
+  return next;
 }
 
 function saveJson(key: string, value: unknown) {
