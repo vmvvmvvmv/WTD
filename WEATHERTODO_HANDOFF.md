@@ -847,3 +847,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 주: 고른 날짜가 있는 주(일~토)를 한 줄로, 칸이 길어 일정 줄 최대 12개. 화살표·스와이프로 7일씩 이동, 제목 "2026년 10월 11~17일"(달이 걸치면 "9월 27일 ~ 10월 3일").
 - 년: 12달 미니 달력(3×4), 일정 있는 날 점, 오늘·이번 달 강조. 달을 누르면 그 달 월 보기로.
 - 파일: `CalendarYearGrid.tsx`(새), `CalendarPanel.tsx`(viewMode), `calendarUtils.ts`(addDays/startOfWeek/buildWeekCells/weekLabel), 테스트 `calendarWeek.test.mjs` 2건. 보기 모드는 저장 안 함(앱 다시 열면 월).
+- `9dc81c0` 년 보기를 주·월과 같은 디자인으로: 같은 흰 칸·가는 선(3×4), 이번 달 칸은 고른 날처럼 연한 강조색, 토요일 파란 숫자. 넘김 애니메이션·스와이프는 `useCalendarSlide`(CalendarMonthGrid.tsx)로 주·월·년이 같이 씀.
