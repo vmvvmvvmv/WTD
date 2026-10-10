@@ -848,3 +848,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 년: 12달 미니 달력(3×4), 일정 있는 날 점, 오늘·이번 달 강조. 달을 누르면 그 달 월 보기로.
 - 파일: `CalendarYearGrid.tsx`(새), `CalendarPanel.tsx`(viewMode), `calendarUtils.ts`(addDays/startOfWeek/buildWeekCells/weekLabel), 테스트 `calendarWeek.test.mjs` 2건. 보기 모드는 저장 안 함(앱 다시 열면 월).
 - `9dc81c0` 년 보기를 주·월과 같은 디자인으로: 같은 흰 칸·가는 선(3×4), 이번 달 칸은 고른 날처럼 연한 강조색, 토요일 파란 숫자. 넘김 애니메이션·스와이프는 `useCalendarSlide`(CalendarMonthGrid.tsx)로 주·월·년이 같이 씀.
+- `cf380e5` 삼성 캘린더처럼 탭을 `목록 · 일 · 주 · 월 · 년`으로. 목록 = 모든 일정을 날짜별로(오늘 위치에서 열림, 위로 올리면 지난 일정). 일·주 = 0~23시 시간표(24시간 표기), 일정은 시간 길이만큼 블록·겹치면 나란히, 여러 날 일정은 위 막대, 오늘은 빨간 현재 시각 선, 처음엔 지금(또는 그 기간 첫 일정) 1시간 전부터. 일정·날짜를 누르면 기존 날짜 시트가 열림. 파일: `CalendarTimeline.tsx`, `calendarTimelineLayout.ts`(+테스트 2건), `CalendarAgendaList.tsx`, 공통 머리 `CalendarPeriodHeader.tsx`. 한계: 겹치는 묶음은 같은 칸 수로 나눔, 시간표 빈 곳을 길게 눌러 그 시각으로 추가는 아직 없음.
