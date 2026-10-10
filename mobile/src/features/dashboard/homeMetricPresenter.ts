@@ -2,7 +2,6 @@ import type { PastDustItem, WeatherState } from '../../types/dust';
 import { semanticColors } from '../../theme/semanticColors';
 import { toNumber } from '../../utils/dust';
 import { getAirQualityMeta } from '../airQuality/airQualityGrade';
-import { calculateOutingIndex, getOutingGrade, getOutingTone } from '../outing/outingIndex';
 
 export type HomeMetricSlide = {
   comparison: string;
@@ -60,8 +59,6 @@ export function buildHomeMetricSlides({ currentO3, currentPm10, currentPm25, gau
   const yesterdayPm10 = toNumber(yesterdayDust?.pm10Value);
   const yesterdayPm25 = toNumber(yesterdayDust?.pm25Value);
   const yesterdayO3 = toNumber(yesterdayDust?.o3Value);
-  const outingIndex = calculateOutingIndex({ pm10: currentPm10, rainMm: weather?.rainMm, temperature: weather?.temperature, weatherLabel: weather?.label, windSpeed: weather?.windSpeed });
-  const yesterdayOutingIndex = calculateOutingIndex({ pm10: yesterdayPm10, rainMm: yesterdayWeather?.rainMm, temperature: yesterdayWeather?.temperature, weatherLabel: yesterdayWeather?.label, windSpeed: yesterdayWeather?.windSpeed });
   const temperature = rangeStatus(weather?.temperature, (v) => v >= 10 && v <= 25, (v) => v >= 5 && v <= 30, (v) => v >= 0 && v <= 35);
   const humidity = rangeStatus(weather?.humidity, (v) => v >= 40 && v <= 60, (v) => v >= 30 && v <= 70, (v) => v >= 20 && v <= 80);
   const wind = rangeStatus(weather?.windSpeed, (v) => v < 4, (v) => v < 8, (v) => v < 13);
@@ -70,7 +67,6 @@ export function buildHomeMetricSlides({ currentO3, currentPm10, currentPm25, gau
   const pm25 = getAirQualityMeta('pm25', currentPm25);
   const o3 = getAirQualityMeta('o3', currentO3);
   return [
-    { comparison: yesterdayComparison(outingIndex, yesterdayOutingIndex, '점'), gaugeSize, label: '외출지수', progress: gaugeProgress(outingIndex, 100), status: getOutingGrade(outingIndex), title: '외출지수', tone: getOutingTone(outingIndex), unit: '점', value: outingIndex === undefined ? '--' : String(outingIndex) },
     { comparison: yesterdayComparison(weather?.temperature, yesterdayWeather?.temperature, '°'), gaugeSize, label: '기온', progress: gaugeProgress(weather?.temperature, 40), status: temperature.status, title: weather?.label ? `기온 · ${weather.label}` : '기온', tone: temperature.tone, unit: '°', value: metricValue(weather?.temperature, 0) },
     { comparison: yesterdayComparison(weather?.humidity, yesterdayWeather?.humidity, '%'), gaugeSize, label: '습도', progress: gaugeProgress(weather?.humidity, 100), status: humidity.status, title: '습도', tone: humidity.tone, unit: '%', value: metricValue(weather?.humidity, 0) },
     { comparison: yesterdayComparison(weather?.windSpeed, yesterdayWeather?.windSpeed, 'm/s', 1), gaugeSize, label: '풍속', progress: gaugeProgress(weather?.windSpeed, 20), status: wind.status, title: '풍속', tone: wind.tone, unit: 'm/s', value: metricValue(weather?.windSpeed, 1) },

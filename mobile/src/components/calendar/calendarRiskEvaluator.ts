@@ -1,6 +1,6 @@
 import type { CalendarEvent, HourlyDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
-import { calculateOutingIndex, isRainyWeather, isThunderWeather } from '../../features/outing/outingIndex';
+import { isRainyWeather, isThunderWeather } from '../../features/outing/outingIndex';
 import { semanticColors } from '../../theme/semanticColors';
 import { addMinutesToDateTime } from './calendarUtils';
 
@@ -12,7 +12,6 @@ export type CalendarRiskResult = {
   desc: string;
   icon: 'home-outline' | 'bus-outline' | 'walk-outline' | 'alert-circle-outline';
   level: CalendarRiskLevel;
-  outingIndex?: number;
   pm10?: number;
   // 일정을 1~3시간 옮기면 비를 피할 수 있을 때의 제안
   rainFreeSuggestion?: RainFreeSuggestion;
@@ -144,12 +143,6 @@ function eventRange(event: CalendarEvent) {
   return { end, start };
 }
 
-function eventDayCount(event: CalendarEvent) {
-  const start = dateMs(event.date);
-  const end = dateMs(event.endDate ?? event.date);
-  if (typeof start !== 'number' || typeof end !== 'number' || end < start) return 1;
-  return Math.max(1, Math.round((end - start) / 86400000) + 1);
-}
 
 function isPastEvent(event: CalendarEvent, todayDateLabel: string, now = new Date()) {
   const end = dateMs(event.endDate ?? event.date);
@@ -449,10 +442,6 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
   const rawBasis = weatherResult.basis || dustResult.basis || (typeof dailyPredictedPm10 === 'number' ? '3일 미세먼지 예측 기준' : '') || (midTermWeather ? TEXT.midTermBasis : (useCurrentWeather ? TEXT.currentBasis : TEXT.forecastNeeded));
   const basis = context.locationBasis ? context.locationBasis + ' · ' + rawBasis : rawBasis;
 
-  const outingIndex = calculateOutingIndex({ pm10, rainMm, rainProbability, temperature, weatherLabel, windSpeed });
-  const outingIndexValue = typeof outingIndex === 'number' ? String(outingIndex) + '점' : '확인 중';
-  const outingIndexRange = eventDayCount(event) > 1 ? ' (' + eventDayCount(event) + '일 일정 기준)' : '';
-  const outingIndexLine = '\n예상 외출 지수 : ' + outingIndexValue + outingIndexRange;
 
   if (event.activityType === 'indoor') {
     const indoorLevel: CalendarRiskLevel = typeof pm10 === 'number' && pm10 > 150 ? 'watch' : 'good';
@@ -464,11 +453,9 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
         indoorLevel === 'watch'
           ? '실내 일정이지만 가는 길의 공기는 한 번 확인해 주세요.'
           : '실내 일정이라 날씨 걱정은 덜어도 되겠어요.',
-        outingIndexLine.trim(),
       ]),
       icon: activityIcon(event),
       level: indoorLevel,
-      outingIndex,
       pm10,
       rainMm,
       rainProbability,
@@ -539,14 +526,12 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
     ? buildAdviceLines([
       '아직 이 시간의 예보가 없어요.',
       '일정이 가까워지면 다시 확인해 주세요.',
-      outingIndexLine.trim(),
     ])
     : level === 'good'
       ? buildAdviceLines([
         '예정대로 나가도 괜찮겠어요.',
         activityNote.trim() || undefined,
         sensitiveNote.trim() || undefined,
-        outingIndexLine.trim(),
       ])
       : level === 'bad'
         ? buildAdviceLines([
@@ -559,7 +544,6 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
           windNote,
           activityNote.trim() || undefined,
           sensitiveNote.trim() || undefined,
-          outingIndexLine.trim(),
         ])
         : buildAdviceLines([
           reasonText + ' 영향이 있어요. 외출 시간이나 준비물을 조정해 보세요.',
@@ -571,7 +555,6 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
           windNote,
           activityNote.trim() || undefined,
           sensitiveNote.trim() || undefined,
-          outingIndexLine.trim(),
         ]);
 
   return {
@@ -580,7 +563,6 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
     desc,
     icon: activityIcon(event),
     level,
-    outingIndex,
     pm10,
     rainFreeSuggestion,
     rainMm,
