@@ -132,64 +132,40 @@ def hour_blocks_text(hours: list[int], limit: int = 2) -> str:
 
 
 def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasurement], events: list[dict]) -> tuple[str, str]:
-    """(제목, 본문). 오늘 남은 시간의 비·눈·천둥·강풍을 시간대와 함께 모두 알리고, 기온·일정·챙길 것을 한 줄씩."""
+    """(제목, 본문). 핵심만 짧게: 남은 시간의 비·눈·천둥·강풍과 시간대, 기온, 날씨가 겹치는 일정, 챙길 것."""
     rain = [_hour(point) for point in points if _is_rain(point)]
     snow = [_hour(point) for point in points if _is_snow(point)]
     thunder = [_hour(point) for point in points if _is_thunder(point)]
-    wind = [point for point in points if _is_windy(point)]
-    probabilities = [point.rain_probability for point in points if _is_rain(point) and point.rain_probability is not None]
+    wind = [_hour(point) for point in points if _is_windy(point)]
     temperatures = [point.temperature for point in points if point.temperature is not None]
     low = round(min(temperatures)) if temperatures else None
     high = round(max(temperatures)) if temperatures else None
 
-    hazards = []
-    if rain:
-        hazards.append(f"비 {hour_blocks_text(rain)}" + (f"(최대 {round(max(probabilities))}%)" if probabilities else ""))
-    if snow:
-        hazards.append(f"눈 {hour_blocks_text(snow)}")
-    if thunder:
-        hazards.append(f"천둥·번개 {hour_blocks_text(thunder)}")
-    if wind:
-        hazards.append(f"강한 바람 {hour_blocks_text([_hour(point) for point in wind])}(최대 {round(max(point.wind_speed for point in wind))}m/s)")
+    hazards = [f"{name} {hour_blocks_text(hours)}" for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", wind)) if hours]
     lines = [" · ".join(hazards) if hazards else "비·눈 예보 없음"]
-
     if low is not None and high is not None:
-        temperature = f"기온 {low}°" if low == high else f"기온 {low}~{high}°"
-        if high - low >= 10:
-            temperature += f" · 일교차 {high - low}°"
-        lines.append(f"{temperature} (기상청 예보)")
+        lines.append(f"기온 {low}°" if low == high else f"기온 {low}~{high}°")
 
-    event_times = [time_text for time_text in (_event_label(event) for event in events) if time_text]
-    if event_times:
-        affected = []
-        for time_text in event_times:
-            hour = int(time_text[:2]) if time_text[:2].isdigit() else None
-            kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", [_hour(p) for p in wind])) if hour in hours]
-            if kinds:
-                affected.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
-        lines.append(f"일정 {', '.join(event_times)}" + (f" · {', '.join(affected)}" if affected else ""))
+    for time_text in (_event_label(event) for event in events):
+        hour = int(time_text[:2]) if time_text[:2].isdigit() else None
+        kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", wind)) if hour in hours]
+        if kinds:
+            lines.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
 
-    bring = []
-    if rain:
-        bring.append("우산")
-    if snow:
-        bring.append("미끄럽지 않은 신발")
-    if low is not None and low <= LOW_TEMPERATURE_THRESHOLD:
-        bring.append("두꺼운 겉옷")
-    elif low is not None and high is not None and high - low >= 10:
-        bring.append("얇은 겉옷")
-    if wind:
-        bring.append("바람막이")
-    if high is not None and high >= HIGH_TEMPERATURE_THRESHOLD:
-        bring.append("물·양산")
-    advice = f"챙길 것: {' · '.join(bring)}" if bring else ""
+    bring = [item for item, needed in (
+        ("우산", bool(rain)),
+        ("두꺼운 겉옷", low is not None and low <= LOW_TEMPERATURE_THRESHOLD),
+        ("겉옷", low is not None and high is not None and low > LOW_TEMPERATURE_THRESHOLD and high - low >= 10),
+        ("바람막이", bool(wind)),
+        ("물·양산", high is not None and high >= HIGH_TEMPERATURE_THRESHOLD),
+    ) if needed]
+    if bring:
+        lines.append(f"{'·'.join(bring)} 챙기세요")
     if thunder:
-        advice = f"{advice}. 천둥·번개 때는 실내에 머무세요" if advice else "천둥·번개 때는 실내에 머무세요"
-    if advice:
-        lines.append(advice)
-
-    title = f"오늘 {region} 날씨" + (f" · 일정 {len(event_times)}개" if event_times else "")
-    return title, "\n".join(lines)
+        lines.append("천둥·번개 때는 실내에 머무세요")
+    if snow:
+        lines.append("길이 미끄러울 수 있어요")
+    return f"오늘 {region} 날씨", "\n".join(lines)
 
 
 class ExpoDeviceNotRegistered(RuntimeError):
