@@ -45,6 +45,7 @@ export const styles = StyleSheet.create({
   favoritePickerRow: { alignItems: 'center', flexDirection: 'row', gap: 10, minHeight: 46 },
   favoritePickerSelectArea: { alignItems: 'center', alignSelf: 'stretch', flex: 1, flexDirection: 'row', gap: 10 },
   favoritePickerIcon: { textAlign: 'center', width: 22 },
+  favoritePickerIconBox: { alignItems: 'center', width: 22 },
   favoritePickerRemoveButton: { alignItems: 'center', height: 40, justifyContent: 'center', marginRight: -10, width: 40 },
   homeRegionSearchPanel: { backgroundColor: bauhausColors.white, marginTop: 12, padding: 18, borderBottomColor: '#DCE9F8', borderBottomWidth: 1 },
   homeRegionSearchInputRow: { alignItems: 'center', backgroundColor: '#f6f8fc', borderColor: '#dfe7f1', borderWidth: 1, flexDirection: 'row', marginTop: 10, minHeight: 46, ...handDrawnControlShape },
