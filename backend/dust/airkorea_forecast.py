@@ -114,3 +114,35 @@ def build_forecast_prediction(service_key, city, days=2):
             "note": "에어코리아 예보 등급을 등급별 대표 PM10 값으로 변환했습니다.",
         },
     }
+
+
+def forecast_grade_for(service_key, city, date):
+    """에어코리아 PM10 예보에서 그 날짜·시도의 등급(좋음/보통/나쁨/매우나쁨). 없으면 None."""
+    forecast = load_national_forecast(service_key) if service_key else None
+    _announced, grades = (forecast or {}).get(date.isoformat(), (None, {}))
+    return grade_for_city(grades, city)
+
+
+def build_hourly_forecast_items(service_key, city, now=None, hours=12):
+    """앞으로 hours시간을 시간별 항목으로 펼친다. 예보는 하루 단위 등급이라 같은 날은 같은 값이다."""
+    now = timezone.localtime(now or timezone.now()).replace(minute=0, second=0, microsecond=0)
+    forecast = load_national_forecast(service_key) if service_key else None
+    items = []
+    for offset in range(1, hours + 1):
+        target = now + timedelta(hours=offset)
+        announced, grades = (forecast or {}).get(target.date().isoformat(), (None, {}))
+        grade = grade_for_city(grades, city)
+        if grade is None:
+            continue
+        items.append({
+            "measuredAt": target.isoformat(),
+            "date": target.date().isoformat(),
+            "hour": target.strftime("%H:00"),
+            "pm10Value": GRADE_PM10[grade],
+            "pm25Value": None,
+            "grade": grade,
+            "source": "airkorea_forecast",
+            "phase": "forecast",
+            "announcedAt": announced,
+        })
+    return items
