@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 
-import type { TabKey } from '../types/dust';
+import type { TabKey } from '../types/navigation';
 
 export type TabRoute = {
   key: TabKey;

@@ -1,4 +1,6 @@
-import type { CurrentDustItem, HourlyDustItem, RegionState, StationDustItem, WeatherHourlyItem, WeatherState } from '../../types/dust';
+import type { CurrentDustItem, HourlyDustItem, StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import type { WeatherHourlyItem, WeatherState } from '../../types/weather';
 
 type HourlyDustResponse = {
   items?: unknown[];

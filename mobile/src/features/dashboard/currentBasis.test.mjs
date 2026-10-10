@@ -14,7 +14,7 @@ registerHooks({
   },
 });
 
-const { formatCurrentBasis } = await import('./dust.ts');
+const { formatCurrentBasis } = await import('./currentBasis.ts');
 
 test('저장된 하루 평균 값은 실시간 값처럼 시각을 붙이지 않는다', () => {
   const label = formatCurrentBasis({ dataTime: '2026-10-08', source: 'stored_daily_latest' }, new Date(2026, 9, 9, 21));

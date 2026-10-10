@@ -5,7 +5,9 @@ import { DEFAULT_NOTIFICATION_SETTINGS } from '../constants/dust';
 import { IS_EXPO_GO } from '../config/runtime';
 import { requestDustPushToken, scheduleTestNotification } from './expoPush';
 import { saveNotificationSettings, saveNotificationToken } from '../storage/appStorage';
-import type { CalendarEvent, NotificationSettings, RegionState } from '../types/dust';
+import type { CalendarEvent } from '../types/calendar';
+import type { RegionState } from '../types/region';
+import type { NotificationSettings } from '../types/settings';
 
 export function useNotificationSettings(
   hasLoadedStore: boolean,

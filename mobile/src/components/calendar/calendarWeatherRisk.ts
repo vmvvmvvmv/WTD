@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { semanticColors } from '../../theme/semanticColors';
 import { isDateInEventRange } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';

@@ -1,6 +1,6 @@
 import { Image, type ImageSourcePropType, type ImageStyle, type StyleProp } from 'react-native';
 
-import type { OutfitFigure, OutfitRecommendation } from '../../types/dust';
+import type { OutfitFigure, OutfitRecommendation } from '../../types/outfit';
 import { outfitStyles } from './outfitStyles';
 
 export type OutfitVisualKey = 'sport' | 'rain' | 'snow' | 'wind' | 'heatwave' | 'hot' | 'warm' | 'mild' | 'cool' | 'cold' | 'freezing';
