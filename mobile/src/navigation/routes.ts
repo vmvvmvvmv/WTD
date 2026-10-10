@@ -15,7 +15,3 @@ export const tabRoutes: readonly TabRoute[] = [
   { key: 'calendar', label: '\uCE98\uB9B0\uB354', icon: 'calendar' },
   { key: 'account', label: '\uC124\uC815', icon: 'settings' },
 ];
-
-export function getTabRoute(tabKey: TabKey) {
-  return tabRoutes.find((route) => route.key === tabKey);
-}

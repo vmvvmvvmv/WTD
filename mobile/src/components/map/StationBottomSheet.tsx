@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 
-import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { StationDustItem, WeatherState } from '../../types/dust';
@@ -16,7 +15,6 @@ export function StationBottomSheet({
   isFavorite,
   mode = 'dust',
   onClose,
-  onOpenDetail,
   onToggleFavorite,
   station,
   weather,
@@ -24,7 +22,6 @@ export function StationBottomSheet({
   isFavorite: boolean;
   mode?: 'dust' | 'weather';
   onClose: () => void;
-  onOpenDetail: (station: StationDustItem) => void;
   onToggleFavorite: (station: StationDustItem) => void;
   station: StationDustItem;
   weather?: WeatherState | null;
@@ -95,7 +92,6 @@ export function StationBottomSheet({
       </View>
       <StationSheetHeader
         isFavorite={isFavorite}
-        onOpenDetail={onOpenDetail}
         onToggleFavorite={onToggleFavorite}
         station={station}
       />
@@ -110,32 +106,21 @@ export function StationBottomSheet({
 
 function StationSheetHeader({
   isFavorite,
-  onOpenDetail,
   onToggleFavorite,
   station,
 }: {
   isFavorite: boolean;
-  onOpenDetail: (station: StationDustItem) => void;
   onToggleFavorite: (station: StationDustItem) => void;
   station: StationDustItem;
 }) {
   return (
     <View style={styles.stationSheetHeader}>
-      {DETAIL_DATA_ENABLED ? (
-        <Pressable onPress={() => onOpenDetail(station)} style={({ pressed }) => [styles.stationTitleGroup, pressed && styles.pressedFeedback]}>
-          <Text style={styles.stationEyebrow}>{station.sido ?? '측정소'}</Text>
-          <Text style={styles.stationTitle}>{station.name ?? station.city ?? '측정소'}</Text>
-          {!!station.time && <Text style={styles.stationTime}>{station.time}</Text>}
-          {!!station.addr && <Text style={styles.stationAddress} numberOfLines={1}>{station.addr}</Text>}
-        </Pressable>
-      ) : (
-        <View style={styles.stationTitleGroup}>
-          <Text style={styles.stationEyebrow}>{station.sido ?? '측정소'}</Text>
-          <Text style={styles.stationTitle}>{station.name ?? station.city ?? '측정소'}</Text>
-          {!!station.time && <Text style={styles.stationTime}>{station.time}</Text>}
-          {!!station.addr && <Text style={styles.stationAddress} numberOfLines={1}>{station.addr}</Text>}
-        </View>
-      )}
+      <View style={styles.stationTitleGroup}>
+        <Text style={styles.stationEyebrow}>{station.sido ?? '측정소'}</Text>
+        <Text style={styles.stationTitle}>{station.name ?? station.city ?? '측정소'}</Text>
+        {!!station.time && <Text style={styles.stationTime}>{station.time}</Text>}
+        {!!station.addr && <Text style={styles.stationAddress} numberOfLines={1}>{station.addr}</Text>}
+      </View>
       <Pressable
         accessibilityLabel={isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
         onPress={() => onToggleFavorite(station)}

@@ -38,7 +38,6 @@ type FullMapScreenProps = {
   onRemoveRecentSearch: (station: StationDustItem) => void;
   onRetryMap: () => void;
   onToggleFavorite: (station: StationDustItem) => void;
-  openStationDetail: (station: StationDustItem) => void;
   searchSuggestions: StationDustItem[];
   selectedStation: StationDustItem | null;
   selectedStationWeather?: WeatherState | null;
@@ -79,7 +78,6 @@ export function FullMapScreen({
   onRemoveRecentSearch,
   onRetryMap,
   onToggleFavorite,
-  openStationDetail,
   searchSuggestions,
   selectedStation,
   selectedStationWeather,
@@ -268,7 +266,6 @@ export function FullMapScreen({
           isFavorite={favoriteRegions.some((region) => isSameRegion(region, { city: selectedStation.sido ?? '', region: selectedStation.city || selectedStation.name || '' }))}
           mode={mapMarkerMode}
           onClose={() => setSelectedStation(null)}
-          onOpenDetail={openStationDetail}
           onToggleFavorite={onToggleFavorite}
           station={selectedStation}
           weather={selectedStationWeather}

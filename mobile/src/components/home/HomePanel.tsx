@@ -5,7 +5,6 @@ import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg'
 import { ScrollView, useWindowDimensions } from 'react-native';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
-import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
@@ -548,7 +547,6 @@ export function HomePanel({
   onDeleteCalendarEvent,
   onDeleteFollowingCalendarEvents,
   onOpenCalendar,
-  onOpenDetail,
   onOpenMap,
   outfitEnabled,
   outfitFallbackLocation,
@@ -576,7 +574,6 @@ export function HomePanel({
   onDeleteCalendarEvent?: (eventId: string) => void;
   onDeleteFollowingCalendarEvents?: (event: CalendarEvent) => void;
   onOpenCalendar?: () => void;
-  onOpenDetail: () => void;
   onOpenMap: () => void;
   outfitEnabled: boolean;
   outfitFallbackLocation?: OutfitFallbackLocation;
@@ -1001,16 +998,6 @@ export function HomePanel({
           <Ionicons color={accentTone} name="chevron-forward" size={17} />
         </View>
       </Pressable>
-      {DETAIL_DATA_ENABLED && (
-      <Pressable
-        accessibilityLabel="상세 데이터 보기"
-        onPress={onOpenDetail}
-        style={({ pressed }) => [styles.homeDetailDataButton, pressed && styles.pressedFeedback]}
-      >
-        <Text style={[styles.homeDetailDataButtonText, { color: accentTone }]}>상세 데이터 보기</Text>
-        <Ionicons color={accentTone} name="chevron-forward" size={18} />
-      </Pressable>
-      )}
     </View>
   );
 }

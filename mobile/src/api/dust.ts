@@ -48,11 +48,3 @@ export function getPrediction(region: DefaultRegion = DEFAULT_REGION) {
 export function getKoreaStations() {
   return apiClient.get('/dust/korea-stations/');
 }
-
-export function sendChatMessage(message: string, region: DefaultRegion = DEFAULT_REGION) {
-  return apiClient.post('/dust/chat/', {
-    message,
-    city: region.city,
-    region: region.region,
-  });
-}

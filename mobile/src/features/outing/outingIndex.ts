@@ -74,5 +74,3 @@ export function getOutingSemanticTone(score?: number) {
 }
 
 export function getOutingTone(score?: number) { return getOutingSemanticTone(score).tone; }
-export function getOutingSoftTone(score?: number) { return getOutingSemanticTone(score).soft; }
-export function getOutingBorderTone(score?: number) { return getOutingSemanticTone(score).border; }

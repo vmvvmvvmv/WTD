@@ -1,4 +1,4 @@
-import type { DataMetricKey, NotificationSettings, OutfitSettings } from '../types/dust';
+import type { NotificationSettings, OutfitSettings } from '../types/dust';
 
 // Default region used before GPS is available.
 export const DEFAULT_CITY = '\uC11C\uC6B8';
@@ -30,18 +30,3 @@ export const DEFAULT_OUTFIT_SETTINGS: OutfitSettings = {
   sensitiveMode: false,
   sensitivity: 'normal',
 };
-
-export const dataMetrics: Array<{ key: DataMetricKey; label: string; code: string; unit: string; decimals: number }> = [
-  { key: 'pm10', label: '\uBBF8\uC138\uBA3C\uC9C0', code: 'PM10', unit: '\u00B5g/m\u00B3', decimals: 0 },
-  { key: 'pm25', label: '\uCD08\uBBF8\uC138\uBA3C\uC9C0', code: 'PM2.5', unit: '\u00B5g/m\u00B3', decimals: 0 },
-  { key: 'o3', label: '\uC624\uC874', code: 'O3', unit: 'ppm', decimals: 3 },
-  { key: 'no2', label: '\uC774\uC0B0\uD654\uC9C8\uC18C', code: 'NO2', unit: 'ppm', decimals: 3 },
-];
-
-export const dataRanges = [
-  { label: '1\uAC1C\uC6D4', days: 30 },
-  { label: '3\uAC1C\uC6D4', days: 90 },
-  { label: '6\uAC1C\uC6D4', days: 180 },
-];
-
-export const DATA_LIST_PAGE_SIZE = 14;
