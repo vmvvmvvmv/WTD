@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Pressable, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -120,8 +120,15 @@ export function CalendarPanel({
     () => buildCalendarRiskByEvent(selectedEvents, forecastContext),
     [forecastContext, selectedEvents],
   );
+  // 달 전체 날씨 배지 계산은 무거워서, 화면 전환 애니메이션이 끝난 뒤에 합니다(처음 열 때 덜컹거림 방지).
+  const [isTransitionDone, setIsTransitionDone] = useState(false);
+  useEffect(() => {
+    const task = InteractionManager.runAfterInteractions(() => setIsTransitionDone(true));
+    return () => task.cancel();
+  }, []);
   const weatherRiskByDate = useMemo(() => {
     const next: Record<string, CalendarWeatherRiskIndicator> = {};
+    if (!isTransitionDone) return next;
     monthCells.forEach((cell) => {
       if (!cell) return;
       const dayEvents = sortedEvents
@@ -139,7 +146,7 @@ export function CalendarPanel({
       if (risk) next[cell.date] = risk;
     });
     return next;
-  }, [forecastContext, monthCells, sortedEvents]);
+  }, [forecastContext, isTransitionDone, monthCells, sortedEvents]);
   const selectedWeatherRisks = useMemo(
     () => selectedEvents
       .flatMap((event) => weatherRiskIndicators(selectedRiskByEvent[event.id]))

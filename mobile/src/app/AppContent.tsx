@@ -1878,7 +1878,6 @@ export function AppContent() {
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <StatusBar style="dark" />
-        <WeatherBackdrop label={weather?.label} />
         <ScreenTransition transitionKey="calendar">
         <View style={[styles.screen, styles.calendarOnlyScreen]}>
           <View style={styles.tabPageContent}>
