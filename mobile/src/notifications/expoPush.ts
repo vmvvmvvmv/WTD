@@ -16,11 +16,6 @@ export type CalendarNotificationRisk = {
   windTimeRange?: string;
 };
 
-function calendarNotificationId(event: CalendarEvent) {
-  return `calendar:${event.id}:lead`;
-}
-
-
 export async function configureDustNotifications() {
   if (IS_EXPO_GO) return;
 
@@ -67,11 +62,7 @@ export async function requestDustPushToken() {
 export async function cancelCalendarEventNotifications(notificationIds: string[]) {
   if (IS_EXPO_GO) return;
   const Notifications = await import('expo-notifications');
-  await Promise.all(notificationIds.map((id) => Notifications.cancelScheduledNotificationAsync(id).catch(() => {})));
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync().catch(() => []);
-  await Promise.all(scheduled
-    .filter((notification) => notification.content.data?.calendarEventId)
-    .map((notification) => Notifications.cancelScheduledNotificationAsync(notification.identifier).catch(() => {})));
+  await Promise.all(notificationIds.map((id) => Notifications.cancelScheduledNotificationAsync(id)));
 }
 
 function isThunderExpectedForNotification(risk?: CalendarNotificationRisk) {
@@ -189,20 +180,17 @@ function notificationLeadDuration(hoursBefore: number) {
   return remainingMinutes > 0 ? `${hours}시간 ${remainingMinutes}분` : `${hours}시간`;
 }
 
-async function scheduleLocalNotification({ body, date, event, identifier, title }: {
+async function scheduleLocalNotification({ body, date, event, title }: {
   body: string;
   date: Date;
   event: CalendarEvent;
-  identifier: string;
   title: string;
 }) {
   if (date.getTime() <= Date.now()) return null;
   const hasPermission = await ensureNotificationPermission();
-  if (!hasPermission) return null;
+  if (!hasPermission) throw new Error('일정 알림 권한이 없습니다.');
   const Notifications = await import('expo-notifications');
-  await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
   return Notifications.scheduleNotificationAsync({
-    identifier,
     content: {
       body,
       data: { calendarEventDate: event.date, calendarEventId: event.id, targetTab: 'calendar' },
@@ -231,7 +219,6 @@ export async function scheduleCalendarEventNotifications(event: CalendarEvent, r
       body: leadNotificationBody(risk),
       date: triggerDate,
       event,
-      identifier: calendarNotificationId(event),
       title: isLeadTimeAlreadyPast
         ? `${event.title} 일정이 곧 시작돼요`
         : `${event.title} · ${notificationLeadDuration(event.notificationHoursBefore)} 전`,
