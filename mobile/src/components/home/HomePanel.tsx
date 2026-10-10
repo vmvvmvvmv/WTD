@@ -887,14 +887,19 @@ export function HomePanel({
         </View>
 
         <View style={activeHomeSection !== 'guide' && styles.homeSectionHidden}>
+          {/* 기본 가이드라는 것을 추천 옷차림의 'AI 추천' 줄과 같은 모양으로 알립니다. */}
           {activityGuideRows.length === 0 && (
-            <Text style={styles.activityGuideEmptyText}>일정이 없어 오늘 날씨로 본 기본 가이드예요</Text>
+            <View accessibilityLabel="기본 가이드. 일정이 없어 오늘 날씨로 만들었어요" accessible style={styles.defaultGuideSourceRow}>
+              <Ionicons color={textColors.secondary} name="compass-outline" size={15} />
+              <Text style={styles.defaultGuideSourceTitle}>기본 가이드</Text>
+              <Text numberOfLines={1} style={styles.defaultGuideSourceHint}>일정이 없어 오늘 날씨로 만들었어요</Text>
+            </View>
           )}
           {defaultActivityGuides.length > 0 && (
             <View style={styles.activityGuideList}>
               {defaultActivityGuides.map((guide) => (
                 <Pressable
-                  accessibilityLabel={`${guide.title}. ${guide.detail}. 일정 추가하러 가기`}
+                  accessibilityLabel={`기본 가이드, ${guide.title}. ${guide.detail}. 일정 추가하러 가기`}
                   key={guide.key}
                   onPress={onOpenCalendar}
                   style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
@@ -903,7 +908,12 @@ export function HomePanel({
                     <AppActionIcon name={guide.icon} size={30} />
                   </View>
                   <View style={styles.activityGuideTextGroup}>
-                    <Text style={styles.activityGuideRowTitle}>{guide.title}</Text>
+                    <View style={styles.activityGuideTitleRow}>
+                      <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{guide.title}</Text>
+                      <View style={styles.activityGuideCompletedBadge}>
+                        <Text style={styles.activityGuideCompletedBadgeText}>기본</Text>
+                      </View>
+                    </View>
                     <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{guide.detail}</Text>
                   </View>
                 </Pressable>

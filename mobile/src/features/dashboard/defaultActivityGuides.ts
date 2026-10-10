@@ -8,7 +8,7 @@ export type DefaultActivityGuide = {
   caution: boolean;
   detail: string;
   icon: AppActionIconName;
-  key: 'outdoor' | 'indoor' | 'transit';
+  key: 'outdoor' | 'indoor';
   title: string;
 };
 
@@ -17,7 +17,7 @@ function hourOf(item: WeatherHourlyItem) {
   return Number.isFinite(hour) ? hour : undefined;
 }
 
-// 일정이 없는 날, 오늘 남은 날씨로 실외·실내·이동 세 가지 기본 가이드를 만듭니다.
+// 일정이 없는 날, 오늘 남은 날씨로 실외·실내 두 가지 기본 가이드를 만듭니다.
 export function buildDefaultActivityGuides({ bestWindow, currentPm10, nowHour, sensitive = false, todayDateLabel, weatherItems }: {
   bestWindow: BestOutingWindow | null;
   currentPm10?: number;
@@ -37,9 +37,6 @@ export function buildDefaultActivityGuides({ bestWindow, currentPm10, nowHour, s
   let rainEnd = rainHours[0];
   while (rainEnd !== undefined && rainHours.includes(rainEnd + 1)) rainEnd += 1;
   const rainRange = rainHours.length ? `${rainHours[0]}~${rainEnd + 1}시` : '';
-  const temperatures = today.map(({ item }) => toNumber(item.temperature)).filter((value): value is number => value !== undefined);
-  const minTemperature = temperatures.length ? Math.round(Math.min(...temperatures)) : undefined;
-  const maxTemperature = temperatures.length ? Math.round(Math.max(...temperatures)) : undefined;
   const badDust = typeof currentPm10 === 'number' && currentPm10 > (sensitive ? 30 : 80);
   const cleanAir = typeof currentPm10 === 'number' && currentPm10 <= 30;
 
@@ -58,16 +55,5 @@ export function buildDefaultActivityGuides({ bestWindow, currentPm10, nowHour, s
       ? { caution: false, detail: '공기가 맑아요. 창문을 열어 환기하기 좋아요.', icon: 'activityIndoor', key: 'indoor', title: '환기하기 좋은 날' }
       : { caution: false, detail: '환기는 10분 정도 짧게 해 주세요.', icon: 'activityIndoor', key: 'indoor', title: '실내 활동' };
 
-  const temperatureText = minTemperature !== undefined && maxTemperature !== undefined ? `${minTemperature}~${maxTemperature}°` : '';
-  const transit: DefaultActivityGuide = rainRange
-    ? { caution: true, detail: `우산을 챙기세요 · ${rainRange} 비`, icon: 'activityTransit', key: 'transit', title: '나갈 때' }
-    : minTemperature !== undefined && maxTemperature !== undefined && maxTemperature - minTemperature >= 10
-      ? { caution: true, detail: `일교차가 커요(${temperatureText}). 겉옷을 챙기세요.`, icon: 'activityTransit', key: 'transit', title: '나갈 때' }
-      : (maxTemperature ?? 0) >= 30
-        ? { caution: true, detail: `더워요(${temperatureText}). 물을 챙기세요.`, icon: 'activityTransit', key: 'transit', title: '나갈 때' }
-        : minTemperature !== undefined && minTemperature <= 0
-          ? { caution: true, detail: `추워요(${temperatureText}). 따뜻하게 입으세요.`, icon: 'activityTransit', key: 'transit', title: '나갈 때' }
-          : { caution: false, detail: `이동하기 무난한 날씨예요${temperatureText ? ` (${temperatureText})` : ''}.`, icon: 'activityTransit', key: 'transit', title: '나갈 때' };
-
-  return [outdoor, indoor, transit];
+  return [outdoor, indoor];
 }
