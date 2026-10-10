@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useRef } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
+import Reanimated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
@@ -46,12 +47,17 @@ export function CalendarAgendaList({ events, getEventTone, onSelectDate, todayDa
     return [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [events, todayDateLabel]);
 
+  const todayIndex = sections.findIndex(([date]) => date === todayDateLabel);
+
   return (
     <ScrollView contentContainerStyle={styles.calendarAgendaContent} ref={scrollRef}>
-      {sections.map(([date, dayEvents]) => {
+      {sections.map(([date, dayEvents], sectionIndex) => {
         const isToday = date === todayDateLabel;
+        // 오늘 근처 몇 묶음만 차례로 살짝 올라오며 나타납니다(너무 길게 기다리지 않게).
+        const delay = Math.max(0, Math.min(6, sectionIndex - todayIndex + 2)) * 40;
         return (
-          <View
+          <Reanimated.View
+            entering={FadeInDown.duration(260).delay(delay).reduceMotion(ReduceMotion.System)}
             key={date}
             onLayout={isToday ? (layoutEvent) => {
               if (hasScrolledRef.current) return;
@@ -81,7 +87,7 @@ export function CalendarAgendaList({ events, getEventTone, onSelectDate, todayDa
                 </Pressable>
               );
             })}
-          </View>
+          </Reanimated.View>
         );
       })}
     </ScrollView>

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
+import { useReducedMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -26,6 +27,7 @@ import {
 } from './calendarUtils';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarTimeline } from './CalendarTimeline';
+import { CalendarViewTabs } from './CalendarViewTabs';
 import { CalendarYearGrid } from './CalendarYearGrid';
 import { topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
@@ -254,6 +256,25 @@ export function CalendarPanel({
     setViewMode(mode);
   };
 
+  // 보기를 바꿀 때: 더 큰 단위(일→주→월→년)로 가면 살짝 줄어들며, 작은 단위로 가면 살짝 커지며 나타납니다(줌 느낌).
+  const reduceMotion = useReducedMotion();
+  const viewProgress = useRef(new Animated.Value(1)).current;
+  const previousViewModeRef = useRef(viewMode);
+  const [viewZoomFrom, setViewZoomFrom] = useState(1);
+  useLayoutEffect(() => {
+    const order = VIEW_MODES.map((mode) => mode.key);
+    const previous = previousViewModeRef.current;
+    previousViewModeRef.current = viewMode;
+    if (previous === viewMode || reduceMotion) return;
+    setViewZoomFrom(order.indexOf(viewMode) > order.indexOf(previous) ? 1.05 : 0.95);
+    viewProgress.setValue(0);
+    Animated.timing(viewProgress, { duration: 240, toValue: 1, useNativeDriver: true }).start();
+  }, [reduceMotion, viewMode, viewProgress]);
+  const viewAnimatedStyle = {
+    opacity: viewProgress,
+    transform: [{ scale: viewProgress.interpolate({ inputRange: [0, 1], outputRange: [viewZoomFrom, 1] }) }],
+  };
+
   const selectYearMonth = (month: number) => {
     setVisibleMonth({ month, year: visibleMonth.year });
     setViewMode('month');
@@ -333,24 +354,8 @@ export function CalendarPanel({
   return (
     <View style={styles.calendarPanel}>
       <Animated.View style={[styles.calendarFullStage, { bottom: calendarBottom }]}>
-        <View accessibilityRole="tablist" style={styles.calendarViewTabs}>
-          {VIEW_MODES.map((mode) => {
-            const isActive = mode.key === viewMode;
-            return (
-              <Pressable
-                accessibilityLabel={`${mode.label} 단위로 보기`}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isActive }}
-                hitSlop={8}
-                key={mode.key}
-                onPress={() => changeViewMode(mode.key)}
-                style={[styles.calendarViewTab, isActive && { borderColor: accentTone }]}
-              >
-                <Text style={[styles.calendarViewTabText, isActive && { color: accentTone }]}>{mode.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <CalendarViewTabs accentTone={accentTone} onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
+        <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
           <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
         )}
@@ -403,6 +408,7 @@ export function CalendarPanel({
             weatherRiskByDate={weatherRiskByDate}
           />
         )}
+        </Animated.View>
       </Animated.View>
 
       {shouldRenderDaySheet && (
