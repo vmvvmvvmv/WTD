@@ -42,7 +42,8 @@ import { styles } from '../styles/appStyles';
 import { buildOutingAccentTheme } from '../theme/appTheme';
 import { bauhausColors, textColors } from '../theme/bauhaus';
 import type { OutfitSettings, RegionState, StationDustItem, TabKey } from '../types/dust';
-import { formatCurrentBasis, isSameRegion, normalizeLatLng, stationIdentity, toIsoDate, toNumber } from '../utils/dust';
+import { formatCurrentBasis, isSameRegion, normalizeLatLng, stationIdentity, toNumber } from '../utils/dust';
+import { useTodayLabel } from '../utils/useTodayLabel';
 import { getWeatherVisualKind } from '../utils/weather';
 
 const HOME_WEATHER_BACKGROUNDS = {
@@ -111,7 +112,7 @@ export function AppContent() {
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const todayDateLabel = toIsoDate(new Date());
+  const todayDateLabel = useTodayLabel();
 
   const {
     events: calendarEvents,

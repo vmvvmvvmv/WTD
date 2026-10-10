@@ -101,6 +101,17 @@ export function CalendarPanel({
     const parts = parseDateParts(todayDateLabel);
     return { month: parts.month, year: parts.year };
   });
+  // 켜 둔 채 날짜가 바뀌면, 어제(=예전 오늘)를 보고 있던 경우에만 새 오늘로 옮깁니다.
+  const previousTodayRef = useRef(todayDateLabel);
+  useEffect(() => {
+    const previousToday = previousTodayRef.current;
+    previousTodayRef.current = todayDateLabel;
+    if (previousToday === todayDateLabel) return;
+    const next = parseDateParts(todayDateLabel);
+    const previous = parseDateParts(previousToday);
+    setSelectedDate((current) => (current === previousToday ? todayDateLabel : current));
+    setVisibleMonth((current) => (current.year === previous.year && current.month === previous.month ? { month: next.month, year: next.year } : current));
+  }, [todayDateLabel]);
   const [isDaySheetOpen, setIsDaySheetOpen] = useState(false);
   const [isDaySheetExpanded, setIsDaySheetExpanded] = useState(false);
   const [shouldRenderDaySheet, setShouldRenderDaySheet] = useState(false);
