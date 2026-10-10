@@ -655,3 +655,13 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 변경된 PNG 4종의 실제 alpha 경계를 다시 측정해 `WEATHER_ICON_BOUNDS`를 갱신했다. `weatherIconKind`는 `구름조금`, `구름 조금`, `구름많음` 등 띄어쓰기가 달라도 같은 종류로 판단한다. `HomePanel.tsx`의 사용하지 않는 `bauhausColors` import를 제거했다.
 - 검증: 13px·24px 미리보기에서 구름과 비·눈·강풍 표식 구분 확인, 실제 `weatherIconKind` 함수의 표기 변형 검사 통과, 모바일 typecheck 통과, 변경 파일 ESLint 오류 0(기존 HomePanel 경고 3개). 생성 PNG와 앱 PNG의 SHA-256 일치 확인.
 - 주요 파일: `mobile/assets/icons/weather-partly-cloudy.png`, `weather-rain.png`, `weather-snow.png`, `weather-wind.png`, `mobile/src/components/shared/WeatherIcon.tsx`, `mobile/src/components/home/HomePanel.tsx`.
+
+## 46. 2026-10-10 설정 화면 정리 (Claude)
+
+- 화면 머리의 "설정"과 겹치던 두 번째 "설정" 제목·아이콘 박스를 빼고 "현재 기준 지역 + 지역 이름"과 현재 위치 버튼만 남겼다.
+- 옷차림 스위치 "일정별 옷차림 추천" → "옷차림 추천 보기", 설명 "홈은 오늘 하루 날씨, 캘린더는 일정 시간 날씨로 추천해요". 옷차림 섹션 아이콘을 걷는 사람 → 옷차림 아이콘으로.
+- `NotificationToggleRow`에 선택 설명 줄(`description`)을 추가하고 알림 스위치마다 설명을 넣었다. 아침 날씨 알림에는 "매일 아침 7시 … 일정 제목은 보내지 않고 날짜와 시간만 서버로 보내요" 개인정보 안내 포함(미뤄 두었던 "설정 화면 개인정보 안내" 결정 해결).
+- 새 "앱 정보" 섹션: 데이터 출처(한국환경공단 에어코리아, 기상청 단기·중기예보, 공공데이터포털), 개인정보 요약, 앱 버전(`expo-constants`로 app.json 버전).
+- 즐겨찾기 넘김 버튼: 글자 기호 ‹ › + 동그라미 박스 → Ionicons 화살표, 박스 없음.
+- 글자: 900은 제목만, 나머지 700/600, 회색은 `textColors`. 코디 이미지·체감 성향 선택 11px → 13px.
+- 검증: 타입 검사·커밋 전 검사·babel 변환 통과, 모바일 테스트 23건. 커밋 `3aa3928`.
