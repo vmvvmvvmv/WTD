@@ -23,10 +23,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import type { WebView as WebViewType } from 'react-native-webview';
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
-import { buildCalendarRiskByEvent } from '../components/calendar/calendarForecast';
-import { withoutFollowingOccurrences } from '../components/calendar/calendarRepeat';
 import { buildOutingAccentTheme } from '../theme/appTheme';
 import { bauhausColors, textColors } from '../theme/bauhaus';
 import { DataPanel } from '../components/data/DataPanel';
@@ -34,6 +31,7 @@ import { WeatherDataPanel } from '../components/data/WeatherDataPanel';
 import type { WeatherDataMetricKey } from '../components/data/WeatherDataPanel';
 import { HomePanel } from '../components/home/HomePanel';
 import { FullMapScreen } from '../components/map/FullMapScreen';
+import { findStationSuggestions, useMapSearch } from '../components/map/useMapSearch';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { AppActionIcon } from '../components/shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../components/shared/WeatherIcon';
@@ -48,12 +46,10 @@ import {
   getOptionalPastDust,
   getPastWeather,
   postBriefingMessage,
-  registerNotificationDevice,
 } from '../api/dustEndpoints';
 import {
   DATA_LIST_PAGE_SIZE,
   DEFAULT_CITY,
-  DEFAULT_NOTIFICATION_SETTINGS,
   DEFAULT_OUTFIT_SETTINGS,
   DEFAULT_REGION,
   DEFAULT_REGION_STATE,
@@ -61,32 +57,25 @@ import {
   dataRanges,
 } from '../constants/dust';
 import { API_URL, APP_TEST_TOKEN, IS_EXPO_GO } from '../config/runtime';
+import { useCalendarEvents } from '../features/calendar/useCalendarEvents';
+import { useCalendarReminderSync } from '../features/calendar/useCalendarReminderSync';
 import { loadDashboardCache, saveDashboardCache } from '../features/dashboard/dashboardCache';
 import { hasCompleteDashboardCache } from '../features/dashboard/dashboardCachePolicy';
 import { fetchDashboardDust, fetchDashboardWeather } from '../features/dashboard/dashboardService';
 import { loadStationCache, saveStationCache } from '../features/stations/stationCache';
 import {
-  loadCalendarNotificationIds,
   loadStoredAppState,
-  saveCalendarEvents,
-  saveCalendarNotificationIds,
   saveFavoriteRegions,
   saveGpsRegion,
-  saveMapRecentSearches,
-  saveNotificationSettings,
   saveOutfitSettings,
-  saveNotificationToken,
   saveSelectedRegion,
 } from '../storage/appStorage';
-import { cancelCalendarEventNotifications, configureDustNotifications, requestDustPushToken, scheduleCalendarEventNotifications, scheduleTestNotification } from '../notifications/expoPush';
-import { replaceCalendarNotifications } from '../notifications/calendarNotificationSync';
+import { useNotificationSettings } from '../notifications/useNotificationSettings';
 import type {
   BriefingMessage,
-  CalendarEvent,
   CurrentDustItem,
   DataMetricKey,
   HourlyDustItem,
-  NotificationSettings,
   OutfitSettings,
   PastDustItem,
   PredictionResponse,
@@ -117,12 +106,10 @@ import {
   haversineKm,
   isSameRegion,
   normalizeLatLng,
-  normalizeSearchText,
   stationIdentity,
   toCompactDate,
   toIsoDate,
   toNumber,
-  uniqueStations,
   wait,
 } from '../utils/dust';
 import { getWeatherVisualKind } from '../utils/weather';
@@ -196,18 +183,9 @@ export function AppContent() {
   const [currentItem, setCurrentItem] = useState<CurrentDustItem | null>(null);
   const [currentNotice, setCurrentNotice] = useState('');
   const [stationItems, setStationItems] = useState<StationDustItem[]>([]);
-  const [mapSearchText, setMapSearchText] = useState('');
-  const [mapSearchMessage, setMapSearchMessage] = useState('');
-  const [isMapSearchFocused, setIsMapSearchFocused] = useState(false);
-  const [mapMarkerMode, setMapMarkerMode] = useState<'dust' | 'weather'>('weather');
-  const [mapRecentSearches, setMapRecentSearches] = useState<StationDustItem[]>([]);
-  const [showSearchSuggestions, setShowSearchSuggestions] = useState(false);
-  const [selectedStation, setSelectedStation] = useState<StationDustItem | null>(null);
-  const [mapViewKey, setMapViewKey] = useState(0);
   const [weather, setWeather] = useState<WeatherState | null>(null);
   const [yesterdayWeather, setYesterdayWeather] = useState<WeatherState | null>(null);
   const [detailWeather, setDetailWeather] = useState<WeatherState | null>(null);
-  const [selectedStationWeather, setSelectedStationWeather] = useState<WeatherState | null>(null);
 
   // 상세 데이터 탭의 기간, 오염물질, 차트 선택 상태입니다.
   const [dataMetric, setDataMetric] = useState<DataMetricKey>('pm10');
@@ -220,7 +198,6 @@ export function AppContent() {
   const [briefingInput, setBriefingInput] = useState('');
   const [briefingMessages, setBriefingMessages] = useState<BriefingMessage[]>([]);
   const [isBriefingLoading, setIsBriefingLoading] = useState(false);
-  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
 
   // GPS 기준 지역, 사용자가 선택한 지역, 즐겨찾기 지역 상태입니다.
   const [isLocating, setIsLocating] = useState(false);
@@ -236,12 +213,8 @@ export function AppContent() {
   const [dataRegionSearchText, setDataRegionSearchText] = useState('');
 
   // 알림 권한과 일정 알림 설정 저장 상태입니다.
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   const [outfitSettings, setOutfitSettings] = useState<OutfitSettings>(DEFAULT_OUTFIT_SETTINGS);
   const [notificationMessage, setNotificationMessage] = useState('');
-  const [serverPushToken, setServerPushToken] = useState<string | null>(null);
-  const [isSavingNotificationSettings, setIsSavingNotificationSettings] = useState(false);
-  const [isSendingTestNotification, setIsSendingTestNotification] = useState(false);
   const [isRegionTransitioning, setIsRegionTransitioning] = useState(false);
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
@@ -252,6 +225,17 @@ export function AppContent() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [error, setError] = useState('');
+
+  const {
+    events: calendarEvents,
+    setEvents: setCalendarEvents,
+    addEvent: addCalendarEvent,
+    addEvents: addCalendarEvents,
+    removeEvent: removeCalendarEvent,
+    removeFollowingEvents: removeFollowingCalendarEvents,
+    updateEvent: updateCalendarEvent,
+    updateEventSeries: updateCalendarEventSeries,
+  } = useCalendarEvents(hasLoadedRegionStore);
 
   // 현재 선택 지역과 불러온 데이터에서 UI 색상과 표시값을 계산합니다.
   const latestPastItem = pastItems[pastItems.length - 1];
@@ -267,6 +251,25 @@ export function AppContent() {
   const accentBorderTone = accentTheme.borderTone;
   const todayDateLabel = toIsoDate(new Date());
   const calendarLocationForecasts = useCalendarLocationForecasts(calendarEvents, hasLoadedRegionStore, todayDateLabel);
+  const {
+    settings: notificationSettings,
+    hydrate: hydrateNotificationSettings,
+    isSaving: isSavingNotificationSettings,
+    isTesting: isSendingTestNotification,
+    updateSetting: updateNotificationSetting,
+    sendTest: sendTestNotification,
+  } = useNotificationSettings(hasLoadedRegionStore, selectedRegion, calendarEvents, todayDateLabel, setNotificationMessage);
+  useCalendarReminderSync(calendarEvents, hasLoadedRegionStore, notificationSettings.enabled && notificationSettings.calendarReminders, {
+    currentPm10,
+    eventLocationForecasts: calendarLocationForecasts,
+    hourlyItems,
+    prediction,
+    sensitiveMode: outfitSettings.sensitiveMode,
+    todayDateLabel,
+    weather,
+    weatherHourlyItems,
+    weatherMidTermItems,
+  });
   const baseUrl = API_URL.replace(/\/$/, '');
   const mapBaseUrl = baseUrl.replace(/^http:\/\/localhost(?=[:/]|$)/, 'http://127.0.0.1');
   const mobileMapUrl = `${mapBaseUrl}/dust/mobile-map/`;
@@ -281,9 +284,6 @@ export function AppContent() {
   };
 
   // WebView 지도 제어, 스크롤 제어, 탭 이동 감지를 위한 ref입니다.
-  const mapWebViewRef = useRef<WebViewType>(null);
-  const mapSearchInputRef = useRef<TextInput | null>(null);
-  const mapSearchOverlayInputRef = useRef<TextInput | null>(null);
   const mainScrollRef = useRef<ScrollView>(null);
   const previousTabRef = useRef<TabKey>(activeTab);
 
@@ -294,61 +294,26 @@ export function AppContent() {
   const homePanelTranslateY = useRef(new Animated.Value(-8)).current;
   const dataRegionPickerOpacity = useRef(new Animated.Value(0)).current;
   const dataRegionPickerTranslateY = useRef(new Animated.Value(-8)).current;
-  const mapSearchOverlayOpacity = useRef(new Animated.Value(0)).current;
-  const mapSearchOverlayTranslateY = useRef(new Animated.Value(18)).current;
   const notificationToastOpacity = useRef(new Animated.Value(0)).current;
   const notificationToastTranslateY = useRef(new Animated.Value(16)).current;
-  const calendarNotificationSyncRef = useRef(0);
-  const calendarNotificationQueueRef = useRef<Promise<void>>(Promise.resolve());
   // 비동기 응답이 도착했을 때 지금 선택된 지역과 같은지 비교하기 위한 최신 값입니다.
   const selectedRegionRef = useRef(selectedRegion);
   selectedRegionRef.current = selectedRegion;
   const weatherRequestRef = useRef(0);
 
-  // Android에서는 검색 화면이 닫히는 순간 키보드가 다시 붙는 경우가 있어 여러 타이밍에 한 번 더 내립니다.
-  const dismissMapSearchKeyboard = () => {
-    mapSearchInputRef.current?.blur();
-    mapSearchOverlayInputRef.current?.blur();
-    Keyboard.dismiss();
-    setTimeout(() => {
-      mapSearchInputRef.current?.blur();
-      mapSearchOverlayInputRef.current?.blur();
-      Keyboard.dismiss();
-    }, 80);
-    setTimeout(() => {
-      Keyboard.dismiss();
-    }, 220);
-  };
-
-  // 앱 실행 시 알림 핸들러와 Android 알림 채널을 미리 설정합니다.
-  useEffect(() => {
-    let cancelled = false;
-    const configureNotifications = async () => {
-      await configureDustNotifications();
-      if (cancelled) return;
-    };
-    configureNotifications().catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   const mapStations = useMemo(
     () => stationItems.filter((station) => normalizeLatLng(station.lat, station.lng)),
     [stationItems],
   );
-
-  const switchMapMarkerMode = (mode: 'dust' | 'weather') => {
-    dismissMapSearchKeyboard();
-    setIsMapSearchFocused(false);
-    setShowSearchSuggestions(false);
-    setMapSearchMessage('');
-    setMapMarkerMode(mode);
-    mapWebViewRef.current?.injectJavaScript(`
-      if (window.setMapMode) window.setMapMode(${JSON.stringify(mode)});
-      true;
-    `);
-  };
+  const {
+    closeMapSearch, dismissMapSearchKeyboard, findStationForRegion, focusGpsMapRegion, focusMapStation,
+    isMapSearchFocused, mapMarkerMode, mapRecentSearches, mapSearchInputRef, mapSearchMessage,
+    mapSearchOverlayInputRef, mapSearchOverlayOpacity, mapSearchOverlayTranslateY, mapSearchText,
+    mapViewKey, mapWebViewRef, removeMapRecentSearch, searchSuggestions, selectedStation,
+    selectedStationWeather, setIsMapSearchFocused, setMapRecentSearches, setMapSearchMessage,
+    setMapSearchText, setMapViewKey, setSelectedStation, setSelectedStationWeather,
+    setShowSearchSuggestions, showSearchSuggestions, switchMapMarkerMode,
+  } = useMapSearch(mapStations, gpsRegion, hasLoadedRegionStore, activeTab === 'map', todayDateLabel);
 
   const loadWeather = async (lat: number, lng: number) => {
     // 늦게 도착한 이전 좌표의 응답이 최신 날씨를 덮어쓰지 않도록 마지막 요청만 반영합니다.
@@ -365,43 +330,14 @@ export function AppContent() {
     }
   };
 
-  // 지도 검색어에 맞는 측정소 후보를 계산합니다.
-  const searchSuggestions = useMemo(() => {
-    const keyword = normalizeSearchText(mapSearchText.trim());
-    if (!keyword) return [];
-    return uniqueStations(
-      mapStations.filter((station) => {
-        const target = normalizeSearchText([station.sido, station.city, station.name, station.addr].filter(Boolean).join(' '));
-        return target.includes(keyword);
-      }),
-    )
-      .slice(0, 5);
-  }, [mapSearchText, mapStations]);
-
   // 홈 화면 지역 검색어에 맞는 측정소 후보를 계산합니다.
   const homeRegionSuggestions = useMemo(() => {
-    const keyword = normalizeSearchText(homeRegionSearchText.trim());
-    if (!keyword) return [];
-    return uniqueStations(
-      mapStations.filter((station) => {
-        const target = normalizeSearchText([station.sido, station.city, station.name, station.addr].filter(Boolean).join(' '));
-        return target.includes(keyword);
-      }),
-    )
-      .slice(0, 6);
+    return findStationSuggestions(mapStations, homeRegionSearchText, 6);
   }, [homeRegionSearchText, mapStations]);
 
   // 상세 데이터 지역 검색어에 맞는 측정소 후보를 계산합니다.
   const dataRegionSuggestions = useMemo(() => {
-    const keyword = normalizeSearchText(dataRegionSearchText.trim());
-    if (!keyword) return [];
-    return uniqueStations(
-      mapStations.filter((station) => {
-        const target = normalizeSearchText([station.sido, station.city, station.name, station.addr].filter(Boolean).join(' '));
-        return target.includes(keyword);
-      }),
-    )
-      .slice(0, 6);
+    return findStationSuggestions(mapStations, dataRegionSearchText, 6);
   }, [dataRegionSearchText, mapStations]);
 
   // 현재 선택 지역의 최신 미세먼지 값을 다시 불러옵니다.
@@ -612,88 +548,6 @@ export function AppContent() {
     });
   };
 
-  // 지도 검색 결과를 선택했을 때 WebView 지도를 해당 측정소로 이동합니다.
-  const focusMapStation = (station?: StationDustItem) => {
-    const coords = normalizeLatLng(station?.lat, station?.lng);
-    if (!station || !coords) {
-      setMapSearchMessage('검색 결과가 없습니다.');
-      return;
-    }
-    const normalizedStation = { ...station, lat: coords.lat, lng: coords.lng };
-    setShowSearchSuggestions(false);
-    setIsMapSearchFocused(false);
-    dismissMapSearchKeyboard();
-    setMapSearchText(station.name ?? station.city ?? mapSearchText);
-    setMapSearchMessage(`${station.sido ?? ''} ${station.name ?? station.city ?? ''}`.trim());
-    setSelectedStation(null);
-    setMapRecentSearches((items) => {
-      const nextItems = [normalizedStation, ...items.filter((item) => !(item.sido === station.sido && item.name === station.name && item.city === station.city))];
-      return nextItems.slice(0, 8);
-    });
-    const focusPayload = JSON.stringify({
-      city: station.city,
-      key: stationIdentity(normalizedStation),
-      lat: coords.lat,
-      lng: coords.lng,
-      name: station.name,
-      sido: station.sido,
-    });
-    mapWebViewRef.current?.injectJavaScript(`
-      window.__pendingFocusStation = ${focusPayload};
-      if (typeof window.focusStation === 'function') {
-        window.focusStation(window.__pendingFocusStation);
-        setTimeout(function() { window.focusStation(${focusPayload}); }, 180);
-        setTimeout(function() { window.focusStation(${focusPayload}); }, 520);
-        window.__pendingFocusStation = null;
-      }
-      true;
-    `);
-  };
-
-  // 시/도와 구/군/측정소 이름을 이용해 가장 적절한 측정소를 찾습니다.
-  const findStationForRegion = (region?: RegionState | null) => {
-    if (!region) return undefined;
-    return mapStations.find((station) => (
-      station.sido === region.city
-      && (station.city === region.region || station.name === region.region || station.name === region.label)
-    )) ?? mapStations.find((station) => (
-      station.sido === region.city
-      && [station.city, station.name, station.addr].filter(Boolean).some((value) => String(value).includes(region.region))
-    ));
-  };
-
-  // 지도 검색창의 GPS 버튼을 눌렀을 때 GPS 기준 측정소로 이동하고 하단 정보창을 엽니다.
-  const focusGpsMapRegion = () => {
-    const station = findStationForRegion(gpsRegion);
-    const coords = normalizeLatLng(station?.lat, station?.lng);
-    if (!station || !coords) {
-      setMapSearchMessage('GPS 기준 지역의 측정소를 찾지 못했습니다.');
-      return;
-    }
-    Keyboard.dismiss();
-    setIsMapSearchFocused(false);
-    setShowSearchSuggestions(false);
-    setSelectedStation({ ...station, lat: coords.lat, lng: coords.lng });
-    setMapSearchText('');
-    setMapSearchMessage(`${gpsRegion?.city ?? station.sido ?? ''} ${gpsRegion?.region ?? station.city ?? station.name ?? ''}`.trim());
-    const focusPayload = JSON.stringify({
-      city: station.city,
-      key: stationIdentity({ ...station, lat: coords.lat, lng: coords.lng }),
-      lat: coords.lat,
-      lng: coords.lng,
-      name: station.name,
-      sido: station.sido,
-    });
-    mapWebViewRef.current?.injectJavaScript(`
-      if (typeof window.focusStation === 'function') {
-        window.focusStation(${focusPayload});
-      } else {
-        window.__pendingFocusStation = ${focusPayload};
-      }
-      true;
-    `);
-  };
-
   const calendarMapPickerStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
   const calendarMapPickerCoords = normalizeLatLng(calendarMapPickerStation?.lat, calendarMapPickerStation?.lng);
   const homeMapPreviewStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
@@ -783,17 +637,6 @@ export function AppContent() {
     }
   };
 
-  // 지도 검색 전체 화면을 닫고 키보드도 함께 내립니다.
-  const closeMapSearch = () => {
-    Keyboard.dismiss();
-    setIsMapSearchFocused(false);
-    setShowSearchSuggestions(false);
-  };
-
-  const removeMapRecentSearch = (station: StationDustItem) => {
-    setMapRecentSearches((items) => items.filter((item) => !(item.sido === station.sido && item.name === station.name && item.city === station.city)));
-  };
-
   // 챗봇 대화와 입력값을 초기 상태로 되돌립니다.
   const resetBriefingMessages = () => {
     setBriefingMessages([]);
@@ -810,62 +653,6 @@ export function AppContent() {
     setSelectedChartDate(null);
     setDataItems([]);
     setError('');
-  };
-
-  const addCalendarEvent = (event: CalendarEvent) => {
-    setCalendarEvents((current) => [event, ...current]
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-      .slice(0, 80));
-  };
-
-  const addCalendarEvents = (events: CalendarEvent[]) => {
-    setCalendarEvents((current) => [...events, ...current]
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-      .slice(0, 420));
-  };
-
-  const removeCalendarEvent = (eventId: string) => {
-    setCalendarEvents((current) => current.filter((event) => event.id !== eventId));
-  };
-
-  // 반복 일정의 "이후 일정 모두" 삭제: 이 날짜와 그 뒤의 같은 반복 일정만 지웁니다.
-  const removeFollowingCalendarEvents = (target: CalendarEvent) => {
-    setCalendarEvents((current) => withoutFollowingOccurrences(current, target));
-  };
-
-  const updateCalendarEvent = (updatedEvent: CalendarEvent) => {
-    setCalendarEvents((current) => current
-      .map((event) => (event.id === updatedEvent.id ? updatedEvent : event))
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)));
-  };
-
-  const updateCalendarEventSeries = (updatedEvent: CalendarEvent) => {
-    if (!updatedEvent.repeatGroupId) {
-      updateCalendarEvent(updatedEvent);
-      return;
-    }
-    setCalendarEvents((current) => current
-      .map((event) => {
-        if (event.repeatGroupId !== updatedEvent.repeatGroupId) return event;
-        return {
-          ...event,
-          activityType: updatedEvent.activityType,
-          endTime: updatedEvent.endTime,
-          location: updatedEvent.location,
-          locationAddress: updatedEvent.locationAddress,
-          locationCity: updatedEvent.locationCity,
-          locationLat: updatedEvent.locationLat,
-          locationLng: updatedEvent.locationLng,
-          locationRegion: updatedEvent.locationRegion,
-          locationSource: updatedEvent.locationSource,
-          memo: updatedEvent.memo,
-          notificationHoursBefore: updatedEvent.notificationHoursBefore,
-          sensitive: updatedEvent.sensitive,
-          time: updatedEvent.time,
-          title: updatedEvent.title,
-        };
-      })
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)));
   };
 
   // 사용자의 챗봇 질문을 백엔드에 보내고 답변을 대화 목록에 추가합니다.
@@ -901,44 +688,6 @@ export function AppContent() {
       }
     } finally {
       setIsBriefingLoading(false);
-    }
-  };
-
-  // 설정 탭의 알림 토글 변경을 저장 상태에 반영합니다.
-  const updateNotificationSetting = (key: keyof NotificationSettings, value: boolean | number) => {
-    if (key === 'enabled' && value && IS_EXPO_GO) {
-      setNotificationMessage('Expo Go에서는 알림을 사용할 수 없어요. 개발 빌드에서 확인해 주세요.');
-      return;
-    }
-    const nextSettings = { ...notificationSettings, [key]: value } as NotificationSettings;
-    setIsSavingNotificationSettings(true);
-    setNotificationMessage('');
-    setNotificationSettings(nextSettings);
-    if (key === 'calendarReminders') {
-      setNotificationMessage(value ? '일정 알림을 켰어요.' : '일정 알림을 껐어요.');
-    } else if (key === 'weatherMorningAlerts') {
-      setNotificationMessage(value ? '아침 날씨 알림을 켰어요.' : '아침 날씨 알림을 껐어요.');
-    } else {
-      setNotificationMessage(value ? '알림을 켰어요.' : '알림을 껐어요.');
-    }
-    setIsSavingNotificationSettings(false);
-  };
-
-  const sendTestNotification = async () => {
-    if (IS_EXPO_GO) {
-      setNotificationMessage('테스트 알림은 개발 빌드에서 확인할 수 있어요.');
-      return;
-    }
-    setIsSendingTestNotification(true);
-    try {
-      const scheduled = await scheduleTestNotification();
-      setNotificationMessage(scheduled
-        ? '3초 뒤 알림이 도착해요.'
-        : '알림 권한을 허용하고 다시 시도해 주세요.');
-    } catch {
-      setNotificationMessage('알림을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setIsSendingTestNotification(false);
     }
   };
 
@@ -1170,9 +919,8 @@ export function AppContent() {
         if (!canUseStoredRegion && !nextGpsRegion) setSelectedRegion(DEFAULT_REGION_STATE);
         setFavoriteRegions(nextFavorites);
         setMapRecentSearches(storedState.mapRecentSearches);
-        setNotificationSettings(storedState.notificationSettings);
+        hydrateNotificationSettings(storedState.notificationSettings, storedState.notificationToken);
         setOutfitSettings(storedState.outfitSettings);
-        setServerPushToken(storedState.notificationToken);
         setCalendarEvents(storedState.calendarEvents);
         setHasLoadedRegionStore(true);
       } catch {
@@ -1201,69 +949,6 @@ export function AppContent() {
   }, [gpsRegion, hasLoadedRegionStore]);
 
   useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    saveCalendarEvents(calendarEvents);
-  }, [calendarEvents, hasLoadedRegionStore]);
-
-  useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    let cancelled = false;
-    const syncVersion = calendarNotificationSyncRef.current + 1;
-    calendarNotificationSyncRef.current = syncVersion;
-
-    const syncCalendarNotifications = async () => {
-      await wait(250);
-      if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
-      const notificationIds = await loadCalendarNotificationIds();
-      if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
-
-      if (!notificationSettings.enabled || !notificationSettings.calendarReminders) {
-        await saveCalendarNotificationIds([]);
-        return;
-      }
-
-      const riskByEvent = buildCalendarRiskByEvent(calendarEvents, {
-        currentPm10,
-        hourlyItems,
-        eventLocationForecasts: calendarLocationForecasts,
-        prediction,
-        sensitiveMode: outfitSettings.sensitiveMode,
-        todayDateLabel,
-        weather,
-        weatherHourlyItems,
-        weatherMidTermItems,
-      });
-      await replaceCalendarNotifications(notificationIds, calendarEvents, {
-        cancel: cancelCalendarEventNotifications,
-        isCurrent: () => !cancelled && calendarNotificationSyncRef.current === syncVersion,
-        save: saveCalendarNotificationIds,
-        schedule: (event) => scheduleCalendarEventNotifications(event, riskByEvent[event.id]),
-      });
-    };
-
-    calendarNotificationQueueRef.current = calendarNotificationQueueRef.current
-      .then(syncCalendarNotifications)
-      .catch((error) => console.warn('일정 알림을 다시 예약하지 못했습니다.', error));
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    calendarEvents,
-    calendarLocationForecasts,
-    currentPm10,
-    hasLoadedRegionStore,
-    hourlyItems,
-    notificationSettings.calendarReminders,
-    notificationSettings.enabled,
-    outfitSettings.sensitiveMode,
-    prediction,
-    todayDateLabel,
-    weather,
-    weatherHourlyItems,
-    weatherMidTermItems,
-  ]);
-
-  useEffect(() => {
     if (!selectedRegion || mapStations.length === 0) return;
     const station = findStationForRegion(selectedRegion);
     const coords = normalizeLatLng(station?.lat, station?.lng);
@@ -1272,92 +957,9 @@ export function AppContent() {
   }, [mapStations.length, selectedRegion]);
 
   useEffect(() => {
-    const coords = normalizeLatLng(selectedStation?.lat, selectedStation?.lng);
-    if (!coords) {
-      setSelectedStationWeather(null);
-      return;
-    }
-    let isActive = true;
-    loadStoredWeather(coords.lat, coords.lng, todayDateLabel)
-      .then((data) => {
-        if (!isActive) return;
-        setSelectedStationWeather(data.weather ?? weatherStateFromStation(selectedStation));
-      })
-      .catch(() => {
-        if (isActive) setSelectedStationWeather(weatherStateFromStation(selectedStation));
-      });
-    return () => {
-      isActive = false;
-    };
-  }, [selectedStation?.lat, selectedStation?.lng, selectedStation?.name, selectedStation?.weatherTime]);
-
-  useEffect(() => {
     if (!hasLoadedRegionStore) return;
     saveFavoriteRegions(favoriteRegions);
   }, [favoriteRegions, hasLoadedRegionStore]);
-
-  useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    saveMapRecentSearches(mapRecentSearches);
-  }, [hasLoadedRegionStore, mapRecentSearches]);
-
-  // 알림 설정을 저장합니다.
-  // Server-side morning weather alerts need the Expo push token, selected region, and a small event summary.
-  // Local calendar reminders stay local; this sync only updates the backend device record.
-  useEffect(() => {
-    if (!hasLoadedRegionStore || !selectedRegion || IS_EXPO_GO) return;
-    let cancelled = false;
-
-    const syncServerNotificationDevice = async () => {
-      if (!notificationSettings.enabled) {
-        if (!serverPushToken) return;
-        await registerNotificationDevice({
-          city: selectedRegion.city,
-          enabled: false,
-          expoPushToken: serverPushToken,
-          region: selectedRegion.region,
-          weatherMorningAlerts: false,
-        }).catch(() => {});
-        return;
-      }
-
-      let token = serverPushToken;
-      if (!token) {
-        token = await requestDustPushToken().catch(() => null);
-        if (!token || cancelled) return;
-        setServerPushToken(token);
-        await saveNotificationToken(token);
-      }
-
-      // 일정 요약은 서버의 아침 날씨 알림에만 쓰이므로, 그 알림이 꺼져 있으면 보내지 않습니다.
-      const calendarEventSummary = notificationSettings.weatherMorningAlerts
-        ? calendarEvents
-          .filter((event) => event.date >= todayDateLabel)
-          .slice(0, 30)
-          // 일정 제목은 민감한 내용이 담기기 쉬워 서버로 보내지 않습니다. 아침 알림은 시간만 안내합니다.
-          .map((event) => ({ date: event.date, time: event.time }))
-        : [];
-
-      await registerNotificationDevice({
-        calendarEvents: calendarEventSummary,
-        city: selectedRegion.city,
-        enabled: notificationSettings.enabled,
-        expoPushToken: token,
-        region: selectedRegion.region,
-        weatherMorningAlerts: notificationSettings.weatherMorningAlerts,
-      }).catch(() => {});
-    };
-
-    syncServerNotificationDevice();
-    return () => {
-      cancelled = true;
-    };
-  }, [calendarEvents, hasLoadedRegionStore, notificationSettings.enabled, notificationSettings.weatherMorningAlerts, selectedRegion, serverPushToken, todayDateLabel]);
-
-  useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    saveNotificationSettings(notificationSettings);
-  }, [hasLoadedRegionStore, notificationSettings]);
 
   useEffect(() => {
     if (!hasLoadedRegionStore) return;
@@ -1484,30 +1086,6 @@ export function AppContent() {
       }),
     ]).start();
   }, [dataRegionPickerOpacity, dataRegionPickerTranslateY, detailRegion, showDataRegionPicker]);
-
-  // 키보드 표시 상태를 추적해 챗봇 입력창이 가려지지 않게 합니다.
-  useEffect(() => {
-    if (activeTab !== 'map' || !isMapSearchFocused) {
-      mapSearchOverlayOpacity.setValue(0);
-      mapSearchOverlayTranslateY.setValue(18);
-      return;
-    }
-    mapSearchOverlayOpacity.setValue(0);
-    mapSearchOverlayTranslateY.setValue(18);
-    Animated.parallel([
-      Animated.timing(mapSearchOverlayOpacity, {
-        toValue: 1,
-        duration: 150,
-        useNativeDriver: true,
-      }),
-      Animated.spring(mapSearchOverlayTranslateY, {
-        toValue: 0,
-        damping: 17,
-        stiffness: 190,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [activeTab, isMapSearchFocused, mapSearchOverlayOpacity, mapSearchOverlayTranslateY]);
 
   // 키보드 높이를 추적해 입력 UI가 하단 탭에 가려지지 않게 합니다.
   useEffect(() => {
