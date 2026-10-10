@@ -311,27 +311,22 @@ class DustSpikeNotificationTests(SimpleTestCase):
     def setUp(self):
         from datetime import datetime
         self.now = timezone.make_aware(datetime(2026, 10, 10, 13, 0))
-        self.end_of_day = timezone.make_aware(datetime(2026, 10, 11, 0, 0))
-
-    def at(self, hour):
-        return self.now.replace(hour=hour)
 
     def test_current_bad_measurement_alerts_now(self):
         from dust.dust_spike_notifications import build_dust_spike_body
-        body = build_dust_spike_body(95.4, [], self.end_of_day)
+        body = build_dust_spike_body(95.4, None)
         self.assertEqual(body, '지금 미세먼지 나쁨(PM10 95㎍/㎥)이에요. 마스크 챙기세요.')
-        self.assertIn('매우 나쁨', build_dust_spike_body(160, [], self.end_of_day))
+        self.assertIn('매우 나쁨', build_dust_spike_body(160, '보통'))
 
-    def test_first_bad_prediction_today_gives_start_hour(self):
+    def test_airkorea_bad_forecast_today_alerts_when_now_is_fine(self):
         from dust.dust_spike_notifications import build_dust_spike_body
-        upcoming = [(self.at(17), 120), (self.at(15), 85), (self.at(14), 60)]
-        self.assertEqual(build_dust_spike_body(40, upcoming, self.end_of_day), '오후 3시부터 미세먼지 나쁨이 예상돼요. 마스크 챙기세요.')
+        self.assertEqual(build_dust_spike_body(40, '나쁨'), '오늘 미세먼지 예보가 나쁨이에요. 마스크 챙기세요.')
+        self.assertEqual(build_dust_spike_body(None, '매우나쁨'), '오늘 미세먼지 예보가 매우 나쁨이에요. 마스크 챙기세요.')
 
-    def test_no_alert_when_today_stays_below_bad(self):
-        from datetime import timedelta
+    def test_no_alert_when_now_and_today_forecast_are_not_bad(self):
         from dust.dust_spike_notifications import build_dust_spike_body
-        tomorrow = self.end_of_day + timedelta(hours=9)
-        self.assertIsNone(build_dust_spike_body(80, [(self.at(15), 70), (tomorrow, 130)], self.end_of_day))
+        self.assertIsNone(build_dust_spike_body(80, '보통'))
+        self.assertIsNone(build_dust_spike_body(None, None))
 
     def test_quiet_hours_send_nothing(self):
         from datetime import datetime
@@ -351,7 +346,7 @@ class DustSpikeNotificationTests(SimpleTestCase):
                 patch(f'{module}.DustNotificationLog.objects') as logs, \
                 patch(f'{module}._station_for_region', return_value=object()), \
                 patch(f'{module}._latest_pm10', return_value=100), \
-                patch(f'{module}._upcoming_predictions', return_value=[]), \
+                patch(f'{module}._today_forecast_grade', return_value=None), \
                 patch(f'{module}.send_expo_push') as push:
             logs.filter.return_value.exists.return_value = False
             result = send_dust_spike_notifications(now=self.now)
@@ -359,3 +354,20 @@ class DustSpikeNotificationTests(SimpleTestCase):
         push.assert_called_once()
         self.assertEqual(push.call_args.args[1], '강남구 미세먼지 알림')
         logs.update_or_create.assert_called_once()
+
+
+class AirKoreaHourlyForecastTests(SimpleTestCase):
+    def test_spreads_daily_grade_over_next_hours(self):
+        from datetime import datetime
+        from dust.airkorea_forecast import build_hourly_forecast_items
+        now = timezone.make_aware(datetime(2026, 10, 10, 22, 30))
+        forecast = {'2026-10-10': ('2026-10-10 17시 발표', {'서울': '보통'}), '2026-10-11': ('2026-10-10 17시 발표', {'서울': '나쁨'})}
+        with patch('dust.airkorea_forecast.load_national_forecast', return_value=forecast):
+            items = build_hourly_forecast_items('key', '서울특별시', now=now, hours=3)
+        self.assertEqual([(item['hour'], item['pm10Value'], item['grade']) for item in items], [('23:00', 55, '보통'), ('00:00', 115, '나쁨'), ('01:00', 115, '나쁨')])
+        self.assertTrue(all(item['phase'] == 'forecast' for item in items))
+
+    def test_no_items_without_forecast(self):
+        from dust.airkorea_forecast import build_hourly_forecast_items
+        with patch('dust.airkorea_forecast.load_national_forecast', return_value=None):
+            self.assertEqual(build_hourly_forecast_items('key', '서울'), [])
