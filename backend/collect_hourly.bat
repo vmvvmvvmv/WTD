@@ -25,10 +25,8 @@ echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 "%PYTHON_EXE%" manage.py collect_realtime_weather --workers 8 --forecast-hours 72 >> "%LOG_FILE%" 2>&1
 if errorlevel 1 goto :failed
 
-set "CURRENT_STEP=generate_hourly_dust_predictions"
-echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
-"%PYTHON_EXE%" manage.py generate_hourly_dust_predictions >> "%LOG_FILE%" 2>&1
-if errorlevel 1 goto :failed
+REM App hourly PM10 forecast now comes from the AirKorea forecast (2026-10-10).
+REM The in-house prediction model is kept for comparison only; run manage.py generate_hourly_dust_predictions manually when needed.
 
 set "CURRENT_STEP=collect_midterm_weather"
 echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"

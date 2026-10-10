@@ -17,7 +17,7 @@ from django.core.cache import cache
 from django.shortcuts import render
 from django.utils import timezone
 from dotenv import load_dotenv
-from .airkorea_forecast import build_forecast_prediction
+from .airkorea_forecast import build_forecast_prediction, build_hourly_forecast_items
 from .notification_registry import notification_device_response, upsert_notification_device
 from .current_dust_service import (
     canonical_sido_name,
@@ -2952,98 +2952,6 @@ def _store_hourly_dust_predictions(station, city, district, forecast_items):
         saved += 1
     return saved
 
-def _serialize_hourly_dust_prediction(prediction):
-    target_at = timezone.localtime(prediction.target_at)
-    raw_data = prediction.raw_data or {}
-    return {
-        "measuredAt": target_at.isoformat(),
-        "date": target_at.date().isoformat(),
-        "hour": target_at.strftime('%H:00'),
-        "pm10Value": round(prediction.pm10_predicted, 1),
-        "pm25Value": raw_data.get("pm25Value"),
-        "o3Value": raw_data.get("o3Value"),
-        "no2Value": raw_data.get("no2Value"),
-        "source": "stored_hourly_prediction",
-        "phase": "forecast",
-        "weatherFactor": round(prediction.weather_factor, 1),
-        "trend": round(prediction.trend, 1),
-        "horizonHours": prediction.horizon_hours,
-        "baseline": raw_data.get("baseline"),
-        "predictedAt": timezone.localtime(prediction.predicted_at).isoformat(),
-        "modelName": prediction.model_name,
-    }
-
-def _load_stored_hourly_dust_predictions(station, measured_date, limit=12):
-    if not station:
-        return []
-
-    now_hour = timezone.localtime().replace(minute=0, second=0, microsecond=0)
-    date_start = timezone.make_aware(datetime.combine(measured_date, time.min), timezone.get_current_timezone())
-    date_end = date_start + timedelta(days=1)
-    start_at = max(date_start, now_hour + timedelta(hours=1)) if measured_date >= timezone.localdate() else date_start
-    filters = {"station": station, "target_at__gte": start_at}
-    if measured_date < timezone.localdate():
-        filters["target_at__lt"] = date_end
-    queryset = (
-        HourlyDustPrediction.objects
-        .filter(**filters)
-        .order_by("target_at", "-predicted_at")
-    )[:limit * 8]
-    latest_by_target = {}
-
-    def prediction_rank(prediction):
-        ml_priority = 1 if prediction.model_name == "hist_gradient_boosting_pm10_v1" else 0
-        return (prediction.predicted_at, ml_priority)
-
-    for prediction in queryset:
-        key = prediction.target_at
-        existing = latest_by_target.get(key)
-        if existing is None or prediction_rank(prediction) > prediction_rank(existing):
-            latest_by_target[key] = prediction
-
-    predictions = [latest_by_target[key] for key in sorted(latest_by_target.keys())[:limit]]
-    return [_serialize_hourly_dust_prediction(prediction) for prediction in predictions]
-
-def _merge_hourly_forecast_items(primary_items, fallback_items, limit=12):
-    merged = []
-    seen = set()
-    for item in [*primary_items, *fallback_items]:
-        key = f"{item.get('date')}-{item.get('hour')}"
-        if key in seen:
-            continue
-        seen.add(key)
-        merged.append(item)
-        if len(merged) >= limit:
-            break
-    return merged
-
-def _hourly_prediction_metrics(station, days=7, model_name=None):
-    if not station:
-        return {"available": False}
-
-    cutoff = timezone.now() - timedelta(days=days)
-    queryset = HourlyDustPrediction.objects.filter(
-        station=station,
-        evaluated_at__isnull=False,
-        target_at__gte=cutoff,
-    )
-    if model_name:
-        queryset = queryset.filter(model_name=model_name)
-    rows = list(queryset.exclude(absolute_error__isnull=True).order_by("-target_at")[:200])
-    if not rows:
-        return {"available": False, "sampleCount": 0}
-
-    mae = sum(row.absolute_error for row in rows if row.absolute_error is not None) / len(rows)
-    rmse = math.sqrt(sum(row.squared_error for row in rows if row.squared_error is not None) / len(rows))
-    return {
-        "available": True,
-        "sampleCount": len(rows),
-        "mae": round(mae, 2),
-        "rmse": round(rmse, 2),
-        "windowDays": days,
-        "modelName": rows[0].model_name,
-    }
-
 @api_view(['GET'])
 def hourly_dust(request):
     city = request.GET.get('city')
@@ -3069,24 +2977,9 @@ def hourly_dust(request):
     if location:
         grid = _dfs_grid_from_lat_lng(location["lat"], location["lng"])
         weather_forecasts = _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12)
-    stored_forecast_items = _load_stored_hourly_dust_predictions(station, measured_date)
-    generated_forecast_items = []
-    if len(stored_forecast_items) >= 12:
-        forecast_items = stored_forecast_items[:12]
-        saved_predictions = 0
-        prediction_source = "stored"
-    else:
-        generated_forecast_items = _build_hourly_dust_forecast(
-            items,
-            weather_forecasts,
-            station=station,
-            city=city,
-            district=district,
-        )
-        saved_predictions = _store_hourly_dust_predictions(station, city, district, generated_forecast_items)
-        forecast_items = _merge_hourly_forecast_items(stored_forecast_items, generated_forecast_items, limit=12)
-        prediction_source = "stored_generated_fill" if stored_forecast_items else "generated"
-    response_model_name = (forecast_items[0].get("modelName") if forecast_items else None) or "hourly_trend_weather_v1"
+    # 앞으로 12시간 미세먼지는 에어코리아 공식 예보(하루 단위 등급)를 쓴다.
+    # 직접 만든 시간별 예측 모델은 generate_hourly_dust_predictions 명령으로 따로 돌려 비교용으로만 남긴다.
+    forecast_items = build_hourly_forecast_items(AIRKOREA_SERVICE_KEY, city)
     return Response({
         "city": city,
         "region": district,
@@ -3096,11 +2989,9 @@ def hourly_dust(request):
         "items": items,
         "forecastItems": forecast_items,
         "predictionModel": {
-            "name": response_model_name,
-            "source": prediction_source,
-            "savedCount": saved_predictions,
-            "metrics": _hourly_prediction_metrics(station, model_name=response_model_name),
-            "note": "참고용 시간별 예측입니다. 저장된 예측과 실제 관측값이 쌓이면 오차 지표가 함께 제공됩니다.",
+            "name": "airkorea_forecast_grade",
+            "source": "airkorea",
+            "note": "에어코리아 미세먼지 예보 등급(오늘·내일)을 등급별 대표 PM10 값으로 바꾼 값입니다.",
         },
         "weatherForecastItems": weather_forecasts,
     })
