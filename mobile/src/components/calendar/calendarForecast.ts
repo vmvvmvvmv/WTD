@@ -17,6 +17,8 @@ export type CalendarForecastContext = {
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   hourlyItems?: HourlyDustItem[];
   prediction?: PredictionResponse | null;
+  // 켜면 저장된 일정은 그대로 두고 판단할 때만 모든 일정을 민감군으로 봅니다.
+  sensitiveMode?: boolean;
   todayDateLabel: string;
   weather?: WeatherState | null;
   weatherHourlyItems?: WeatherHourlyItem[];
@@ -95,7 +97,7 @@ export function buildCalendarRiskByEvent(events: CalendarEvent[], context: Calen
         : event.location
           ? '현재 지역 기준'
           : undefined;
-      return evaluateCalendarEventRisk(event, {
+      return evaluateCalendarEventRisk(context.sensitiveMode ? { ...event, sensitive: true } : event, {
         currentPm10: locationForecast?.currentPm10 ?? context.currentPm10,
         dustItems: locationForecast?.dustItems ?? context.hourlyItems,
         locationBasis,

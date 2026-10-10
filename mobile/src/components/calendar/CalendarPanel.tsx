@@ -43,6 +43,7 @@ export function CalendarPanel({
   outfitFigure,
   outfitSensitivity,
   prediction,
+  sensitiveMode = false,
   todayDateLabel,
   weather,
   weatherHourlyItems,
@@ -67,6 +68,7 @@ export function CalendarPanel({
   outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
   prediction?: PredictionResponse | null;
+  sensitiveMode?: boolean;
   todayDateLabel: string;
   weather?: WeatherState | null;
   weatherHourlyItems?: WeatherHourlyItem[];
@@ -104,11 +106,12 @@ export function CalendarPanel({
     dustItems: hourlyItems,
     eventLocationForecasts,
     prediction,
+    sensitiveMode,
     todayDateLabel,
     weather,
     weatherHourlyItems,
     weatherMidTermItems,
-  }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
+  }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
   const selectedForecast = useMemo(
     () => buildSelectedCalendarForecast(selectedDate, forecastContext),
     [forecastContext, selectedDate],

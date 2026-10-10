@@ -555,6 +555,7 @@ export function HomePanel({
   outfitFallbackLocation,
   outfitFigure,
   outfitSensitivity,
+  sensitiveMode = false,
   mapPreviewUrl,
   hourlyItems,
   pastItems,
@@ -582,6 +583,7 @@ export function HomePanel({
   outfitFallbackLocation?: OutfitFallbackLocation;
   outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
+  sensitiveMode?: boolean;
   mapPreviewUrl: string;
   hourlyItems: HourlyDustItem[];
   pastItems: PastDustItem[];
@@ -670,9 +672,10 @@ export function HomePanel({
     dustItems: hourlyItems,
     fallbackPm10: currentPm10,
     nowHour,
+    sensitive: sensitiveMode,
     todayDateLabel,
     weatherItems: weatherHourlyItems,
-  }), [currentPm10, hourlyItems, nowHour, todayDateLabel, weatherHourlyItems]);
+  }), [currentPm10, hourlyItems, nowHour, sensitiveMode, todayDateLabel, weatherHourlyItems]);
   const bestOutingText = bestOutingWindow ? bestOutingWindowText(bestOutingWindow) : null;
   const hasHourlyForecast = bannerForecastItems.length > 0;
   const todayCalendarEvents = useMemo(() => (calendarEvents ?? [])
@@ -683,19 +686,20 @@ export function HomePanel({
     eventLocationForecasts,
     hourlyItems,
     prediction,
+    sensitiveMode,
     todayDateLabel,
     weather,
     weatherHourlyItems,
     weatherMidTermItems,
-  }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, todayCalendarEvents, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
+  }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode, todayCalendarEvents, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
   const weatherVisualKind = getWeatherVisualKind(weather?.label);
   const weatherMotionKind = getHomeWeatherMotionKind(weather?.label, weather?.windSpeed);
   const reduceMotion = useReduceMotion();
   const weatherBackgroundKind = weatherMotionKind === 'wind' ? 'cloudy' : weatherVisualKind;
   const currentTimeLabel = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const activityGuideRows = useMemo(
-    () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent, todayDateLabel, currentTimeLabel),
-    [activityGuideRiskByEvent, currentTimeLabel, todayCalendarEvents, todayDateLabel],
+    () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent, todayDateLabel, currentTimeLabel, sensitiveMode),
+    [activityGuideRiskByEvent, currentTimeLabel, sensitiveMode, todayCalendarEvents, todayDateLabel],
   );
   // 오늘 옷차림은 일정과 관계없이 지금부터 저녁까지를 하나의 외출로 보고 하루 날씨로 추천합니다.
   // 일정별 날씨는 위의 활동 가이드가 보여줍니다.

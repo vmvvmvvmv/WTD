@@ -14,7 +14,7 @@ registerHooks({
   },
 });
 
-const { activityForecastLabel, activityWeatherKind } = await import('./homeActivityGuidePresenter.ts');
+const { activityForecastLabel, activityWeatherKind, buildHomeActivityGuideItems } = await import('./homeActivityGuidePresenter.ts');
 
 const risk = (overrides) => ({ badge: '', basis: '', desc: '', icon: 'walk-outline', level: 'watch', tone: '', ...overrides });
 
@@ -41,4 +41,11 @@ test('날씨 예보가 아직 없으면 맑음이라고 단정하지 않는다',
   const value = risk({ pm10: 25 });
   assert.equal(activityWeatherKind(value), 'unknown');
   assert.equal(activityForecastLabel(value), '이 시간대 날씨 예보를 아직 받지 못했어요');
+});
+
+test('민감군 모드면 미세먼지 보통에도 마스크를 권한다', () => {
+  const event = { activityType: 'outdoor', date: '2026-10-10', id: 'e', sensitive: false, time: '15:00', title: '산책' };
+  const riskByEvent = { e: risk({ level: 'good', pm10: 50, temperature: 20, weatherLabel: '맑음' }) };
+  assert.equal(buildHomeActivityGuideItems([event], riskByEvent, '2026-10-10', '12:00')[0].advice, '예정대로 나가도 괜찮겠어요.');
+  assert.match(buildHomeActivityGuideItems([event], riskByEvent, '2026-10-10', '12:00', true)[0].advice, /마스크/);
 });

@@ -1226,6 +1226,7 @@ export function AppContent() {
         hourlyItems,
         eventLocationForecasts: calendarLocationForecasts,
         prediction,
+        sensitiveMode: outfitSettings.sensitiveMode,
         todayDateLabel,
         weather,
         weatherHourlyItems,
@@ -1256,6 +1257,7 @@ export function AppContent() {
     hourlyItems,
     notificationSettings.calendarReminders,
     notificationSettings.enabled,
+    outfitSettings.sensitiveMode,
     prediction,
     todayDateLabel,
     weather,
@@ -1898,6 +1900,7 @@ export function AppContent() {
               onUpdateEventSeries={updateCalendarEventSeries}
               outfitEnabled={outfitSettings.enabled}
               outfitFigure={outfitSettings.figure}
+              sensitiveMode={outfitSettings.sensitiveMode}
               outfitSensitivity={outfitSettings.sensitivity}
               prediction={prediction}
               todayDateLabel={todayDateLabel}
@@ -2136,6 +2139,7 @@ export function AppContent() {
             outfitFallbackLocation={selectedRegion}
             outfitFigure={outfitSettings.figure}
             outfitSensitivity={outfitSettings.sensitivity}
+            sensitiveMode={outfitSettings.sensitiveMode}
             mapPreviewUrl={homeMapPreviewUrl}
             hourlyItems={hourlyItems}
             weatherHourlyItems={weatherHourlyItems}
