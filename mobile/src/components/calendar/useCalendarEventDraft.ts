@@ -128,9 +128,11 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     // '이동'은 선택지에서 뺐으므로 예전 이동 일정은 편집할 때 실외로 보여 줍니다(저장해야 바뀜).
     setActivityInput(event.activityType === 'transit' ? 'outdoor' : event.activityType);
     setSensitive(event.sensitive);
-    setRepeatMode('none');
-    setRepeatEndDate(nextDefaultRepeatEndDate(eventDate));
-    setRepeatWeekdays(defaultRepeatWeekdays(eventDate));
+    // 반복 일정은 지금 규칙을 보여 주기만 하고(바꾸지 않음), 한 번짜리 일정은 여기서 반복을 새로 걸 수 있습니다.
+    const isSeries = !!event.repeatGroupId && !!event.repeatMode && event.repeatMode !== 'none';
+    setRepeatMode(isSeries ? (event.repeatMode as CalendarRepeatMode) : 'none');
+    setRepeatEndDate(isSeries && event.repeatEndDate ? event.repeatEndDate : nextDefaultRepeatEndDate(eventDate));
+    setRepeatWeekdays(isSeries && event.repeatWeekdays?.length ? event.repeatWeekdays : defaultRepeatWeekdays(eventDate));
     setNotificationHoursBefore(typeof event.notificationHoursBefore === 'number' ? event.notificationHoursBefore : null);
     setIsEditorOpen(true);
   };
@@ -169,7 +171,13 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     };
     if (editingEventId) {
       if (editingScope === 'series' && baseEvent.repeatGroupId) onUpdateEventSeries?.(baseEvent);
-      else onUpdateEvent?.(baseEvent);
+      else if (!baseEvent.repeatGroupId && repeatMode !== 'none') {
+        // 한 번짜리 일정에 반복을 걸면: 이 일정은 첫 회차가 되고 나머지 회차를 새로 만듭니다.
+        const [first, ...rest] = buildRepeatedEvents(baseEvent, { endDate: repeatEndDate, mode: repeatMode, weekdays: repeatWeekdays });
+        onUpdateEvent?.({ ...first, id: editingEventId });
+        if (rest.length && onAddEvents) onAddEvents(rest);
+        else rest.forEach(onAddEvent);
+      } else onUpdateEvent?.(baseEvent);
       setEditingEventId(null);
       setEditingScope('single');
       setEditingRepeatMeta(null);
@@ -201,6 +209,8 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     notificationHoursBefore,
     openEditor,
     openEditorForEvent,
+    // 반복 일정을 고칠 때는 반복 규칙을 잠급니다(보기만).
+    isRepeatLocked: !!editingEventId && !!editingRepeatMeta?.repeatGroupId,
     repeatEndDate,
     repeatMode,
     repeatWeekdays,
