@@ -22,6 +22,8 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
   const [result, setResult] = useState<OutfitRecommendation | null>(() => getCachedOutfit(key));
   const [status, setStatus] = useState<OutfitLoadStatus>(enabled ? 'loading' : 'idle');
   const [retryVersion, setRetryVersion] = useState(0);
+  // 기본(규칙) 추천을 보여 준 뒤 AI(LLM) 추천을 기다리는 중인지. 화면에 'AI가 고르는 중'을 띄우는 데 씁니다.
+  const [isEnhancing, setIsEnhancing] = useState(false);
   const autoRetryAttemptRef = useRef(0);
 
   useEffect(() => {
@@ -57,13 +59,16 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
           autoRetryAttemptRef.current = 0;
         }
         if (!enhanceWithLlm) return;
+        setIsEnhancing(true);
         const full = await request('full');
         if (!mounted) return;
         setResult(full);
         setCachedOutfit(key, full);
+        setIsEnhancing(false);
         setStatus('ready');
         autoRetryAttemptRef.current = 0;
       } catch (error) {
+        if (mounted) setIsEnhancing(false);
         if (!mounted || controller.signal.aborted) return;
         const last = getLastOutfit(key);
         if (last) {
@@ -86,6 +91,7 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
     void load();
     return () => {
       mounted = false;
+      setIsEnhancing(false);
       controller.abort();
       if (retryTimer) clearTimeout(retryTimer);
     };
@@ -96,5 +102,5 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
     clearCachedOutfit(key);
     setRetryVersion((value) => value + 1);
   }, [key]);
-  return { result, retry, status };
+  return { isEnhancing, result, retry, status };
 }

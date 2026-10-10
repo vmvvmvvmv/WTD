@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
@@ -23,6 +24,7 @@ import { OUTFIT_MOTION } from './motion';
 import { outfitStyles } from './outfitStyles';
 import { OutfitVisual } from './OutfitVisual';
 import { WeatherIcon } from '../shared/WeatherIcon';
+import { semanticColors } from '../../theme/semanticColors';
 
 export type OutfitFallbackLocation = {
   city?: string;
@@ -130,15 +132,56 @@ function WeatherAlertRow({ result }: { result: OutfitRecommendation }) {
   );
 }
 
-export function OutfitCard({ figure, onRetry, result, showBothFigures = false, showRetry = false }: {
+function OutfitSourceRow({ isEnhancing, source }: { isEnhancing: boolean; source: OutfitRecommendation['source'] }) {
+  const reduceMotion = useReducedMotion();
+  const pulse = useSharedValue(1);
+  const thinking = source !== 'llm' && isEnhancing;
+  useEffect(() => {
+    if (!thinking || reduceMotion) {
+      pulse.value = 1;
+      return;
+    }
+    pulse.value = withRepeat(withSequence(withTiming(0.3, { duration: 600 }), withTiming(1, { duration: 600 })), -1);
+  }, [pulse, reduceMotion, thinking]);
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  const accent = semanticColors.outfit.accent;
+
+  if (source === 'llm') {
+    return (
+      <View accessibilityLabel="AI 추천. 오늘 날씨를 보고 AI가 골랐어요" accessible style={outfitStyles.sourceRow}>
+        <Ionicons color={accent} name="sparkles" size={15} />
+        <Text style={outfitStyles.sourceAi}>AI 추천</Text>
+        <Text numberOfLines={1} style={outfitStyles.sourceHint}>오늘 날씨를 보고 골랐어요</Text>
+      </View>
+    );
+  }
+  if (thinking) {
+    return (
+      <View accessibilityLabel="AI가 오늘 날씨로 옷차림을 고르는 중이에요" accessible style={outfitStyles.sourceRow}>
+        <Animated.View style={pulseStyle}><Ionicons color={accent} name="sparkles" size={15} /></Animated.View>
+        <Text numberOfLines={1} style={outfitStyles.sourceHint}>AI가 오늘 날씨로 옷차림을 고르는 중…</Text>
+      </View>
+    );
+  }
+  return (
+    <View accessibilityLabel="기본 추천. 날씨 기준으로 골랐어요" accessible style={outfitStyles.sourceRow}>
+      <Text style={outfitStyles.sourceRule}>기본 추천</Text>
+      <Text numberOfLines={1} style={outfitStyles.sourceHint}>날씨 기준으로 골랐어요</Text>
+    </View>
+  );
+}
+
+export function OutfitCard({ figure, isEnhancing = false, onRetry, result, showBothFigures = false, showRetry = false }: {
   figure: OutfitFigure;
+  isEnhancing?: boolean;
   onRetry?: () => void;
   result: OutfitRecommendation;
   showBothFigures?: boolean;
   showRetry?: boolean;
 }) {
   const reduceMotion = useReducedMotion();
-  const typed = useTypewriter(result.summary, reduceMotion);
+  const typedText = showBothFigures ? result.outfit_note || result.summary : result.summary;
+  const typed = useTypewriter(typedText, reduceMotion || result.source !== 'llm');
   const clothes = useMemo(() => [
     ...result.outfit.top.slice(0, 1),
     ...result.outfit.bottom.slice(0, 1),
@@ -152,6 +195,7 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
         entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)}
         style={[outfitStyles.card, outfitStyles.dualCard]}
       >
+        <OutfitSourceRow isEnhancing={isEnhancing} source={result.source} />
         <View style={outfitStyles.dualVisualRow}>
           <View style={outfitStyles.dualVisualPanel}>
             <Text style={outfitStyles.dualVisualLabel}>남성 옷차림</Text>
@@ -164,7 +208,7 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
         </View>
         <WeatherAlertRow result={result} />
         <View style={outfitStyles.dualDescription}>
-          <Text style={outfitStyles.dualDescriptionText}>{result.outfit_note || result.summary}</Text>
+          <Text accessibilityLabel={typedText} onPress={typed.complete} style={outfitStyles.dualDescriptionText}>{typed.visible}</Text>
           {!!result.layering_tip && <Text style={outfitStyles.dualDescriptionSubtext}>{result.layering_tip}</Text>}
           {!!essentials && <Text style={outfitStyles.dualEssentials}>챙길 것 · {essentials}</Text>}
         </View>
@@ -175,6 +219,7 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
 
   return (
     <Animated.View entering={FadeInDown.duration(OUTFIT_MOTION.transition).easing(Easing.out(Easing.cubic)).reduceMotion(ReduceMotion.System)} style={outfitStyles.card}>
+      <OutfitSourceRow isEnhancing={isEnhancing} source={result.source} />
       <View style={outfitStyles.cardHeader}>
         <View style={outfitStyles.visualFrame}><OutfitVisual figure={figure} result={result} /></View>
         <View style={outfitStyles.cardHeaderText}>
@@ -183,7 +228,6 @@ export function OutfitCard({ figure, onRetry, result, showBothFigures = false, s
             <Animated.Text entering={FadeIn.duration(200)} key={`${result.source}-${result.summary}`} style={outfitStyles.summary}>{typed.visible}</Animated.Text>
           </Pressable>
         </View>
-        <View style={outfitStyles.sourcePill}><Text style={outfitStyles.source}>{result.source === 'llm' ? 'AI 추천' : '기본 추천'}</Text></View>
       </View>
       <WeatherAlertRow result={result} />
       <TempRangeBar maximum={result.weather_snapshot.feels_max} minimum={result.weather_snapshot.feels_min} />
@@ -216,10 +260,10 @@ export function OutfitCardContainer({ enabled, enhanceWithLlm = false, event, ev
       locationRegion: item.locationRegion || fallbackLocation?.region,
     }));
   }, [event, events, fallbackLocation?.city, fallbackLocation?.lat, fallbackLocation?.lng, fallbackLocation?.region]);
-  const { result, retry, status } = useOutfitRecommendation({ enabled, enhanceWithLlm, events: resolvedEvents, sensitivity });
+  const { isEnhancing, result, retry, status } = useOutfitRecommendation({ enabled, enhanceWithLlm, events: resolvedEvents, sensitivity });
   if (!enabled || status === 'idle') return null;
   if (status === 'loading' && !result) return <OutfitSkeleton />;
-  if (result) return <OutfitCard figure={figure} onRetry={retry} result={result} showBothFigures={showBothFigures} showRetry={status === 'error'} />;
+  if (result) return <OutfitCard figure={figure} isEnhancing={isEnhancing} onRetry={retry} result={result} showBothFigures={showBothFigures} showRetry={status === 'error'} />;
   return (
     <View style={outfitStyles.empty}>
       <OutfitIcon activityType={resolvedEvents[0]?.activityType ?? 'outdoor'} size={25} />

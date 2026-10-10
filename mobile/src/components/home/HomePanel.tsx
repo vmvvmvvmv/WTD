@@ -6,11 +6,14 @@ import { ScrollView, useWindowDimensions } from 'react-native';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { styles } from '../../styles/appStyles';
+import { bauhausColors, textColors } from '../../theme/bauhaus';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { bestOutingWindowText, findBestOutingWindow } from '../../features/dashboard/bestOutingWindow';
+import { buildDefaultActivityGuides } from '../../features/dashboard/defaultActivityGuides';
 import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
+import { semanticColors } from '../../theme/semanticColors';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
 import { getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
@@ -72,9 +75,13 @@ function getHomeWeatherMotionKind(label?: string | null, windSpeed?: number | st
 
 type HomeSectionKey = 'guide' | 'outfit' | 'map';
 
-const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
+const MAP_PREVIEW_MIN_HEIGHT = 156;
+// 지도 아래에 남겨야 하는 높이: 지도 링크 줄 44 + 섹션 아래 여백 20 + 스크롤 아래 여백 30 + 하단 탭 바 69
+const MAP_PREVIEW_BOTTOM_RESERVE = 44 + 20 + 30 + 69;
+
+const HOME_SECTION_TABS: { ai?: boolean; icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
   { icon: 'schedule', key: 'guide', label: '활동 가이드' },
-  { icon: 'outfit', key: 'outfit', label: '추천 옷차림' },
+  { ai: true, icon: 'outfit', key: 'outfit', label: '추천 옷차림' },
   { icon: 'map', key: 'map', label: '날씨 지도' },
 ];
 
@@ -600,7 +607,15 @@ export function HomePanel({
   weather?: WeatherState | null;
   yesterdayWeather?: WeatherState | null;
 }) {
-  const { fontScale, width: windowWidth } = useWindowDimensions();
+  const { fontScale, height: windowHeight, width: windowWidth } = useWindowDimensions();
+  // 지도 탭을 열면 지도가 하단 탭 바 바로 위까지 닿도록, 화면에서 지도가 시작하는 위치를 재서 높이를 정합니다.
+  const mapPaneRef = useRef<View>(null);
+  const [mapFrameHeight, setMapFrameHeight] = useState(MAP_PREVIEW_MIN_HEIGHT);
+  const measureMapPane = () => {
+    mapPaneRef.current?.measureInWindow((_x, y) => {
+      setMapFrameHeight(Math.max(MAP_PREVIEW_MIN_HEIGHT, Math.round(windowHeight - y - MAP_PREVIEW_BOTTOM_RESERVE)));
+    });
+  };
   const infoCarouselRef = useRef<ScrollView>(null);
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
   const [carouselIndex, setCarouselIndex] = useState(1);
@@ -707,6 +722,18 @@ export function HomePanel({
   const activityGuideRows = useMemo(
     () => buildHomeActivityGuideItems(todayCalendarEvents, activityGuideRiskByEvent, todayDateLabel, currentTimeLabel, sensitiveMode),
     [activityGuideRiskByEvent, currentTimeLabel, sensitiveMode, todayCalendarEvents, todayDateLabel],
+  );
+  // 오늘 일정이 없을 때만 오늘 날씨로 실외·실내·이동 기본 가이드를 만듭니다.
+  const defaultActivityGuides = useMemo(
+    () => (activityGuideRows.length > 0 ? [] : buildDefaultActivityGuides({
+      bestWindow: bestOutingWindow,
+      currentPm10,
+      nowHour,
+      sensitive: sensitiveMode,
+      todayDateLabel,
+      weatherItems: weatherHourlyItems,
+    })),
+    [activityGuideRows.length, bestOutingWindow, currentPm10, nowHour, sensitiveMode, todayDateLabel, weatherHourlyItems],
   );
   // 오늘 옷차림은 일정과 관계없이 지금부터 저녁까지를 하나의 외출로 보고 하루 날씨로 추천합니다.
   // 일정별 날씨는 위의 활동 가이드가 보여줍니다.
@@ -842,7 +869,7 @@ export function HomePanel({
             const selected = tab.key === activeHomeSection;
             return (
               <Pressable
-                accessibilityLabel={tab.label}
+                accessibilityLabel={tab.ai ? `${tab.label}, AI 추천` : tab.label}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
                 key={tab.key}
@@ -850,7 +877,10 @@ export function HomePanel({
                 style={({ pressed }) => [styles.homeSectionTab, selected && { borderBottomColor: accentTone }, pressed && styles.pressedFeedback]}
               >
                 {selected ? <HomeMotionActionIcon name={tab.icon} size={24} /> : <AppActionIcon name={tab.icon} size={24} style={styles.homeSectionTabIconMuted} />}
-                <Text style={[styles.homeSectionTabText, selected && styles.homeSectionTabTextSelected]}>{tab.label}</Text>
+                <View style={styles.homeSectionTabLabelRow}>
+                  {tab.ai && <Ionicons color={selected ? bauhausColors.blue : textColors.disabled} name="sparkles" size={11} />}
+                  <Text style={[styles.homeSectionTabText, selected && styles.homeSectionTabTextSelected]}>{tab.label}</Text>
+                </View>
               </Pressable>
             );
           })}
@@ -859,7 +889,7 @@ export function HomePanel({
         <View style={activeHomeSection !== 'guide' && styles.homeSectionHidden}>
           {activityGuideRows.length === 0 && (
             <View style={styles.homeSectionEmptyRow}>
-              <Text style={styles.activityGuideEmptyText}>오늘 등록된 일정이 없어요</Text>
+              <Text style={styles.activityGuideEmptyText}>일정이 없어 오늘 날씨로 본 기본 가이드예요</Text>
               <Pressable
                 accessibilityLabel="일정 추가하러 가기"
                 accessibilityRole="button"
@@ -869,6 +899,26 @@ export function HomePanel({
                 <Ionicons color={accentTone} name="add" size={17} />
                 <Text style={[styles.activityGuideAddChipText, { color: accentTone }]}>일정 추가</Text>
               </Pressable>
+            </View>
+          )}
+          {defaultActivityGuides.length > 0 && (
+            <View style={styles.activityGuideList}>
+              {defaultActivityGuides.map((guide) => (
+                <Pressable
+                  accessibilityLabel={`${guide.title}. ${guide.detail}. 일정 추가하러 가기`}
+                  key={guide.key}
+                  onPress={onOpenCalendar}
+                  style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
+                >
+                  <View style={[styles.activityGuideIconBox, { backgroundColor: guide.caution ? semanticColors.weather.caution.soft : bauhausColors.blueSoft }]}>
+                    <AppActionIcon name={guide.icon} size={30} />
+                  </View>
+                  <View style={styles.activityGuideTextGroup}>
+                    <Text style={styles.activityGuideRowTitle}>{guide.title}</Text>
+                    <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{guide.detail}</Text>
+                  </View>
+                </Pressable>
+              ))}
             </View>
           )}
           {activityGuideRows.length > 0 && <View style={styles.activityGuideList}>
@@ -961,10 +1011,12 @@ export function HomePanel({
 
         <Pressable
           accessibilityLabel={"\uC804\uAD6D \uC9C0\uB3C4 \uB0A0\uC528 \uBCF4\uB7EC\uAC00\uAE30"}
+          onLayout={activeHomeSection === 'map' ? measureMapPane : undefined}
           onPress={onOpenMap}
+          ref={mapPaneRef}
           style={({ pressed }) => [activeHomeSection !== 'map' && styles.homeSectionHidden, pressed && styles.pressedFeedback]}
         >
-          <View style={styles.homeMapPreviewFrame} pointerEvents="none">
+          <View style={[styles.homeMapPreviewFrame, { height: mapFrameHeight }]} pointerEvents="none">
             {mapPreviewFailed || !mapPreviewUrl ? (
               <View style={styles.homeMapPreviewFallback}>
                 <AppActionIcon name="map" size={37} />
