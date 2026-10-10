@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 import { useEffect, useMemo, useRef } from 'react';
+import { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/dust';
@@ -49,6 +50,7 @@ export function CalendarMonthGrid({
   weatherRiskByDate,
 }: Props) {
   const monthProgress = useRef(new Animated.Value(1)).current;
+  const hasMountedRef = useRef(false);
   const weekRows = Array.from({ length: Math.max(1, Math.ceil(monthCells.length / 7)) }, (_, rowIndex) => (
     monthCells.slice(rowIndex * 7, rowIndex * 7 + 7)
   ));
@@ -62,6 +64,11 @@ export function CalendarMonthGrid({
   };
 
   useEffect(() => {
+    // 화면을 처음 열 때는 화면 전환 애니메이션만 쓰고, 달을 넘길 때만 밀어 넣습니다.
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true;
+      return;
+    }
     monthProgress.setValue(0);
     Animated.timing(monthProgress, {
       duration: 210,
@@ -120,6 +127,7 @@ export function CalendarMonthGrid({
           <Text key={day} style={[styles.calendarWeekText, index === 0 && styles.calendarWeekTextSunday, index === 6 && styles.calendarWeekTextSaturday]}>{day}</Text>
         ))}
       </View>
+      <LayoutAnimationConfig skipEntering>
       <Animated.View style={[styles.calendarGrid, monthAnimatedStyle]} {...swipeHandlers}>
         {weekRows.map((week, rowIndex) => (
           <View key={`week-${rowIndex}`} style={styles.calendarGridWeekRow}>
@@ -161,6 +169,7 @@ export function CalendarMonthGrid({
           </View>
         ))}
       </Animated.View>
+      </LayoutAnimationConfig>
     </View>
   );
 }
