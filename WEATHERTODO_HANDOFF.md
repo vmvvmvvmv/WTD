@@ -875,3 +875,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
   5. `types/dust.ts` 한 파일에 모든 타입, `utils/dust.ts`에 성격 다른 함수 섞임.
   6. 백엔드 `app/`·`api/` 앱은 로그인·회원 기능을 끈 뒤 모델(데이터)만 남은 상태.
 - `ff04bde` (구조 과제 4) 강조색을 상수로: `buildOutingAccentTheme`가 외출지수를 매번 계산하고도 버리고 항상 같은 파랑을 돌려주던 것을 `theme/appTheme.ts` 상수(accentTone/accentSoftTone/accentBorderTone)로. 23개 파일에서 강조색 props 제거(-197/+35줄), `theme/colors.ts` 삭제. tsc·eslint·테스트 통과. 기기 확인은 USB가 끊겨 못 함(색 값은 같음).
+- `613a634` (구조 과제 5) `utils/dust.ts` 해체 → `utils/date·format·geo`, `features/stations/stationUtils`, `features/region/regionUtils`, `features/dashboard/currentBasis(+테스트)·predictionResponse`, `storage/parseStoredValues`, 공기질 글자·색은 `airQualityGrade`로. 안 쓰던 함수 6개 삭제, `wait` 인라인. `types/dust.ts`는 공기질 타입만 남기고 `types/navigation·calendar·weather·region·settings·outfit`로 분리. 옮긴 코드의 깨진 주석은 한국어로 다시 씀. tsc·eslint(경고 26→21)·테스트 45건 통과, USB 끊겨 기기 확인 못 함.
