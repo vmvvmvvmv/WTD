@@ -15,7 +15,6 @@ EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
 RAIN_PROBABILITY_THRESHOLD = 60
 LOW_TEMPERATURE_THRESHOLD = 0
 HIGH_TEMPERATURE_THRESHOLD = 30
-VERY_HIGH_TEMPERATURE_THRESHOLD = 33
 STRONG_WIND_THRESHOLD = 8
 NOTIFICATION_TYPE = "weather_morning"
 
@@ -27,44 +26,10 @@ class WeatherMorningResult:
     skipped: int = 0
 
 
-@dataclass(frozen=True)
-class WeatherRisk:
-    points: list[WeatherHourlyMeasurement]
-    rain_points: list[WeatherHourlyMeasurement]
-    snow_cold_points: list[WeatherHourlyMeasurement]
-    wind_points: list[WeatherHourlyMeasurement]
-    thunder_points: list[WeatherHourlyMeasurement]
-    heat_points: list[WeatherHourlyMeasurement]
-
-    @property
-    def has_rain(self) -> bool:
-        return bool(self.rain_points)
-
-    @property
-    def has_snow_cold(self) -> bool:
-        return bool(self.snow_cold_points)
-
-    @property
-    def has_wind(self) -> bool:
-        return bool(self.wind_points)
-
-    @property
-    def has_thunder(self) -> bool:
-        return bool(self.thunder_points)
-
-    @property
-    def has_heat(self) -> bool:
-        return bool(self.heat_points)
-
-
 def parse_target_date(value: str | None) -> date:
     if value:
         return datetime.strptime(value, "%Y-%m-%d").date()
     return timezone.localdate()
-
-
-def _date_label(value: date) -> str:
-    return f"{value.month}\uc6d4 {value.day}\uc77c"
 
 
 def _event_label(event: dict) -> str:
@@ -103,16 +68,10 @@ def _is_rain(point: WeatherHourlyMeasurement) -> bool:
     pty = str(point.precipitation_type or "").strip()
     return (
         "\ube44" in label
-        or pty in {"1", "4", "5", "6"}
+        or pty in {"1", "2", "4", "5", "6"}
         or (point.rain_mm is not None and point.rain_mm > 0)
         or (point.rain_probability is not None and point.rain_probability >= RAIN_PROBABILITY_THRESHOLD)
     )
-
-
-def _is_snow_or_cold(point: WeatherHourlyMeasurement) -> bool:
-    label = point.label or ""
-    pty = str(point.precipitation_type or "").strip()
-    return "\ub208" in label or pty in {"2", "3", "6", "7"} or (point.temperature is not None and point.temperature <= LOW_TEMPERATURE_THRESHOLD)
 
 
 def _is_windy(point: WeatherHourlyMeasurement) -> bool:
@@ -133,96 +92,104 @@ def _is_thunder(point: WeatherHourlyMeasurement) -> bool:
     )
 
 
-def _is_heat(point: WeatherHourlyMeasurement) -> bool:
-    return point.temperature is not None and point.temperature >= HIGH_TEMPERATURE_THRESHOLD
+def _is_snow(point: WeatherHourlyMeasurement) -> bool:
+    label = point.label or ""
+    pty = str(point.precipitation_type or "").strip()
+    return "눈" in label or pty in {"2", "3", "6", "7"}
 
 
-def weather_risk_for_region(city: str, region: str, target_date: date) -> WeatherRisk | None:
+def weather_points_for_region(city: str, region: str, target_date: date, from_time: datetime | None = None) -> list[WeatherHourlyMeasurement] | None:
+    """그날 시간별 예보. from_time을 주면 그 시각(정시) 이후만 — 아침에 보낼 때 지난 새벽 시간은 빼려고."""
     grid = _grid_for_region(city, region)
     if not grid:
         return None
     start = timezone.make_aware(datetime.combine(target_date, time.min))
-    end = start + timedelta(days=1)
+    if from_time is not None:
+        start = max(start, timezone.localtime(from_time).replace(minute=0, second=0, microsecond=0))
+    end = timezone.make_aware(datetime.combine(target_date, time.min)) + timedelta(days=1)
     points = list(
         WeatherHourlyMeasurement.objects
         .filter(nx=grid["nx"], ny=grid["ny"], measured_at__gte=start, measured_at__lt=end)
         .order_by("measured_at")
     )
-    if not points:
-        return None
-    return WeatherRisk(
-        points=points,
-        rain_points=[point for point in points if _is_rain(point)],
-        snow_cold_points=[point for point in points if _is_snow_or_cold(point)],
-        wind_points=[point for point in points if _is_windy(point)],
-        thunder_points=[point for point in points if _is_thunder(point)],
-        heat_points=[point for point in points if _is_heat(point)],
-    )
+    return points or None
 
 
-def _time_range(points: list[WeatherHourlyMeasurement]) -> str:
-    if not points:
-        return ""
-    first = timezone.localtime(points[0].measured_at)
-    end = timezone.localtime(points[-1].measured_at) + timedelta(hours=1)
-    return f"{first:%H}:00~{end:%H}:00"
+def _hour(point: WeatherHourlyMeasurement) -> int:
+    return timezone.localtime(point.measured_at).hour
 
 
-def _temperature_text(points: list[WeatherHourlyMeasurement]) -> str:
-    values = [point.temperature for point in points if point.temperature is not None]
-    if not values:
-        return ""
-    low = round(min(values))
-    high = round(max(values))
-    if low == high:
-        return f"\uc608\uc0c1 \uae30\uc628 {low}\u00b0C"
-    return f"\uc608\uc0c1 \uae30\uc628 {low}~{high}\u00b0C"
+def hour_blocks_text(hours: list[int], limit: int = 2) -> str:
+    """[6, 7, 15, 16, 17] → '6~8시, 15~18시'. 떨어진 시간대를 하나로 부풀리지 않는다."""
+    blocks: list[list[int]] = []
+    for hour in sorted(set(hours)):
+        if blocks and hour == blocks[-1][-1] + 1:
+            blocks[-1].append(hour)
+        else:
+            blocks.append([hour])
+    texts = [f"{block[0]}~{block[-1] + 1}시" for block in blocks[:limit]]
+    return ", ".join(texts) + (" 등" if len(blocks) > limit else "")
 
 
-def _rain_text(points: list[WeatherHourlyMeasurement]) -> str:
-    if not points:
-        return "비가 올 수 있어요"
-    probabilities = [point.rain_probability for point in points if point.rain_probability is not None]
-    probability = max(probabilities) if probabilities else None
-    range_text = _time_range(points)
-    if probability is not None and range_text:
-        return f"{range_text} 강수 확률 {round(probability)}%예요"
-    if range_text:
-        return f"{range_text} 비가 올 수 있어요"
-    if probability is not None:
-        return f"강수 확률 {round(probability)}%예요"
-    return "비가 올 수 있어요"
+def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasurement], events: list[dict]) -> tuple[str, str]:
+    """(제목, 본문). 오늘 남은 시간의 비·눈·천둥·강풍을 시간대와 함께 모두 알리고, 기온·일정·챙길 것을 한 줄씩."""
+    rain = [_hour(point) for point in points if _is_rain(point)]
+    snow = [_hour(point) for point in points if _is_snow(point)]
+    thunder = [_hour(point) for point in points if _is_thunder(point)]
+    wind = [point for point in points if _is_windy(point)]
+    probabilities = [point.rain_probability for point in points if _is_rain(point) and point.rain_probability is not None]
+    temperatures = [point.temperature for point in points if point.temperature is not None]
+    low = round(min(temperatures)) if temperatures else None
+    high = round(max(temperatures)) if temperatures else None
 
+    hazards = []
+    if rain:
+        hazards.append(f"비 {hour_blocks_text(rain)}" + (f"(최대 {round(max(probabilities))}%)" if probabilities else ""))
+    if snow:
+        hazards.append(f"눈 {hour_blocks_text(snow)}")
+    if thunder:
+        hazards.append(f"천둥·번개 {hour_blocks_text(thunder)}")
+    if wind:
+        hazards.append(f"강한 바람 {hour_blocks_text([_hour(point) for point in wind])}(최대 {round(max(point.wind_speed for point in wind))}m/s)")
+    lines = [" · ".join(hazards) if hazards else "비·눈 예보 없음"]
 
-def build_weather_morning_body(target_date: date, risk: WeatherRisk, events: list[dict]) -> str:
-    date_text = _date_label(target_date)
-    event_text = ", ".join(filter(None, (_event_label(event) for event in events)))
-    prefix = f"{event_text} 일정이 있어요. " if event_text else ""
-    rain_text = _rain_text(risk.rain_points)
-    temperature_text = _temperature_text(risk.points)
+    if low is not None and high is not None:
+        temperature = f"기온 {low}°" if low == high else f"기온 {low}~{high}°"
+        if high - low >= 10:
+            temperature += f" · 일교차 {high - low}°"
+        lines.append(f"{temperature} (기상청 예보)")
 
-    def with_temperature(body: str) -> str:
-        return f"{body}\n{temperature_text}" if temperature_text else body
+    event_times = [time_text for time_text in (_event_label(event) for event in events) if time_text]
+    if event_times:
+        affected = []
+        for time_text in event_times:
+            hour = int(time_text[:2]) if time_text[:2].isdigit() else None
+            kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", [_hour(p) for p in wind])) if hour in hours]
+            if kinds:
+                affected.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
+        lines.append(f"일정 {', '.join(event_times)}" + (f" · {', '.join(affected)}" if affected else ""))
 
-    if risk.has_snow_cold and risk.has_rain:
-        return with_temperature(f"{prefix}{date_text}에는 기온이 낮고 비 예보도 있어요. {rain_text}. 우산과 따뜻한 겉옷을 챙기세요.")
-    if risk.has_snow_cold and risk.has_wind:
-        return with_temperature(f"{prefix}{date_text}에는 기온이 낮거나 눈이 올 수 있고 바람도 강해요. 따뜻한 방풍 겉옷을 챙기세요.")
-    if risk.has_snow_cold:
-        return with_temperature(f"{prefix}{date_text}에는 기온이 낮거나 눈이 올 수 있어요. 따뜻한 겉옷을 챙기세요.")
-    if risk.has_thunder:
-        return with_temperature(f"{prefix}{date_text}에는 천둥·번개가 예상돼요. 야외 활동은 잠시 미루세요.")
-    if risk.has_rain and risk.has_wind:
-        return with_temperature(f"{prefix}{date_text}에는 비와 강한 바람이 예상돼요. {rain_text}. 우산과 바람막이를 챙기세요.")
-    if risk.has_rain:
-        return with_temperature(f"{prefix}{date_text} {rain_text}. 우산을 챙기세요.")
-    if risk.has_wind:
-        return with_temperature(f"{prefix}{date_text}에는 바람이 강해요. 바람막이를 챙기세요.")
-    if risk.has_heat:
-        return with_temperature(f"{prefix}{date_text}에는 기온이 높아요. 물과 양산을 챙기고 한낮에는 쉬어 가세요.")
-    if event_text:
-        return with_temperature(f"{prefix}{date_text} 날씨는 무난해요. 출발 전에 필요한 물건만 확인하세요.")
-    return with_temperature(f"{date_text}에는 큰 날씨 변화가 없어요.")
+    bring = []
+    if rain:
+        bring.append("우산")
+    if snow:
+        bring.append("미끄럽지 않은 신발")
+    if low is not None and low <= LOW_TEMPERATURE_THRESHOLD:
+        bring.append("두꺼운 겉옷")
+    elif low is not None and high is not None and high - low >= 10:
+        bring.append("얇은 겉옷")
+    if wind:
+        bring.append("바람막이")
+    if high is not None and high >= HIGH_TEMPERATURE_THRESHOLD:
+        bring.append("물·양산")
+    advice = f"챙길 것: {' · '.join(bring)}" if bring else ""
+    if thunder:
+        advice = f"{advice}. 천둥·번개 때는 실내에 머무세요" if advice else "천둥·번개 때는 실내에 머무세요"
+    if advice:
+        lines.append(advice)
+
+    title = f"오늘 {region} 날씨" + (f" · 일정 {len(event_times)}개" if event_times else "")
+    return title, "\n".join(lines)
 
 
 class ExpoDeviceNotRegistered(RuntimeError):
@@ -263,8 +230,10 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
         if not city or not region:
             skipped += 1
             continue
-        risk = weather_risk_for_region(city, region, target_date)
-        if not risk:
+        # 오늘 보내는 알림은 지금 시각 이후만 본다(이미 지난 새벽 비는 알리지 않는다).
+        from_time = timezone.now() if target_date == timezone.localdate() else None
+        points = weather_points_for_region(city, region, target_date, from_time=from_time)
+        if not points:
             skipped += 1
             continue
         basis_key = target_date.strftime("%Y%m%d")
@@ -279,8 +248,7 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
             continue
 
         events = events_for_date(device, target_date)
-        title = "오늘 날씨와 일정"
-        body = build_weather_morning_body(target_date, risk, events)
+        title, body = build_weather_morning_message(region, points, events)
         if dry_run:
             write(f"[dry-run] {title} - {body}")
             sent += 1

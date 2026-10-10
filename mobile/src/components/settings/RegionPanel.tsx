@@ -196,7 +196,7 @@ export function RegionPanel({
         <NotificationToggleRow
           accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="오늘 미세먼지가 나쁨 이상이 되거나 될 것으로 예상되면 하루 한 번 알려 줘요(밤 10시~아침 7시 제외)"
+          description="지금 미세먼지·초미세먼지가 나쁨 이상이거나 에어코리아 오늘 예보가 나쁨이면 하루 한 번 알려 줘요(밤 10시~아침 7시 제외)"
           label="미세먼지 나쁨 알림"
           value={notificationSettings.dustSpikeAlerts}
           onValueChange={(value) => onToggleNotificationSetting('dustSpikeAlerts', value)}

@@ -116,11 +116,16 @@ def build_forecast_prediction(service_key, city, days=2):
     }
 
 
-def forecast_grade_for(service_key, city, date):
-    """에어코리아 PM10 예보에서 그 날짜·시도의 등급(좋음/보통/나쁨/매우나쁨). 없으면 None."""
+def forecast_for(service_key, city, date):
+    """에어코리아 PM10 예보에서 그 날짜·시도의 (등급, 발표 시각 문자열). 없으면 (None, None)."""
     forecast = load_national_forecast(service_key) if service_key else None
-    _announced, grades = (forecast or {}).get(date.isoformat(), (None, {}))
-    return grade_for_city(grades, city)
+    announced, grades = (forecast or {}).get(date.isoformat(), (None, {}))
+    grade = grade_for_city(grades, city)
+    return (grade, announced) if grade else (None, None)
+
+
+def forecast_grade_for(service_key, city, date):
+    return forecast_for(service_key, city, date)[0]
 
 
 def build_hourly_forecast_items(service_key, city, now=None, hours=12):
