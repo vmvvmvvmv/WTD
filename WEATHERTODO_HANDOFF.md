@@ -853,3 +853,13 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - `446f22a` 탭 끌어서 바꾸기: 상단 탭을 누른 채 좌우로 밀면 손가락 아래 탭으로 바로 바뀜(가벼운 진동, 보기 줌·밑줄 애니메이션 그대로). 끄는 동안 밑줄이 굵어지고 선택 글자가 살짝 커짐.
 - `1221f4d` 일정 수정 화면을 입력 화면과 같게: 수정할 때도 반복 줄 보임. 한 번짜리 일정에 반복을 걸면 이 일정이 첫 회차가 되고 나머지를 새로 만듦. 이미 반복인 일정은 지금 규칙을 흐리게 잠가서 보여 줌(규칙 변경은 아직 없음). 일 보기 일정 블록 오른쪽 28 띄움(주 보기 2).
 - `339d945` '오늘' 자정 갱신: 오늘은 폰 시간 0시 기준인데, 렌더할 때만 계산해서 앱을 켜 둔 채 자정을 넘기면 어제가 오늘로 남았음. `useTodayLabel`(자정 타이머 + 앱 복귀 시)로 바꾸고, 캘린더가 예전 오늘을 보고 있었으면 새 오늘로 옮김.
+
+## 67. 2026-10-11 캘린더 구조 정리 (Claude, 동작 변화 없음)
+- `228051e`
+  - `CalendarEventEditor.tsx` 1114 → 488줄. 선택기들은 `calendar/editor/`로 분리: `DateTimePicker`, `TimeWheelPicker`, `RepeatSelector`, `ActivityTypeSelector`(+`CalendarActivityInput` 타입), `NotificationLeadSelector`, `pickerShared`.
+  - `CalendarPanel.tsx` 503 → 353줄. 보기·기간·오늘로·자정 갱신·보기 줌은 `useCalendarNavigation.ts`, 날짜 시트 열기/닫기/크게는 `useCalendarDaySheet.ts`.
+  - 넘김 애니메이션 `useCalendarSlide.ts` 별도 파일(일·주·월·년 공용).
+  - `calendarLayout.ts`의 중복 날짜 함수 3개 삭제 → `calendarUtils` 재사용. `CalendarMonthCell` 타입은 `calendarUtils`로(유틸이 컴포넌트를 import하던 역방향 제거).
+  - 캘린더 스타일 218개 → `styles/calendarStyles.ts`. `appStyles.ts`가 합쳐서 `styles`로 내보내므로 컴포넌트 import는 그대로.
+- 확인: tsc, eslint(경고 12 → 9), `npm test` 45건, 기기에서 주·월·날짜 시트·일정 입력 화면 그대로.
+- 남은 구조 과제: `AppContent.tsx` 1026줄.
