@@ -766,3 +766,14 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - `fe27ebd`: mobile `npm test` 스크립트(`node --test "src/**/*.test.mjs"`, Node 24 glob). 이제 모바일 테스트는 `npm test`.
 - `b93164f` 옷차림 카드(`components/outfit/outfitStyles.ts`): 홈 활동 가이드 기준에 맞춤. 직접 쓴 회색 5가지 → textColors, 9~10px → 10~11px(배지급 최소 10, 본문 11), 900은 카드 제목만(강조 700, 설명 600), 카드 모서리 20/16 → 14, 작은 요소 10 → 8, 칩 아이콘 색을 `semanticColors.outfit.accent`(= blueText 값)로.
 - 실기기 확인 필요: 홈 두 인물 아래 설명이 11px로 커져 줄바꿈이 늘지 않는지, 캘린더 날짜 시트의 옷차림 카드.
+
+## 60. 2026-10-10 외출지수 표시 제거, 홈 아래 섹션을 탭으로 (Claude)
+
+- `9a2c959` 외출지수 점수 표시 제거: 홈 배너 "외출지수 N점" 슬라이드(배너 점 8 → 7개), 캘린더 일정 설명의 "예상 외출 지수 : N점" 줄. 이유: 임의 가중치(미세먼지 나쁨 −36, 비 −16 …) 점수라 뜻이 바로 와닿지 않고 근거 설명이 어려움, 같은 판단을 배지·예보 한 줄·비 회피 제안이 쉬운 말로 보여 줌.
+  - 계산 `calculateOutingIndex`는 남김: 앱 강조색(`theme/appTheme.ts`)과 산책하기 좋은 시간 순위(`bestOutingWindow`)에서 내부로만 씀.
+  - 지움: `getOutingGrade/getOutingTone/getOutingSemanticTone`, `CalendarRiskResult.outingIndex`, `eventDayCount`, `components/calendar/outingIndex.ts`(다시 내보내기). 노션 지운 코드 보관소에 기록.
+- `d703c20` 홈 아래 세 섹션(오늘 활동 가이드, 오늘 옷차림, 전국 날씨 지도)을 섹션 하나 + 탭 [활동 가이드 | 옷차림 | 날씨 지도]로.
+  - 탭: 박스 없이 아이콘(위) + 글자 + 강조색 밑줄. 선택 탭만 움직이는 아이콘(HomeMotionActionIcon), 나머지 흐린 PNG.
+  - 내용은 `display: 'none'`으로 숨기기만 해서 탭을 바꿔도 옷차림 추천(LLM)·지도 WebView를 다시 불러오지 않음. 옷차림 꺼짐이면 탭 2개. 기본 탭은 활동 가이드(앱을 다시 열면 처음으로).
+  - 지도 미리보기는 섹션 안에서 `marginHorizontal: -20`으로 화면 끝까지. 각 섹션의 19px 제목·머리 아이콘은 탭이 대신해서 지웠고 쓰지 않게 된 스타일 17개 정리.
+- 검증: tsc·eslint 오류 0·테스트 34건·babel 통과. 실기기 확인 필요: 작은 화면에서 탭 글자 줄바꿈, 탭 전환 시 높이 변화, 지도 탭 눌러 전체 지도 열기.
