@@ -647,3 +647,11 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 검증: 모바일 TypeScript typecheck 통과, 변경 파일 ESLint(`--no-cache`) 통과. Android 실기기 홈·캘린더·일정 시트에서 검색·일정·삭제·수정 아이콘 표시를 확인했다. 전체 `expo lint`는 저장소 `.expo` 캐시 파일 쓰기 권한(EPERM) 때문에 완료되지 못했다.
 - 주요 파일: `mobile/assets/icons/action-*.png`, `mobile/src/components/shared/AppActionIcon.tsx`.
 - (45장 보충) 사용자 요청으로 날짜 패널 위 모서리 둥글게는 되돌렸다(각진 모서리 유지, 위로 드리우는 그림자만 남김). 커밋 `c5453a3`. 디자인 선호: 아래에서 올라오는 패널의 모서리는 둥글게 하지 않는다.
+
+## 49. 2026-10-10 작은 크기 날씨 아이콘 가독성 보정 (Codex)
+
+- 비 아이콘의 물방울을 약 1.8배 길고 비스듬하게, 눈송이를 약 1.7배 크게 그렸다. 두 표식 모두 기존보다 진한 파랑(`#2C6FAE`)을 사용해 13px 캘린더 배지에서도 흐린 구름과 구분되게 했다.
+- 구름 조금과 강풍의 구름을 흐림·비·눈과 같은 연한 하늘색(`#A9D5F2`)으로 맞췄다. 강풍의 바람 줄은 8px에서 11px로 굵게 하고 같은 진한 파랑을 사용했다.
+- 변경된 PNG 4종의 실제 alpha 경계를 다시 측정해 `WEATHER_ICON_BOUNDS`를 갱신했다. `weatherIconKind`는 `구름조금`, `구름 조금`, `구름많음` 등 띄어쓰기가 달라도 같은 종류로 판단한다. `HomePanel.tsx`의 사용하지 않는 `bauhausColors` import를 제거했다.
+- 검증: 13px·24px 미리보기에서 구름과 비·눈·강풍 표식 구분 확인, 실제 `weatherIconKind` 함수의 표기 변형 검사 통과, 모바일 typecheck 통과, 변경 파일 ESLint 오류 0(기존 HomePanel 경고 3개). 생성 PNG와 앱 PNG의 SHA-256 일치 확인.
+- 주요 파일: `mobile/assets/icons/weather-partly-cloudy.png`, `weather-rain.png`, `weather-snow.png`, `weather-wind.png`, `mobile/src/components/shared/WeatherIcon.tsx`, `mobile/src/components/home/HomePanel.tsx`.
