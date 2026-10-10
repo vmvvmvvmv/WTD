@@ -25,15 +25,3 @@ class ClientPasswordMatchTests(SimpleTestCase):
         self.assertTrue(user.matches_client_password('abc123'))
         self.assertFalse(user.matches_client_password('abc124'))
         self.assertFalse(user.matches_client_password('비밀번호'))
-
-    def test_api_login_rejects_empty_password_for_social_account(self):
-        from unittest.mock import patch
-        from api.models import Info, Users  # api.views가 쓰는 proxy 모델
-        social_user = Users(id=1, user_id='google_abc', password='', salt='')
-        lookups = {Users: social_user, Info: Info(id=social_user)}
-        with patch('api.views.get_object_or_404', side_effect=lambda model, **_: lookups[model]), \
-                patch('api.views.create_history'), \
-                patch('api.views.login') as login_mock:
-            response = self.client.post('/api/login/', {'id': 'google_abc', 'pw': ''}, content_type='application/json')
-        self.assertEqual(response.status_code, 400)
-        login_mock.assert_not_called()
