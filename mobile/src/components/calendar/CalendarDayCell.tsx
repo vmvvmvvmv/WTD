@@ -25,6 +25,7 @@ type Props = {
   isRangeAnchor: boolean;
   isSelected: boolean;
   isToday: boolean;
+  maxEventLines?: number;
   onLayout?: () => void;
   onLongPress: () => void;
   onPress: () => void;
@@ -47,6 +48,7 @@ export function CalendarDayCell({
   isRangeAnchor,
   isSelected,
   isToday,
+  maxEventLines = 3,
   onLayout,
   onLongPress,
   onPress,
@@ -67,7 +69,7 @@ export function CalendarDayCell({
     dayScale.value = withSequence(withTiming(1.22, { duration: 110 }), withSpring(1, { damping: 9, stiffness: 260 }));
   }, [dayScale, isSelected, reduceMotion]);
   const dayScaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: dayScale.value }] }));
-  const visibleEventItems = eventItems.slice(0, 3);
+  const visibleEventItems = eventItems.slice(0, maxEventLines);
   const visibleEventCount = visibleEventItems.filter(Boolean).length;
   const hiddenEventCount = Math.max(0, eventCount - visibleEventCount);
 
