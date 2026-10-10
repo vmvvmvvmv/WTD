@@ -74,7 +74,7 @@ type HomeSectionKey = 'guide' | 'outfit' | 'map';
 
 const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
   { icon: 'schedule', key: 'guide', label: '활동 가이드' },
-  { icon: 'outfit', key: 'outfit', label: '옷차림' },
+  { icon: 'outfit', key: 'outfit', label: '추천 옷차림' },
   { icon: 'map', key: 'map', label: '날씨 지도' },
 ];
 
