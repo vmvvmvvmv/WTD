@@ -7,7 +7,6 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
-import { bauhausColors, textColors } from '../../theme/bauhaus';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
@@ -812,7 +811,7 @@ export function HomePanel({
                     : '오늘은 밖에 오래 있기 좋은 시간이 없어요'}
                   style={styles.homeBestOutingRow}
                 >
-                  <Ionicons color={bestOutingText ? bauhausColors.blue : textColors.muted} name="walk-outline" size={17} />
+                  <AppActionIcon name="activityOutdoor" size={26} style={bestOutingText ? undefined : { opacity: 0.45 }} />
                   {bestOutingText ? (
                     <Text numberOfLines={1} style={styles.homeBestOutingText}>
                       산책하기 좋은 시간 <Text style={styles.homeBestOutingTime}>{bestOutingText.time}</Text>
