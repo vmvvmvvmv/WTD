@@ -125,7 +125,8 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     setLocation(event.location ?? '');
     setSelectedLocation(locationCandidateFromEvent(event));
     setMemo(event.memo ?? '');
-    setActivityInput(event.activityType);
+    // '이동'은 선택지에서 뺐으므로 예전 이동 일정은 편집할 때 실외로 보여 줍니다(저장해야 바뀜).
+    setActivityInput(event.activityType === 'transit' ? 'outdoor' : event.activityType);
     setSensitive(event.sensitive);
     setRepeatMode('none');
     setRepeatEndDate(nextDefaultRepeatEndDate(eventDate));
