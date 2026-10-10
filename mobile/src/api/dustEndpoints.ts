@@ -93,15 +93,6 @@ export function getPastDust(params: { region: RegionState; startDate: string; en
   });
 }
 
-export function getOptionalPastDust(params: { region: RegionState; startDate: string; endDate: string }) {
-  return fetchOptionalJson<{ items?: unknown[] }>('/dust/past/', {
-    city: params.region.city,
-    region: params.region.region,
-    startDate: params.startDate,
-    endDate: params.endDate,
-  });
-}
-
 export function getHourlyDust(params: { region: RegionState; date: string }) {
   return fetchOptionalJson<{ items?: unknown[]; forecastItems?: unknown[] }>('/dust/hourly/', {
     city: params.region.city,
@@ -114,23 +105,11 @@ export function getKoreaStations() {
   return fetchJson<{ items?: unknown[] }>('/dust/korea-stations/');
 }
 
-export function getOptionalKoreaStations() {
-  return fetchOptionalJson<{ items?: unknown[] }>('/dust/korea-stations/');
-}
-
 export function searchNaverPlaces(params: { query: string; size?: number }) {
   return fetchOptionalJson<{ items?: unknown[] }>('/dust/places/naver-search/', {
     query: params.query,
     size: params.size,
   });
-}
-
-export function getCurrentWeather(params: { lat: number; lng: number }) {
-  return fetchJson<unknown>('/dust/weather/current/', params);
-}
-
-export function getOptionalCurrentWeather(params: { lat: number; lng: number }) {
-  return fetchOptionalJson<unknown>('/dust/weather/current/', params);
 }
 
 export function getHourlyWeather(params: { lat: number; lng: number; date: string; forecastHours?: number; storedOnly?: boolean }) {
@@ -149,38 +128,6 @@ export function getMidTermWeather(params: { lat: number; lng: number; startDate:
     lng: params.lng,
     startDate: params.startDate,
     endDate: params.endDate,
-  });
-}
-
-export function getPastWeather(params: { region: RegionState; startDate: string; endDate: string }) {
-  return fetchOptionalJson<{ items?: unknown[]; asosStation?: unknown }>('/dust/weather/past/', {
-    city: params.region.city,
-    region: params.region.region,
-    startDate: params.startDate,
-    endDate: params.endDate,
-  });
-}
-
-export function postBriefingMessage(params: {
-  question: string;
-  quickType?: string;
-  region: RegionState;
-  currentData?: unknown;
-  prediction?: unknown;
-  weather?: unknown;
-}) {
-  return fetchJson<{ answer?: string }>('/dust/chat/', undefined, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      question: params.question,
-      quickType: params.quickType ?? '',
-      city: params.region.city,
-      region: params.region.region,
-      currentData: params.currentData,
-      prediction: params.prediction,
-      weather: params.weather,
-    }),
   });
 }
 

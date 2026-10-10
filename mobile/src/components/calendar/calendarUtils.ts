@@ -87,17 +87,6 @@ export function parseTimeParts(value: string) {
   return { hour, minute: nearestMinute };
 }
 
-export function stepTime(value: string, unit: 'hour' | 'minute', direction: 1 | -1) {
-  const parts = parseTimeParts(value);
-  if (unit === 'hour') {
-    const hour = (Number(parts.hour) + direction + 24) % 24;
-    return `${String(hour).padStart(2, '0')}:${parts.minute}`;
-  }
-  const currentIndex = minuteOptions.indexOf(parts.minute);
-  const nextMinute = minuteOptions[(currentIndex + direction + minuteOptions.length) % minuteOptions.length];
-  return `${parts.hour}:${nextMinute}`;
-}
-
 export function addMinutesToDateTime(date: string, timeValue: string, minutes: number) {
   const base = new Date(`${date}T${normalizeTime(timeValue)}:00`);
   base.setMinutes(base.getMinutes() + minutes);

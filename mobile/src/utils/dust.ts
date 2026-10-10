@@ -4,7 +4,6 @@ import type {
   CurrentDustItem,
   DataMetricKey,
   NotificationSettings,
-  PastDustItem,
   PredictionResponse,
   RegionState,
   StationDustItem,
@@ -60,18 +59,9 @@ export function getNo2Label(value?: number) { return getAirQualityMeta('no2', va
 
 export function getPm10Tone(value?: number) { return getAirQualityMeta('pm10', value).tone; }
 export function getPm10SoftTone(value?: number) { return getAirQualityMeta('pm10', value).soft; }
-export function getPm10BorderTone(value?: number) { return getAirQualityMeta('pm10', value).border; }
 export function getPm25Tone(value?: number) { return getAirQualityMeta('pm25', value).tone; }
 export function getO3Tone(value?: number) { return getAirQualityMeta('o3', value).tone; }
 export function getNo2Tone(value?: number) { return getAirQualityMeta('no2', value).tone; }
-
-// 怨쇨굅 ?곗씠??item?먯꽌 ?꾩옱 ?좏깮???ㅼ뿼臾쇱쭏??媛믪쓣 爰쇰깄?덈떎.
-export function getMetricValue(item: PastDustItem, metric: DataMetricKey) {
-  if (metric === 'pm10') return toNumber(item.pm10Value);
-  if (metric === 'pm25') return toNumber(item.pm25Value);
-  if (metric === 'o3') return toNumber(item.o3Value);
-  return toNumber(item.no2Value);
-}
 
 // ?좏깮???ㅼ뿼臾쇱쭏 醫낅쪟??留욌뒗 ?깃툒 ?띿뒪?몃? 諛섑솚?⑸땲??
 export function getMetricLabel(metric: DataMetricKey, value?: number) {
@@ -174,12 +164,6 @@ export function normalizeLatLng(latValue?: number | null, lngValue?: number | nu
   }
   if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
   return { lat, lng };
-}
-
-// CSV ?ㅼ슫濡쒕뱶?먯꽌 ?쇳몴? ?곗샂?쒓? 源⑥?吏 ?딄쾶 媛믪쓣 媛먯뙃?덈떎.
-export function csvSafe(value: string | number | null | undefined) {
-  const text = value === null || value === undefined ? '' : String(value);
-  return `"${text.replace(/"/g, '""')}"`;
 }
 
 // ??吏??씠 媛숈? ???꾩? 援?援?痢≪젙?뚮? 媛由ы궎?붿? 鍮꾧탳?⑸땲??
