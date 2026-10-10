@@ -5,7 +5,7 @@ import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import { CalendarDayCell } from './CalendarDayCell';
-import { useCalendarSlide } from './CalendarMonthGrid';
+import { useCalendarSlide } from './useCalendarSlide';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
 import { buildTimelineBlocks, isMultiDayEvent } from './calendarTimelineLayout';

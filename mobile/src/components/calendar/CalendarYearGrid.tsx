@@ -1,7 +1,7 @@
 import { Animated, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
-import { useCalendarSlide } from './CalendarMonthGrid';
+import { useCalendarSlide } from './useCalendarSlide';
 import { buildMonthCells } from './calendarUtils';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 
