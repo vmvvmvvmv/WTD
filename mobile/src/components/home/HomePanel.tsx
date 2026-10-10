@@ -7,9 +7,11 @@ import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 
 import { DETAIL_DATA_ENABLED } from '../../config/features';
 import { styles } from '../../styles/appStyles';
+import { bauhausColors, textColors } from '../../theme/bauhaus';
 import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PastDustItem, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
+import { bestOutingWindowText, findBestOutingWindow } from '../../features/dashboard/bestOutingWindow';
 import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
@@ -663,6 +665,15 @@ export function HomePanel({
       };
     });
   const bannerForecastItems = hourlyForecastItems;
+  const nowHour = now.getHours();
+  const bestOutingWindow = useMemo(() => findBestOutingWindow({
+    dustItems: hourlyItems,
+    fallbackPm10: currentPm10,
+    nowHour,
+    todayDateLabel,
+    weatherItems: weatherHourlyItems,
+  }), [currentPm10, hourlyItems, nowHour, todayDateLabel, weatherHourlyItems]);
+  const bestOutingText = bestOutingWindow ? bestOutingWindowText(bestOutingWindow) : null;
   const hasHourlyForecast = bannerForecastItems.length > 0;
   const todayCalendarEvents = useMemo(() => (calendarEvents ?? [])
     .filter((event) => isDateInEventRange(todayDateLabel, event))
@@ -787,6 +798,25 @@ export function HomePanel({
                   <Text style={styles.homeHeroBannerForecastEmptyText}>
                     {loadFailed ? '서버에 연결되지 않아 예보를 불러오지 못했어요' : '시간별 예보를 준비 중이에요'}
                   </Text>
+                </View>
+              )}
+              {hasHourlyForecast && nowHour < 22 && (
+                <View
+                  accessible
+                  accessibilityLabel={bestOutingText
+                    ? `오늘 산책하기 좋은 시간 ${bestOutingText.time}. ${bestOutingText.details}`
+                    : '오늘은 밖에 오래 있기 좋은 시간이 없어요'}
+                  style={styles.homeBestOutingRow}
+                >
+                  <Ionicons color={bestOutingText ? bauhausColors.blue : textColors.muted} name="walk-outline" size={17} />
+                  {bestOutingText ? (
+                    <Text numberOfLines={1} style={styles.homeBestOutingText}>
+                      산책하기 좋은 시간 <Text style={styles.homeBestOutingTime}>{bestOutingText.time}</Text>
+                      {!!bestOutingText.details && <Text style={styles.homeBestOutingDetails}>{`  ${bestOutingText.details}`}</Text>}
+                    </Text>
+                  ) : (
+                    <Text numberOfLines={1} style={styles.homeBestOutingDetails}>오늘은 밖에 오래 있기 좋은 시간이 없어요</Text>
+                  )}
                 </View>
               )}
             </View>
