@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
-import { bauhausColors } from '../../theme/bauhaus';
+import { bauhausColors, textColors } from '../../theme/bauhaus';
 import type { StationDustItem, WeatherState } from '../../types/dust';
 import { formatMapValue, getO3Label, getO3Tone, getPm10Label, getPm10Progress, getPm10Tone, getPm25Label, getPm25Tone, toNumber } from '../../utils/dust';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
@@ -126,7 +126,7 @@ function StationSheetHeader({
         onPress={() => onToggleFavorite(station)}
         style={({ pressed }) => [styles.stationFavoriteButton, isFavorite && styles.stationFavoriteButtonActive, pressed && styles.pressedFeedback]}
       >
-        <Ionicons color={isFavorite ? '#e2b93b' : '#aab4ae'} name={isFavorite ? 'star' : 'star-outline'} size={27} />
+        <Ionicons color={isFavorite ? '#E2B93B' : textColors.disabled} name={isFavorite ? 'star' : 'star-outline'} size={27} />
       </Pressable>
     </View>
   );
@@ -166,7 +166,7 @@ function DustStationContent({
           <StationMetric label="미세먼지" value={station.pm10} unit="µg/m³" tone={getPm10Tone(pm10)} grade={getPm10Label(pm10)} />
           <StationMetric label="초미세먼지" value={station.pm25} unit="µg/m³" tone={getPm25Tone(pm25)} grade={getPm25Label(pm25)} />
           <StationMetric label="오존" value={station.o3} unit="ppm" tone={getO3Tone(o3)} grade={getO3Label(o3)} />
-          <StationMetric label="이산화질소" last value={station.no2} unit="ppm" tone="#687180" />
+          <StationMetric label="이산화질소" last value={station.no2} unit="ppm" tone={textColors.secondary} />
         </View>
       )}
     </>
@@ -211,7 +211,7 @@ function WeatherStationContent({
         <View style={styles.stationMetricGrid}>
           <StationMetric label="기온" value={temperature} unit="" tone={tone} grade={getTemperatureGrade(temperature)} />
           <StationMetric label="습도" value={humidity} unit="%" tone={bauhausColors.blue} />
-          <StationMetric label="풍속" value={windSpeed} unit="m/s" tone="#687180" />
+          <StationMetric label="풍속" value={windSpeed} unit="m/s" tone={textColors.secondary} />
           <StationMetric label="강수량" last value={rainMm} unit="mm" tone={bauhausColors.blue} />
         </View>
       )}
@@ -251,7 +251,7 @@ function formatWeatherMeasuredAt(value?: string) {
 }
 
 function getTemperatureTone(value?: number) {
-  if (typeof value !== 'number') return '#687180';
+  if (typeof value !== 'number') return textColors.muted;
   if (value <= 0) return bauhausColors.blue;
   if (value >= 33) return bauhausColors.red;
   if (value >= 27) return bauhausColors.yellow;

@@ -6,6 +6,7 @@ import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 
 import { styles } from '../../styles/appStyles';
+import { bauhausColors, textColors } from '../../theme/bauhaus';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import type { RegionState, StationDustItem, WeatherState } from '../../types/dust';
 import { isSameRegion, stationIdentity, uniqueStations } from '../../utils/dust';
@@ -119,7 +120,7 @@ export function FullMapScreen({
       />
       {!!mapLoadError && (
         <View style={styles.fullMapErrorBanner}>
-          <Ionicons color="#c84a4a" name="warning-outline" size={18} />
+          <Ionicons color={bauhausColors.red} name="warning-outline" size={18} />
           <Text style={styles.fullMapErrorText}>{mapLoadError}</Text>
           <Pressable onPress={onRetryMap} style={({ pressed }) => [styles.fullMapRetryButton, pressed && styles.pressedFeedback]}>
             <Text style={styles.fullMapRetryText}>다시 시도</Text>
@@ -128,7 +129,7 @@ export function FullMapScreen({
       )}
       <View style={[styles.mapSearchBar, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
         <Pressable accessibilityLabel={"\uD648\uC73C\uB85C \uB3CC\uC544\uAC00\uAE30"} onPress={onBackHome} style={({ pressed }) => [styles.mapSearchBackInlineButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color="#141821" name="chevron-back" size={21} />
+          <Ionicons color={textColors.primary} name="chevron-back" size={21} />
         </Pressable>
         <TextInput
           ref={mapSearchInputRef}
@@ -145,7 +146,7 @@ export function FullMapScreen({
           }}
           onSubmitEditing={() => focusMapStation(searchSuggestions[0])}
           placeholder={"\uC9C0\uC5ED\uC774\uB098 \uCE21\uC815\uC18C \uAC80\uC0C9"}
-          placeholderTextColor="#8a94a3"
+          placeholderTextColor={textColors.muted}
           returnKeyType="search"
           style={styles.mapSearchInput}
         />
@@ -196,7 +197,7 @@ export function FullMapScreen({
         <Animated.View style={[styles.mapSearchOverlay, { opacity: mapSearchOverlayOpacity, transform: [{ translateY: mapSearchOverlayTranslateY }] }]}>
           <View style={[styles.mapSearchOverlayHeader, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
             <Pressable onPress={() => setIsMapSearchFocused(false)} style={({ pressed }) => [styles.mapSearchBackButton, pressed && styles.pressedFeedback]}>
-              <Ionicons color="#141821" name="chevron-back" size={21} />
+              <Ionicons color={textColors.primary} name="chevron-back" size={21} />
             </Pressable>
             <TextInput
               ref={mapSearchOverlayInputRef}
@@ -208,7 +209,7 @@ export function FullMapScreen({
               }}
               onSubmitEditing={() => focusMapStation(searchSuggestions[0])}
               placeholder={"\uC9C0\uC5ED, \uCE21\uC815\uC18C, \uC8FC\uC18C \uAC80\uC0C9"}
-              placeholderTextColor="#8a94a3"
+              placeholderTextColor={textColors.muted}
               returnKeyType="search"
               style={styles.mapSearchOverlayInput}
             />
@@ -244,7 +245,7 @@ export function FullMapScreen({
                     </Pressable>
                     {!mapSearchText.trim() && (
                       <Pressable accessibilityLabel="최근 검색 삭제" onPress={() => onRemoveRecentSearch(station)} style={({ pressed }) => [styles.mapSearchRemoveButton, pressed && styles.pressedFeedback]}>
-                        <Ionicons color="#8a94a3" name="close" size={19} />
+                        <Ionicons color={textColors.muted} name="close" size={19} />
                       </Pressable>
                     )}
                   </View>
