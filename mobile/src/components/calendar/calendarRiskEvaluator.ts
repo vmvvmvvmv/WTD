@@ -142,14 +142,13 @@ function eventDayCount(event: CalendarEvent) {
   return Math.max(1, Math.round((end - start) / 86400000) + 1);
 }
 
-function isPastEvent(event: CalendarEvent, todayDateLabel: string) {
+function isPastEvent(event: CalendarEvent, todayDateLabel: string, now = new Date()) {
   const end = dateMs(event.endDate ?? event.date);
   const today = dateMs(todayDateLabel);
   if (typeof end !== 'number' || typeof today !== 'number') return false;
   if (end < today) return true;
   if (end > today) return false;
 
-  const now = new Date();
   const currentDateLabel = [
     now.getFullYear(),
     String(now.getMonth() + 1).padStart(2, '0'),
@@ -385,7 +384,7 @@ function isSnowyLabel(label?: string) {
 }
 
 export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskContext): CalendarRiskResult {
-  if (isPastEvent(event, context.todayDateLabel)) {
+  if (isPastEvent(event, context.todayDateLabel, context.now)) {
     return {
       badge: TEXT.past,
       basis: context.locationBasis ?? '',
