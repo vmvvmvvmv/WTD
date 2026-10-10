@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.test import SimpleTestCase
+from django.utils import timezone
 
 # 로컬 .env의 APP_TEST_TOKEN 설정과 무관하게 엔드포인트 동작만 검증한다.
 @patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
@@ -305,3 +306,57 @@ class StripCalendarTitlesMigrationTests(SimpleTestCase):
 
         self.assertEqual(device.calendar_events, [{'date': '2026-10-09', 'time': '09:00'}])
         device.save.assert_called_once_with(update_fields=['calendar_events'])
+
+
+class DustSpikeNotificationTests(SimpleTestCase):
+    def setUp(self):
+        from datetime import datetime
+        self.now = timezone.make_aware(datetime(2026, 10, 10, 13, 0))
+        self.end_of_day = timezone.make_aware(datetime(2026, 10, 11, 0, 0))
+
+    def at(self, hour):
+        return self.now.replace(hour=hour)
+
+    def test_current_bad_measurement_alerts_now(self):
+        from dust.dust_spike_notifications import build_dust_spike_body
+        body = build_dust_spike_body(95.4, [], self.end_of_day)
+        self.assertEqual(body, '지금 미세먼지 나쁨(PM10 95㎍/㎥)이에요. 마스크 챙기세요.')
+        self.assertIn('매우 나쁨', build_dust_spike_body(160, [], self.end_of_day))
+
+    def test_first_bad_prediction_today_gives_start_hour(self):
+        from dust.dust_spike_notifications import build_dust_spike_body
+        upcoming = [(self.at(17), 120), (self.at(15), 85), (self.at(14), 60)]
+        self.assertEqual(build_dust_spike_body(40, upcoming, self.end_of_day), '오후 3시부터 미세먼지 나쁨이 예상돼요. 마스크 챙기세요.')
+
+    def test_no_alert_when_today_stays_below_bad(self):
+        from datetime import timedelta
+        from dust.dust_spike_notifications import build_dust_spike_body
+        tomorrow = self.end_of_day + timedelta(hours=9)
+        self.assertIsNone(build_dust_spike_body(80, [(self.at(15), 70), (tomorrow, 130)], self.end_of_day))
+
+    def test_quiet_hours_send_nothing(self):
+        from datetime import datetime
+        from dust.dust_spike_notifications import send_dust_spike_notifications
+        with patch('dust.dust_spike_notifications.NotificationDevice.objects.filter') as devices:
+            result = send_dust_spike_notifications(now=timezone.make_aware(datetime(2026, 10, 10, 23, 0)))
+        devices.assert_not_called()
+        self.assertEqual(result.sent, 0)
+
+    def test_sends_once_and_logs(self):
+        from types import SimpleNamespace
+        from unittest.mock import MagicMock
+        from dust.dust_spike_notifications import send_dust_spike_notifications
+        module = 'dust.dust_spike_notifications'
+        device = SimpleNamespace(city='서울', region='강남구', expo_push_token='ExponentPushToken[x]', save=MagicMock())
+        with patch(f'{module}.NotificationDevice.objects.filter', return_value=[device]), \
+                patch(f'{module}.DustNotificationLog.objects') as logs, \
+                patch(f'{module}._station_for_region', return_value=object()), \
+                patch(f'{module}._latest_pm10', return_value=100), \
+                patch(f'{module}._upcoming_predictions', return_value=[]), \
+                patch(f'{module}.send_expo_push') as push:
+            logs.filter.return_value.exists.return_value = False
+            result = send_dust_spike_notifications(now=self.now)
+        self.assertEqual(result.sent, 1)
+        push.assert_called_once()
+        self.assertEqual(push.call_args.args[1], '강남구 미세먼지 알림')
+        logs.update_or_create.assert_called_once()

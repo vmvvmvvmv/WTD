@@ -187,6 +187,7 @@ export function postBriefingMessage(params: {
 export function registerNotificationDevice(params: {
   calendarEvents?: Array<{ date: string; time?: string }>;
   city: string;
+  dustSpikeAlerts?: boolean;
   enabled: boolean;
   expoPushToken: string;
   region: string;
@@ -198,6 +199,7 @@ export function registerNotificationDevice(params: {
     body: JSON.stringify({
       calendarEvents: params.calendarEvents ?? [],
       city: params.city,
+      dustSpikeAlerts: params.dustSpikeAlerts ?? false,
       enabled: params.enabled,
       expoPushToken: params.expoPushToken,
       region: params.region,

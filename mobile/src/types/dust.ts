@@ -170,6 +170,8 @@ export type NotificationSettings = {
   enabled: boolean;
   calendarReminders: boolean;
   weatherMorningAlerts: boolean;
+  // 오늘 미세먼지가 나쁨 이상으로 바뀌면 서버가 하루 한 번 푸시
+  dustSpikeAlerts: boolean;
   // TODO: 利먭꺼李얘린 吏??퉴吏 ?뚮┝???ы븿?섎뒗 湲곕뒫? ?꾩슂?깆씠 ??쑝硫??쒓굅 ?꾨낫?낅땲??
   includeFavorites: boolean;
 };

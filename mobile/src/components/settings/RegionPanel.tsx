@@ -193,6 +193,14 @@ export function RegionPanel({
           value={notificationSettings.weatherMorningAlerts}
           onValueChange={(value) => onToggleNotificationSetting('weatherMorningAlerts', value)}
         />
+        <NotificationToggleRow
+          accentTone={accentTone}
+          disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
+          description="오늘 미세먼지가 나쁨 이상이 되거나 될 것으로 예상되면 하루 한 번 알려 줘요(밤 10시~아침 7시 제외)"
+          label="미세먼지 나쁨 알림"
+          value={notificationSettings.dustSpikeAlerts}
+          onValueChange={(value) => onToggleNotificationSetting('dustSpikeAlerts', value)}
+        />
         <Pressable
           accessibilityLabel="3초 뒤 테스트 알림 받기"
           disabled={isSendingTestNotification || notificationsUnavailable || !notificationSettings.enabled}

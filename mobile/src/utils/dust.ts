@@ -275,6 +275,7 @@ export function parseStoredNotificationSettings(value: string | null): Notificat
       enabled: parsed.enabled !== false,
       calendarReminders: parsed.calendarReminders !== false,
       weatherMorningAlerts: parsed.weatherMorningAlerts !== false,
+      dustSpikeAlerts: parsed.dustSpikeAlerts !== false,
       // TODO: 利먭꺼李얘린 吏??퉴吏 ?뚮┝???ы븿?섎뒗 湲곕뒫? ?꾩슂?깆씠 ??쑝硫??쒓굅 ?꾨낫?낅땲??
       includeFavorites: parsed.includeFavorites !== false,
     };
