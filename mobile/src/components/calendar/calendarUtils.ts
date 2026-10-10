@@ -42,6 +42,33 @@ export function buildMonthCells(year: number, month: number) {
   return cells;
 }
 
+export function addDays(value: string, days: number) {
+  const { day, month, year } = parseDateParts(value);
+  const date = new Date(year, month, day + days);
+  return formatDate(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+// 그 날짜가 들어 있는 주의 일요일.
+export function startOfWeek(value: string) {
+  const { day, month, year } = parseDateParts(value);
+  return addDays(value, -new Date(year, month, day).getDay());
+}
+
+export function buildWeekCells(weekStart: string) {
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(weekStart, index);
+    return { date, day: parseDateParts(date).day, inMonth: true };
+  });
+}
+
+// "2026년 10월 11~17일", 달이 걸치면 "9월 27일 ~ 10월 3일".
+export function weekLabel(weekStart: string) {
+  const start = parseDateParts(weekStart);
+  const end = parseDateParts(addDays(weekStart, 6));
+  if (start.month === end.month) return `${start.year}년 ${start.month + 1}월 ${start.day}~${end.day}일`;
+  return `${start.month + 1}월 ${start.day}일 ~ ${end.month + 1}월 ${end.day}일`;
+}
+
 export function formatDateDisplay(value: string) {
   const { day, month, year } = parseDateParts(value);
   const date = new Date(year, month, day);

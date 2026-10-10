@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -12,16 +12,29 @@ import { buildCalendarRiskByEvent, buildSelectedCalendarForecast, type CalendarL
 import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
 import type { CalendarLocationCandidate } from './calendarLocation';
 import {
+  addDays,
   buildMonthCells,
+  buildWeekCells,
   eventTone,
+  formatDate,
   isDateInEventRange,
   monthLabel,
   parseDateParts,
+  startOfWeek,
+  weekLabel,
 } from './calendarUtils';
+import { CalendarYearGrid } from './CalendarYearGrid';
 import { topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
 
 const DAY_SHEET_HEIGHT = 300;
+
+type CalendarViewMode = 'week' | 'month' | 'year';
+const VIEW_MODES: Array<{ key: CalendarViewMode; label: string }> = [
+  { key: 'week', label: '주' },
+  { key: 'month', label: '월' },
+  { key: 'year', label: '년' },
+];
 
 export function CalendarPanel({
   accentBorderTone,
@@ -96,7 +109,25 @@ export function CalendarPanel({
     () => sortedEvents.filter((event) => isDateInEventRange(selectedDate, event)),
     [selectedDate, sortedEvents],
   );
-  const monthCells = useMemo(() => buildMonthCells(visibleMonth.year, visibleMonth.month), [visibleMonth.month, visibleMonth.year]);
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
+  // 주 보기는 고른 날짜가 들어 있는 주를 보여줍니다.
+  const weekStart = startOfWeek(selectedDate);
+  const monthCells = useMemo(
+    () => (viewMode === 'week' ? buildWeekCells(weekStart) : buildMonthCells(visibleMonth.year, visibleMonth.month)),
+    [viewMode, visibleMonth.month, visibleMonth.year, weekStart],
+  );
+  const yearEventDates = useMemo(() => {
+    const dates = new Set<string>();
+    if (viewMode !== 'year') return dates;
+    const yearPrefix = `${visibleMonth.year}-`;
+    sortedEvents.forEach((event) => {
+      const end = event.endDate ?? event.date;
+      for (let date = event.date, guard = 0; date <= end && guard < 366; date = addDays(date, 1), guard += 1) {
+        if (date.startsWith(yearPrefix)) dates.add(date);
+      }
+    });
+    return dates;
+  }, [sortedEvents, viewMode, visibleMonth.year]);
   const eventCountByDate = useMemo(() => buildCalendarEventCounts(monthCells, sortedEvents), [monthCells, sortedEvents]);
   const eventItemsByDate = useMemo(() => buildCalendarEventLanes(monthCells, sortedEvents), [monthCells, sortedEvents]);
 
@@ -165,22 +196,60 @@ export function CalendarPanel({
   const calendarBottom = Animated.multiply(sheetProgress, animatedDaySheetHeight);
   const sheetTranslateY = Animated.multiply(Animated.subtract(1, sheetProgress), animatedDaySheetHeight);
 
-  const moveMonth = (offset: number) => {
-    const next = new Date(visibleMonth.year, visibleMonth.month + offset, 1);
-    setMonthTransitionDirection(offset >= 0 ? 1 : -1);
-    setVisibleMonth({ month: next.getMonth(), year: next.getFullYear() });
+  const closeDaySheet = () => {
     setIsDaySheetOpen(false);
     setIsDaySheetExpanded(false);
     sheetSizeProgress.setValue(0);
   };
 
-  // 다른 달을 보다가 "오늘"을 누르면 이번 달로 (방향에 맞게) 넘어가고 오늘을 고릅니다.
+  // 화살표·스와이프 한 칸: 주 보기는 7일, 월 보기는 한 달, 년 보기는 1년.
+  const moveMonth = (offset: number) => {
+    setMonthTransitionDirection(offset >= 0 ? 1 : -1);
+    if (viewMode === 'week') {
+      const nextDate = addDays(selectedDate, offset * 7);
+      const parts = parseDateParts(nextDate);
+      setSelectedDate(nextDate);
+      setVisibleMonth({ month: parts.month, year: parts.year });
+    } else {
+      const next = new Date(visibleMonth.year, visibleMonth.month + offset * (viewMode === 'year' ? 12 : 1), 1);
+      setVisibleMonth({ month: next.getMonth(), year: next.getFullYear() });
+    }
+    closeDaySheet();
+  };
+
+  // 다른 기간을 보다가 "오늘"을 누르면 오늘이 있는 기간으로 (방향에 맞게) 넘어가고 오늘을 고릅니다.
   const [todayYear, todayMonth] = todayDateLabel.split('-').map(Number);
   const isViewingTodayMonth = visibleMonth.year === todayYear && visibleMonth.month === todayMonth - 1;
+  const isViewingToday = viewMode === 'week'
+    ? weekStart === startOfWeek(todayDateLabel)
+    : viewMode === 'year' ? visibleMonth.year === todayYear : isViewingTodayMonth;
   const goToday = () => {
-    const offset = (todayYear - visibleMonth.year) * 12 + (todayMonth - 1 - visibleMonth.month);
-    moveMonth(offset);
+    const isForward = viewMode === 'week'
+      ? todayDateLabel >= selectedDate
+      : todayYear * 12 + todayMonth - 1 >= visibleMonth.year * 12 + visibleMonth.month;
+    setMonthTransitionDirection(isForward ? 1 : -1);
+    setVisibleMonth({ month: todayMonth - 1, year: todayYear });
     setSelectedDate(todayDateLabel);
+    closeDaySheet();
+  };
+
+  const changeViewMode = (mode: CalendarViewMode) => {
+    if (mode === viewMode) return;
+    if (mode === 'week' && !selectedDate.startsWith(formatDate(visibleMonth.year, visibleMonth.month, 1).slice(0, 8))) {
+      // 보던 달 밖의 날짜가 골라져 있으면, 보던 달(이번 달이면 오늘)의 주로 엽니다.
+      setSelectedDate(isViewingTodayMonth ? todayDateLabel : formatDate(visibleMonth.year, visibleMonth.month, 1));
+    }
+    if (mode === 'month' && viewMode === 'week') {
+      const parts = parseDateParts(selectedDate);
+      setVisibleMonth({ month: parts.month, year: parts.year });
+    }
+    closeDaySheet();
+    setViewMode(mode);
+  };
+
+  const selectYearMonth = (month: number) => {
+    setVisibleMonth({ month, year: visibleMonth.year });
+    setViewMode('month');
   };
 
   const selectDate = (nextDate: string, options?: { openSheet?: boolean }) => {
@@ -257,23 +326,55 @@ export function CalendarPanel({
   return (
     <View style={styles.calendarPanel}>
       <Animated.View style={[styles.calendarFullStage, { bottom: calendarBottom }]}>
-        <CalendarMonthGrid
-          accentBorderTone={accentBorderTone}
-          accentSoftTone={accentSoftTone}
-          accentTone={accentTone}
-          eventCountByDate={eventCountByDate}
-          eventItemsByDate={eventItemsByDate}
-          getEventTone={eventTone}
-          monthCells={monthCells}
-          monthTitle={monthLabel(visibleMonth.year, visibleMonth.month)}
-          onGoToday={isViewingTodayMonth ? undefined : goToday}
-          onMoveMonth={moveMonth}
-          onSelectDate={selectDate}
-          selectedDate={selectedDate}
-          todayDateLabel={todayDateLabel}
-          transitionDirection={monthTransitionDirection}
-          weatherRiskByDate={weatherRiskByDate}
-        />
+        <View accessibilityRole="tablist" style={styles.calendarViewTabs}>
+          {VIEW_MODES.map((mode) => {
+            const isActive = mode.key === viewMode;
+            return (
+              <Pressable
+                accessibilityLabel={`${mode.label} 단위로 보기`}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: isActive }}
+                hitSlop={8}
+                key={mode.key}
+                onPress={() => changeViewMode(mode.key)}
+                style={[styles.calendarViewTab, isActive && { borderColor: accentTone }]}
+              >
+                <Text style={[styles.calendarViewTabText, isActive && { color: accentTone }]}>{mode.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {viewMode === 'year' ? (
+          <CalendarYearGrid
+            accentTone={accentTone}
+            eventDates={yearEventDates}
+            onGoToday={isViewingToday ? undefined : goToday}
+            onMoveYear={moveMonth}
+            onSelectMonth={selectYearMonth}
+            todayDateLabel={todayDateLabel}
+            year={visibleMonth.year}
+          />
+        ) : (
+          <CalendarMonthGrid
+            accentBorderTone={accentBorderTone}
+            accentSoftTone={accentSoftTone}
+            accentTone={accentTone}
+            eventCountByDate={eventCountByDate}
+            eventItemsByDate={eventItemsByDate}
+            getEventTone={eventTone}
+            maxEventLines={viewMode === 'week' ? 12 : 3}
+            monthCells={monthCells}
+            monthTitle={viewMode === 'week' ? weekLabel(weekStart) : monthLabel(visibleMonth.year, visibleMonth.month)}
+            onGoToday={isViewingToday ? undefined : goToday}
+            onMoveMonth={moveMonth}
+            onSelectDate={selectDate}
+            selectedDate={selectedDate}
+            stepUnitLabel={viewMode === 'week' ? '주' : '달'}
+            todayDateLabel={todayDateLabel}
+            transitionDirection={monthTransitionDirection}
+            weatherRiskByDate={weatherRiskByDate}
+          />
+        )}
       </Animated.View>
 
       {shouldRenderDaySheet && (

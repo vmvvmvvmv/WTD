@@ -18,6 +18,8 @@ type Props = {
   eventCountByDate: Record<string, number>;
   eventItemsByDate: Record<string, Array<CalendarEvent | null>>;
   getEventTone: (event: CalendarEvent) => string;
+  // 주 보기처럼 칸이 길 때 더 많은 일정 줄을 보여줍니다.
+  maxEventLines?: number;
   monthCells: CalendarMonthCell[];
   monthTitle: string;
   // 이번 달이 아닐 때만 넘깁니다. 있으면 제목 옆에 "오늘" 버튼을 보여줍니다.
@@ -26,6 +28,8 @@ type Props = {
   onSelectDate: (date: string, options?: { openSheet?: boolean; trackTap?: boolean }) => void;
   resetSignal?: number;
   selectedDate: string;
+  // 이전/다음 버튼 읽기용 단위('달' 또는 '주').
+  stepUnitLabel?: string;
   todayDateLabel: string;
   transitionDirection: number;
   weatherRiskByDate?: Record<string, CalendarWeatherRiskIndicator | undefined>;
@@ -40,12 +44,14 @@ export function CalendarMonthGrid({
   eventCountByDate,
   eventItemsByDate,
   getEventTone,
+  maxEventLines,
   monthCells,
   monthTitle,
   onGoToday,
   onMoveMonth,
   onSelectDate,
   selectedDate,
+  stepUnitLabel = '달',
   todayDateLabel,
   transitionDirection,
   weatherRiskByDate,
@@ -102,7 +108,7 @@ export function CalendarMonthGrid({
   return (
     <View style={styles.calendarMonthCard}>
       <View style={styles.calendarMonthHeader}>
-        <Pressable accessibilityLabel={"\uC774\uC804 \uB2EC"} onPress={() => handleMoveMonth(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
+        <Pressable accessibilityLabel={`\uC774\uC804 ${stepUnitLabel}`} onPress={() => handleMoveMonth(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
           <Ionicons color={bauhausColors.blue} name="chevron-back" size={22} />
         </Pressable>
         <View style={styles.calendarMonthTitleGroup}>
@@ -119,7 +125,7 @@ export function CalendarMonthGrid({
             </Pressable>
           )}
         </View>
-        <Pressable accessibilityLabel={"\uB2E4\uC74C \uB2EC"} onPress={() => handleMoveMonth(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
+        <Pressable accessibilityLabel={`\uB2E4\uC74C ${stepUnitLabel}`} onPress={() => handleMoveMonth(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
           <Ionicons color={bauhausColors.blue} name="chevron-forward" size={22} />
         </Pressable>
       </View>
@@ -159,6 +165,7 @@ export function CalendarMonthGrid({
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}
                   key={cell.date}
+                  maxEventLines={maxEventLines}
                   onLongPress={() => onSelectDate(cell.date)}
                   onPress={() => onSelectDate(cell.date)}
                   range={null}
