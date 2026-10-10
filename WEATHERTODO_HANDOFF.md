@@ -817,3 +817,12 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
   - 테스트 `storage/appStorage.test.mjs` 4건(expo 모듈을 메모리 가짜로 바꿔 끼움). 모바일 테스트 41건.
 - 실기기 확인: 다시 불러오기 후 `run-as com.xkvk11.DusthealthAIMobile ls files/app-storage`에 8개 파일, 일정 4,090바이트(예전 한도의 두 배), 경고 사라짐. 일정 개수는 확인 직전 USB가 끊겨 못 셈.
 - 실기기 연결 주의: 이날 USB가 여러 번 끊겨 adb reverse(8081·8001)가 사라졌다 → "서버에 연결할 수 없어요"·"Unable to load script". `adb reverse tcp:8081 tcp:8081`, `adb reverse tcp:8001 tcp:8001` 후 Reload. 케이블·포트 점검 권장.
+
+## 64. 2026-10-10 시간별 미세먼지 예측 → 에어코리아 예보 (Claude)
+
+- `551b8c4`. 사용자 결정: 앱·알림·옷차림은 에어코리아 공식 예보를 쓰고, 직접 만든 예측 모델은 비교용으로 남긴다(매시간 자동 생성만 끔).
+- `/dust/hourly/` forecastItems: `airkorea_forecast.build_hourly_forecast_items` — 앞으로 12시간을 그날 PM10 예보 등급 대표값(좋음 15·보통 55·나쁨 115·매우나쁨 180, 앱 기준 30/80/150과 같은 등급)으로 채운다. 항목에 `grade`, `source: airkorea_forecast`, `announcedAt`. predictionModel.name = `airkorea_forecast_grade`. 같은 날은 같은 값(예보가 하루 단위). 로컬 실데이터 호출로 확인(10/11 좋음 → 15).
+- 미세먼지 나쁨 푸시(`dust_spike_notifications`): 지금 측정값 나쁨 → "지금 미세먼지 나쁨(PM10 N)", 아니면 오늘 에어코리아 예보 나쁨 이상 → "오늘 미세먼지 예보가 나쁨이에요". "오후 N시부터"는 없어짐.
+- 옷차림 서버(`services/outfit/data_provider.py`): 측정값 없는 미래 일정은 그날 예보 등급 대표값.
+- 남김: HourlyDustPrediction, `_build_hourly_dust_forecast`, `_store_hourly_dust_predictions`, 생성·학습·평가·데이터셋 명령. 지움: API로 저장 예측을 내보내던 도우미 4개(노션 지운 코드 보관소). `collect_hourly.bat`에서 생성 단계 제거(주석으로 수동 실행 안내). 운영 systemd timer에도 같은 단계가 있으면 빼야 함.
+- 테스트: 백엔드 90건(나쁨 푸시 3건 갱신, 에어코리아 시간별 2건 추가).
