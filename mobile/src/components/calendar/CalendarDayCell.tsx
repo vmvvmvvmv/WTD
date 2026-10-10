@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native';
 import Reanimated, { FadeIn, ReduceMotion, useAnimatedStyle, useReducedMotion, useSharedValue, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
+import { WeatherIcon } from '../shared/WeatherIcon';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
@@ -86,7 +87,7 @@ export function CalendarDayCell({
       {isRangeAnchor && <View style={[styles.calendarRangeAnchorMark, { backgroundColor: accentTone }]} />}
       {!!weatherRisk && (
         <View style={[styles.calendarDayWeatherRiskBadge, { backgroundColor: `${weatherRisk.tone}18`, borderColor: `${weatherRisk.tone}55` }]}>
-          <Ionicons color={weatherRisk.tone} name={weatherRisk.icon} size={11} />
+          {weatherRisk.imageKind ? <WeatherIcon kind={weatherRisk.imageKind} size={13} /> : <Ionicons color={weatherRisk.tone} name={weatherRisk.icon} size={11} />}
         </View>
       )}
       <Reanimated.Text style={[

@@ -36,6 +36,7 @@ import { HomePanel } from '../components/home/HomePanel';
 import { FullMapScreen } from '../components/map/FullMapScreen';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { AppActionIcon } from '../components/shared/AppActionIcon';
+import { WeatherIcon, weatherIconKind } from '../components/shared/WeatherIcon';
 import { DETAIL_DATA_ENABLED } from '../config/features';
 import { styles } from '../styles/appStyles';
 import { AppTabBar } from '../navigation/AppTabBar';
@@ -123,7 +124,7 @@ import {
   uniqueStations,
   wait,
 } from '../utils/dust';
-import { getWeatherIcon, getWeatherVisualKind } from '../utils/weather';
+import { getWeatherVisualKind } from '../utils/weather';
 
 const HOME_WEATHER_BACKGROUNDS = {
   clear: require('../../assets/weather-hero-banner.png'),
@@ -1958,7 +1959,7 @@ export function AppContent() {
                   accessible
                   style={styles.homeWeatherChip}
                 >
-                  <Ionicons color="#f3b43f" name={getWeatherIcon(weather.label)} size={20} />
+                  <WeatherIcon kind={weatherIconKind(weather.label, weather.windSpeed)} size={24} />
                   <View>
                     <Text style={styles.homeWeatherValue}>{Math.round(weather.temperature)}°</Text>
                     {!!weather.label && <Text style={styles.homeWeatherLabel}>{weather.label}</Text>}
