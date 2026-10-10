@@ -51,7 +51,6 @@ export type CalendarActivityInput = CalendarEvent['activityType'];
 const activityOptions: Array<{ icon: keyof typeof Ionicons.glyphMap; label: string; value: CalendarActivityInput }> = [
   { icon: 'home-outline', label: '실내', value: 'indoor' },
   { icon: 'walk-outline', label: '실외', value: 'outdoor' },
-  { icon: 'bus-outline', label: '이동', value: 'transit' },
 ];
 
 const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon: AppActionIconName; title: string }> = {
