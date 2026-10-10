@@ -144,7 +144,7 @@ export function CalendarDaySheet({
           <MetricChip
             weatherKind={weatherIconKind(weatherLabel)}
             label="날씨"
-            tone={weatherIconKind(weatherLabel) === 'clear' ? '#F3B43F' : '#3D7FEA'}
+            tone={weatherIconKind(weatherLabel) === 'clear' ? '#F3B43F' : bauhausColors.blue}
             value={weatherLabel || '확인 중'}
           />
         </View>

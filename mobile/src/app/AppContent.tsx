@@ -802,7 +802,7 @@ export function AppContent() {
             <View>
               <Text style={styles.tabPageTitle}>설정</Text>
             </View>
-            <Ionicons color="#2563eb" name="options-outline" size={24} />
+            <Ionicons color={bauhausColors.blue} name="options-outline" size={24} />
           </View>
         )}
         {activeTab === 'home' && showFavoritePicker && (

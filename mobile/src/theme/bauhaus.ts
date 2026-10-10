@@ -5,7 +5,9 @@ export const bauhausColors = {
   foreground: '#17202A',
   red: '#E85C6B',
   redSoft: '#FFF0EE',
+  // 파랑은 두 가지만 씁니다. blue: 아이콘·막대·배경 강조, blueText: 작은 파란 글자(흰 배경 명암비 4.8:1).
   blue: '#3D7FEA',
+  blueText: '#2F6FD7',
   blueSoft: '#E8F1FE',
   yellow: '#FFB95C',
   amber: '#C58A19',

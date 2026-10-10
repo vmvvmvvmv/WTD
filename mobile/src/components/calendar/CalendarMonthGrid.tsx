@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
+import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import { CalendarDayCell } from './CalendarDayCell';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
@@ -102,7 +103,7 @@ export function CalendarMonthGrid({
     <View style={styles.calendarMonthCard}>
       <View style={styles.calendarMonthHeader}>
         <Pressable accessibilityLabel={"\uC774\uC804 \uB2EC"} onPress={() => handleMoveMonth(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color="#3D7FEA" name="chevron-back" size={22} />
+          <Ionicons color={bauhausColors.blue} name="chevron-back" size={22} />
         </Pressable>
         <View style={styles.calendarMonthTitleGroup}>
           <Text style={styles.calendarMonthTitle}>{monthTitle}</Text>
@@ -119,7 +120,7 @@ export function CalendarMonthGrid({
           )}
         </View>
         <Pressable accessibilityLabel={"\uB2E4\uC74C \uB2EC"} onPress={() => handleMoveMonth(1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
-          <Ionicons color="#3D7FEA" name="chevron-forward" size={22} />
+          <Ionicons color={bauhausColors.blue} name="chevron-forward" size={22} />
         </Pressable>
       </View>
       <View style={styles.calendarWeekRow}>
