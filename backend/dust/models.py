@@ -194,6 +194,8 @@ class NotificationDevice(models.Model):
     pm10_threshold = models.FloatField(default=80)
     morning_summary = models.BooleanField(default=False)
     weather_morning_alerts = models.BooleanField(default=False)
+    # 오늘 미세먼지가 나쁨 이상으로 바뀌면 하루 한 번 알림(send_dust_spike_notifications)
+    dust_spike_alerts = models.BooleanField(default=False)
     include_favorites = models.BooleanField(default=True)
     regions = models.JSONField(default=list, blank=True)
     calendar_events = models.JSONField(default=list, blank=True)
