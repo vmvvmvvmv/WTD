@@ -180,6 +180,9 @@ export type OutfitFigure = 'male' | 'female';
 export type OutfitSettings = {
   enabled: boolean;
   figure: OutfitFigure;
+  // 민감군 모드: 모든 일정 위험 판단과 활동 가이드에 미세먼지 기준을 엄격하게 적용합니다.
+  // 같은 개인 설정 저장소를 쓰려고 옷차림 설정에 함께 둡니다.
+  sensitiveMode: boolean;
   sensitivity: OutfitSensitivity;
 };
 
