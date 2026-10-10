@@ -316,32 +316,26 @@ class DustSpikeNotificationTests(SimpleTestCase):
         from types import SimpleNamespace
         return SimpleNamespace(measured_at=self.now.replace(hour=hour), pm10_value=pm10, pm25_value=pm25)
 
-    def test_current_bad_measurement_names_station_and_time(self):
+    def test_current_bad_measurement(self):
         from dust.dust_spike_notifications import build_dust_spike_message
-        title, body = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(95.4, 20), (None, None))
-        self.assertEqual(title, '강남구 미세먼지 나쁨')
-        self.assertEqual(body, "지금 미세먼지(PM10) 95㎍/㎥ '나쁨'이에요(강남구 측정소, 10시 측정).\n마스크를 쓰고 바깥 활동을 줄이세요.")
-        _, very_bad = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(160, None), ('보통', None))
-        self.assertIn("'매우 나쁨'", very_bad)
+        self.assertEqual(build_dust_spike_message('강남구', '서울', self.measurement(95.4, 20), (None, None)),
+                         ('강남구 미세먼지 나쁨', "지금 미세먼지가 '나쁨'이에요. 마스크를 챙기세요."))
+        self.assertEqual(build_dust_spike_message('강남구', '서울', self.measurement(160, None), ('보통', None))[0], '강남구 미세먼지 매우 나쁨')
 
-    def test_pm25_alone_is_reported_as_fine_dust(self):
+    def test_pm25_is_checked_too(self):
         from dust.dust_spike_notifications import build_dust_spike_message
-        title, body = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(50, 48), (None, None))
-        self.assertEqual(title, '강남구 초미세먼지 나쁨')
-        self.assertIn("초미세먼지(PM2.5) 48㎍/㎥ '나쁨'", body)
-        both_title, _ = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(120, 80), (None, None))
-        self.assertEqual(both_title, '강남구 미세먼지·초미세먼지 나쁨')
+        self.assertEqual(build_dust_spike_message('강남구', '서울', self.measurement(50, 48), (None, None))[0], '강남구 초미세먼지 나쁨')
+        self.assertEqual(build_dust_spike_message('강남구', '서울', self.measurement(120, 80), (None, None))[0], '강남구 미세먼지·초미세먼지 매우 나쁨')
 
-    def test_airkorea_forecast_names_region_and_announcement(self):
+    def test_airkorea_forecast_names_region(self):
         from dust.dust_spike_notifications import build_dust_spike_message
-        title, body = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(40, 20), ('나쁨', '2026-10-10 05시 발표'))
-        self.assertEqual(title, "서울 미세먼지 예보 '나쁨'")
-        self.assertEqual(body, "에어코리아 예보로 오늘 서울 미세먼지(PM10)가 '나쁨'이에요(10월 10일 5시 발표).\n마스크를 챙기세요.")
+        self.assertEqual(build_dust_spike_message('강남구', '서울', self.measurement(40, 20), ('나쁨', '2026-10-10 05시 발표')),
+                         ('서울 미세먼지 예보 나쁨', "오늘 서울 미세먼지 예보가 '나쁨'이에요. 마스크를 챙기세요."))
 
     def test_no_alert_when_now_and_today_forecast_are_not_bad(self):
         from dust.dust_spike_notifications import build_dust_spike_message
-        self.assertIsNone(build_dust_spike_message('강남구', '서울', '강남구', self.measurement(80, 35), ('보통', '2026-10-10 05시 발표')))
-        self.assertIsNone(build_dust_spike_message('강남구', '서울', None, None, (None, None)))
+        self.assertIsNone(build_dust_spike_message('강남구', '서울', self.measurement(80, 35), ('보통', None)))
+        self.assertIsNone(build_dust_spike_message('강남구', '서울', None, (None, None)))
 
     def test_quiet_hours_send_nothing(self):
         from datetime import datetime

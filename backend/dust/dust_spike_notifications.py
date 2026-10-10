@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import re
 from datetime import datetime, timedelta
 from typing import Callable
 
@@ -42,36 +41,23 @@ def _pm_grade(value: float, bad: float, very_bad: float) -> str | None:
     return None
 
 
-def _announced_text(announced: str | None) -> str:
-    """'2026-10-10 17시 발표' → '10월 10일 17시 발표'. 모양이 다르면 그대로."""
-    match = re.match(r"\d{4}-(\d{2})-(\d{2})\s*(\d{1,2})시", announced or "")
-    if not match:
-        return announced or ""
-    return f"{int(match.group(1))}월 {int(match.group(2))}일 {int(match.group(3))}시 발표"
 
-
-def build_dust_spike_message(region: str, sido: str, station_name: str | None, measurement, forecast: tuple[str | None, str | None]) -> tuple[str, str] | None:
-    """(제목, 본문). 지금 측정값이 나쁨 이상이면 어느 측정소의 몇 시 값인지와 함께, 아니면 에어코리아 오늘 예보(시도 단위)를 발표 시각과 함께 알린다."""
+def build_dust_spike_message(region: str, sido: str, measurement, forecast: tuple[str | None, str | None]) -> tuple[str, str] | None:
+    """(제목, 본문). 지금 측정값이 나쁨 이상이면 지금 기준, 아니면 에어코리아 오늘 예보(시도 단위) 기준. 짧게."""
     if measurement is not None:
-        parts = []
-        pm10, pm25 = measurement.pm10_value, measurement.pm25_value
-        if pm10 is not None and (grade := _pm_grade(pm10, BAD_PM10, VERY_BAD_PM10)):
-            parts.append(("미세먼지", f"미세먼지(PM10) {round(pm10)}㎍/㎥ '{grade}'"))
-        if pm25 is not None and (grade := _pm_grade(pm25, BAD_PM25, VERY_BAD_PM25)):
-            parts.append(("초미세먼지", f"초미세먼지(PM2.5) {round(pm25)}㎍/㎥ '{grade}'"))
-        if parts:
-            measured_hour = timezone.localtime(measurement.measured_at).hour
-            where = f"{station_name} 측정소, {measured_hour}시 측정" if station_name else f"{measured_hour}시 측정"
-            title = f"{region} {'·'.join(name for name, _ in parts)} 나쁨"
-            body = f"지금 {' · '.join(text for _, text in parts)}이에요({where}).\n마스크를 쓰고 바깥 활동을 줄이세요."
-            return title, body
-    grade, announced = forecast
+        names = []
+        if measurement.pm10_value is not None and _pm_grade(measurement.pm10_value, BAD_PM10, VERY_BAD_PM10):
+            names.append("미세먼지")
+        if measurement.pm25_value is not None and _pm_grade(measurement.pm25_value, BAD_PM25, VERY_BAD_PM25):
+            names.append("초미세먼지")
+        if names:
+            worst = max((_pm_grade(v, b, vb) for v, b, vb in ((measurement.pm10_value, BAD_PM10, VERY_BAD_PM10), (measurement.pm25_value, BAD_PM25, VERY_BAD_PM25)) if v is not None and _pm_grade(v, b, vb)), key=lambda grade: grade == "매우 나쁨")
+            label = "·".join(names)
+            return f"{region} {label} {worst}", f"지금 {label}가 '{worst}'이에요. 마스크를 챙기세요."
+    grade, _announced = forecast
     if grade in ("나쁨", "매우나쁨"):
         grade_text = "매우 나쁨" if grade == "매우나쁨" else "나쁨"
-        when = _announced_text(announced)
-        title = f"{sido} 미세먼지 예보 '{grade_text}'"
-        body = f"에어코리아 예보로 오늘 {sido} 미세먼지(PM10)가 '{grade_text}'이에요" + (f"({when})" if when else "") + ".\n마스크를 챙기세요."
-        return title, body
+        return f"{sido} 미세먼지 예보 {grade_text}", f"오늘 {sido} 미세먼지 예보가 '{grade_text}'이에요. 마스크를 챙기세요."
     return None
 
 
@@ -120,7 +106,6 @@ def send_dust_spike_notifications(now: datetime | None = None, dry_run: bool = F
             message_by_region[key] = build_dust_spike_message(
                 region,
                 canonical_sido_name(city),
-                station.name if station else None,
                 _latest_measurement(station, now) if station else None,
                 _today_forecast(city, now),
             )
