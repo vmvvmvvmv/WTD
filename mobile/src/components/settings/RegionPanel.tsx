@@ -1,8 +1,10 @@
 ﻿import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
+import { textColors } from '../../theme/bauhaus';
 import type { NotificationSettings, OutfitSettings, RegionState } from '../../types/dust';
 import { isSameRegion } from '../../utils/dust';
 import { NotificationToggleRow } from '../shared/DustWidgets';
@@ -64,14 +66,9 @@ export function RegionPanel({
   return (
     <>
       <View style={styles.settingsHero}>
-        <View style={styles.settingsHeroTop}>
-          <View style={[styles.settingsHeroIcon, { backgroundColor: accentSoftTone }]}>
-            <Ionicons color={accentTone} name="settings-outline" size={22} />
-          </View>
-          <View style={styles.settingsHeroTextGroup}>
-            <Text style={styles.settingsHeroTitle}>설정</Text>
-            <Text style={styles.settingsHeroMeta}>{selectedRegion.city} {selectedRegion.region}</Text>
-          </View>
+        <View style={styles.settingsHeroTextGroup}>
+          <Text style={styles.settingsHeroMeta}>현재 기준 지역</Text>
+          <Text style={styles.settingsHeroTitle}>{selectedRegion.city} {selectedRegion.region}</Text>
         </View>
         <Pressable disabled={isLocating} onPress={onUseCurrentLocation} style={({ pressed }) => [styles.locationButton, pressed && styles.pressedFeedback]}>
           {isLocating ? (
@@ -90,7 +87,7 @@ export function RegionPanel({
       <View style={styles.settingsSection}>
         <View style={styles.settingsSectionHeader}>
           <View style={styles.settingsSectionIcon}>
-            <AppActionIcon name="activityOutdoor" size={25} />
+            <AppActionIcon name="outfit" size={25} />
           </View>
           <View style={styles.settingsSectionTitleGroup}>
             <Text style={styles.settingsSectionTitle}>옷차림 추천</Text>
@@ -98,7 +95,8 @@ export function RegionPanel({
         </View>
         <NotificationToggleRow
           accentTone={accentTone}
-          label="일정별 옷차림 추천"
+          description="홈은 오늘 하루 날씨, 캘린더는 일정 시간 날씨로 추천해요"
+          label="옷차림 추천 보기"
           value={outfitSettings.enabled}
           onValueChange={(value) => onUpdateOutfitSetting('enabled', value)}
         />
@@ -156,6 +154,7 @@ export function RegionPanel({
         <NotificationToggleRow
           accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable}
+          description="앱의 모든 알림을 켜고 꺼요"
           label={'\uC54C\uB9BC \uBC1B\uAE30'}
           value={notificationSettings.enabled}
           onValueChange={(value) => onToggleNotificationSetting('enabled', value)}
@@ -163,6 +162,7 @@ export function RegionPanel({
         <NotificationToggleRow
           accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
+          description="일정마다 정한 시간 전에 그 시간대 날씨와 함께 알려 줘요"
           label={'\uC77C\uC815 \uC54C\uB9BC'}
           value={notificationSettings.calendarReminders}
           onValueChange={(value) => onToggleNotificationSetting('calendarReminders', value)}
@@ -170,6 +170,7 @@ export function RegionPanel({
         <NotificationToggleRow
           accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
+          description="매일 아침 7시에 오늘 날씨를 알려 줘요. 일정 제목은 보내지 않고 날짜와 시간만 서버로 보내요"
           label={'\uC544\uCE68 \uB0A0\uC528 \uC54C\uB9BC'}
           value={notificationSettings.weatherMorningAlerts}
           onValueChange={(value) => onToggleNotificationSetting('weatherMorningAlerts', value)}
@@ -236,22 +237,45 @@ export function RegionPanel({
                 <Pressable
                   disabled={!canGoPrevFavoritePage}
                   onPress={() => setFavoritePageIndex((page) => Math.max(0, page - 1))}
-                  style={({ pressed }) => [styles.settingsPagerButton, !canGoPrevFavoritePage && styles.settingsPagerButtonDisabled, pressed && canGoPrevFavoritePage && styles.pressedFeedback]}
+                  style={({ pressed }) => [styles.settingsPagerButton, pressed && canGoPrevFavoritePage && styles.pressedFeedback]}
                 >
-                  <Text style={[styles.favoritePagerIcon, !canGoPrevFavoritePage && styles.favoritePagerIconDisabled]}>‹</Text>
+                  <Ionicons accessibilityLabel="이전 즐겨찾기" color={canGoPrevFavoritePage ? accentTone : textColors.disabled} name="chevron-back" size={20} />
                 </Pressable>
                 <Text style={styles.favoritePagerText}>{currentFavoritePage + 1} / {favoritePageCount}</Text>
                 <Pressable
                   disabled={!canGoNextFavoritePage}
                   onPress={() => setFavoritePageIndex((page) => Math.min(favoritePageCount - 1, page + 1))}
-                  style={({ pressed }) => [styles.settingsPagerButton, !canGoNextFavoritePage && styles.settingsPagerButtonDisabled, pressed && canGoNextFavoritePage && styles.pressedFeedback]}
+                  style={({ pressed }) => [styles.settingsPagerButton, pressed && canGoNextFavoritePage && styles.pressedFeedback]}
                 >
-                  <Text style={[styles.favoritePagerIcon, !canGoNextFavoritePage && styles.favoritePagerIconDisabled]}>›</Text>
+                  <Ionicons accessibilityLabel="다음 즐겨찾기" color={canGoNextFavoritePage ? accentTone : textColors.disabled} name="chevron-forward" size={20} />
                 </Pressable>
               </View>
             )}
           </>
         )}
+      </View>
+
+      <View style={styles.settingsSection}>
+        <View style={styles.settingsSectionHeader}>
+          <View style={styles.settingsSectionIcon}>
+            <Ionicons color={accentTone} name="information-circle" size={24} />
+          </View>
+          <View style={styles.settingsSectionTitleGroup}>
+            <Text style={styles.settingsSectionTitle}>앱 정보</Text>
+          </View>
+        </View>
+        <View style={styles.settingsInfoRow}>
+          <Text style={styles.settingsInfoLabel}>데이터 출처</Text>
+          <Text style={styles.settingsInfoValue}>대기질: 한국환경공단 에어코리아{'\n'}날씨: 기상청 단기·중기예보{'\n'}공공데이터포털(data.go.kr) 제공 자료를 사용해요.</Text>
+        </View>
+        <View style={styles.settingsInfoRow}>
+          <Text style={styles.settingsInfoLabel}>개인정보</Text>
+          <Text style={styles.settingsInfoValue}>일정 제목과 메모는 이 휴대폰에만 저장돼요. 아침 날씨 알림을 켜면 일정의 날짜와 시간만 서버로 보내요.</Text>
+        </View>
+        <View style={[styles.settingsInfoRow, styles.settingsInfoRowLast]}>
+          <Text style={styles.settingsInfoLabel}>버전</Text>
+          <Text style={styles.settingsInfoValue}>{Constants.expoConfig?.version ?? '-'}</Text>
+        </View>
       </View>
     </>
   );

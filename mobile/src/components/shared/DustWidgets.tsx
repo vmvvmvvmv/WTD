@@ -6,8 +6,10 @@ import type { DataMetricKey } from '../../types/dust';
 import { formatValue, getMetricLabel, getMetricTone, getPm10Label, getPm10SoftTone, getPm10Tone } from '../../utils/dust';
 
 // 설정 탭에서 반복해서 쓰는 알림 토글 행입니다.
-export function NotificationToggleRow({ accentTone, disabled, label, onValueChange, value }: {
+export function NotificationToggleRow({ accentTone, description, disabled, label, onValueChange, value }: {
   accentTone: string;
+  // 스위치가 무엇을 하는지 알려주는 회색 한 줄(선택).
+  description?: string;
   disabled?: boolean;
   label: string;
   onValueChange: (value: boolean) => void;
@@ -15,8 +17,12 @@ export function NotificationToggleRow({ accentTone, disabled, label, onValueChan
 }) {
   return (
     <View style={[styles.notificationRow, disabled && styles.notificationRowDisabled]}>
-      <Text style={styles.notificationLabel}>{label}</Text>
+      <View style={styles.notificationLabelGroup}>
+        <Text style={styles.notificationLabel}>{label}</Text>
+        {!!description && <Text style={styles.notificationDescription}>{description}</Text>}
+      </View>
       <Switch
+        accessibilityLabel={description ? `${label}. ${description}` : label}
         disabled={disabled}
         onValueChange={onValueChange}
         thumbColor={value ? '#ffffff' : '#f8f9fa'}
