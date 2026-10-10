@@ -710,3 +710,10 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - **남은 연결(Codex 작업과 겹쳐 보류)**: Codex가 진행 중인 `mobile/src/notifications/useNotificationSettings.ts`에서 ① 켜짐 상태 `registerNotificationDevice({...})`에 `dustSpikeAlerts: settings.dustSpikeAlerts,` ② effect 의존성에 `settings.dustSpikeAlerts` ③ 토글 메시지 분기 `dustSpikeAlerts` → '미세먼지 나쁨 알림을 켰어요/껐어요'. 연결 전까지는 서버에 false로 전달되어 알림이 가지 않는다.
 - 참고: 로컬 DB의 서울 강남구 시간별 예측은 오늘 08시까지만 있어(예측 생성이 일부 측정소만 갱신) 지금은 주로 측정값 기준으로 동작한다.
 - 검증: 백엔드 테스트 28건(새 5건: 지금 나쁨, 첫 나쁨 예측 시각, 오늘 안 넘으면 없음, 조용한 시간, 한 번 보내고 기록), 모바일 tsc·테스트 34건·babel 통과.
+
+## 55. 2026-10-10 AppContent 기능별 분리 (Codex)
+
+- `AppContent`에서 일정 목록 편집·저장을 `useCalendarEvents`, 일정 로컬 알림 재예약을 `useCalendarReminderSync`, 알림 설정·서버 기기 등록을 `useNotificationSettings`, 지도 검색·선택·최근 검색·WebView 제어를 `useMapSearch`로 옮겼다. 화면 연결은 기존대로 유지했다.
+- 일정 알림을 끄면 저장된 예약 ID만 비우던 문제를 수정했다. 기존 예약을 실제로 취소한 뒤 빈 목록을 저장하며, 해당 경로의 회귀 테스트를 추가했다.
+- 병행 작업에서 추가된 미세먼지 나쁨 알림 스위치를 서버 기기 등록에 연결했다. 설정을 바꾸면 `dustSpikeAlerts` 값이 전송된다. 일정 제목은 서버로 보내지 않고 날짜·시간만 보낸다.
+- 검증: 모바일 TypeScript typecheck 통과, Node 테스트 34건 통과, 전체 ESLint 캐시 없이 실행해 오류 0(기존 경고 60개). `npm run lint`는 `.expo` 캐시 쓰기 권한 오류로 종료되어 같은 ESLint를 `--no-cache`로 실행했다. 실기기에서 일정 알림 켜기·끄기, 지도 검색·최근 검색, 미세먼지 나쁨 알림 설정을 확인해야 한다.
