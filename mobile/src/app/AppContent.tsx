@@ -79,6 +79,7 @@ import {
   saveSelectedRegion,
 } from '../storage/appStorage';
 import { cancelCalendarEventNotifications, configureDustNotifications, requestDustPushToken, scheduleCalendarEventNotifications, scheduleTestNotification } from '../notifications/expoPush';
+import { replaceCalendarNotifications } from '../notifications/calendarNotificationSync';
 import type {
   BriefingMessage,
   CalendarEvent,
@@ -298,6 +299,7 @@ export function AppContent() {
   const notificationToastOpacity = useRef(new Animated.Value(0)).current;
   const notificationToastTranslateY = useRef(new Animated.Value(16)).current;
   const calendarNotificationSyncRef = useRef(0);
+  const calendarNotificationQueueRef = useRef<Promise<void>>(Promise.resolve());
   // 비동기 응답이 도착했을 때 지금 선택된 지역과 같은지 비교하기 위한 최신 값입니다.
   const selectedRegionRef = useRef(selectedRegion);
   selectedRegionRef.current = selectedRegion;
@@ -1213,7 +1215,6 @@ export function AppContent() {
       await wait(250);
       if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
       const notificationIds = await loadCalendarNotificationIds();
-      await cancelCalendarEventNotifications(notificationIds);
       if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
 
       if (!notificationSettings.enabled || !notificationSettings.calendarReminders) {
@@ -1232,20 +1233,17 @@ export function AppContent() {
         weatherHourlyItems,
         weatherMidTermItems,
       });
-      const nextIds: string[] = [];
-      if (notificationSettings.calendarReminders) {
-        for (const event of calendarEvents) {
-          if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
-          const notificationIdsForEvent = await scheduleCalendarEventNotifications(event, riskByEvent[event.id]).catch(() => []);
-          if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
-          nextIds.push(...notificationIdsForEvent);
-        }
-      }
-      if (cancelled || calendarNotificationSyncRef.current !== syncVersion) return;
-      await saveCalendarNotificationIds(nextIds);
+      await replaceCalendarNotifications(notificationIds, calendarEvents, {
+        cancel: cancelCalendarEventNotifications,
+        isCurrent: () => !cancelled && calendarNotificationSyncRef.current === syncVersion,
+        save: saveCalendarNotificationIds,
+        schedule: (event) => scheduleCalendarEventNotifications(event, riskByEvent[event.id]),
+      });
     };
 
-    syncCalendarNotifications();
+    calendarNotificationQueueRef.current = calendarNotificationQueueRef.current
+      .then(syncCalendarNotifications)
+      .catch((error) => console.warn('일정 알림을 다시 예약하지 못했습니다.', error));
     return () => {
       cancelled = true;
     };
