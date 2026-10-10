@@ -475,6 +475,14 @@ function useReduceMotion() {
   return reduceMotion;
 }
 
+// 게이지 원 안에 숫자가 들어가도록 글자 크기를 줄입니다. 원 안쪽 폭의 약 70%를 쓰고,
+// 숫자 한 자는 글자 크기의 0.6배, 소수점·쉼표는 그 절반 정도 폭으로 셉니다.
+function gaugeValueFontSize(value: string, size: number, baseFontSize: number) {
+  const narrow = (value.match(/[.,:]/g) ?? []).length;
+  const units = Math.max(1, value.length - narrow * 0.6);
+  return Math.max(12, Math.min(baseFontSize, Math.floor((size * 0.7) / (units * 0.6))));
+}
+
 function HomeCircularGauge({ gaugeSize, large = false, progress, tone, unit, value }: HomeCircularGaugeProps) {
   const size = gaugeSize ?? (large ? 132 : 62);
   const stroke = large ? 10 : 6;
@@ -510,7 +518,20 @@ function HomeCircularGauge({ gaugeSize, large = false, progress, tone, unit, val
           />
         </Svg>
         <View style={styles.homeCircularGaugeCenter}>
-          <Text style={[styles.homeCircularGaugeValue, large && styles.homeCircularGaugeValueLarge]}>{value}</Text>
+          <Text
+            maxFontSizeMultiplier={1.2}
+            numberOfLines={1}
+            style={[
+              styles.homeCircularGaugeValue,
+              large && styles.homeCircularGaugeValueLarge,
+              large && (() => {
+                const fontSize = gaugeValueFontSize(String(value), size, 38);
+                return { fontSize, lineHeight: Math.round(fontSize * 1.1) };
+              })(),
+            ]}
+          >
+            {value}
+          </Text>
           <Text style={[styles.homeCircularGaugeUnit, large && styles.homeCircularGaugeUnitLarge]}>{unit}</Text>
         </View>
       </View>
