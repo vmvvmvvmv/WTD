@@ -807,3 +807,13 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - `701e4ed` 기본 가이드 줄마다 붙던 회색 '기본' 배지 제거(위 '기본 가이드' 안내 줄만 남김).
 - `fb77608` 배너 게이지 숫자 크기 자동 축소(`gaugeValueFontSize`, HomePanel.tsx): 원 안쪽 폭 70% 기준, 0.050은 28~31px, 1013은 30~35px, 43은 38px 그대로. numberOfLines 1, maxFontSizeMultiplier 1.2.
 - `f28dc00` 일정 편집기 활동 선택에서 '이동' 제거(실내·실외만). 저장된 transit 일정은 타입·평가·아이콘 그대로 지원, 편집기를 열면 실외로 표시(저장 시에만 변경).
+
+## 63. 2026-10-10 저장소: SecureStore 2KB 제한 → 파일 저장 (Claude)
+
+- `7cafab5`. 실기기 로그에서 저장할 때마다 "Value being stored in SecureStore is larger than 2048 bytes and it may not be stored successfully. In a future SDK version, this call may throw an error." 경고 확인. 일정(반복 최대 420개)·알림 ID·최근 검색 등 모든 앱 값을 SecureStore에 넣고 있었고, 실패는 `.catch(() => {})`로 조용히 무시돼 일정 유실 위험.
+- `storage/appStorage.ts`: 푸시 토큰(`dust.notification-token`)만 SecureStore, 나머지는 `documentDirectory/app-storage/<key>.json`.
+  - 읽기: 파일 → (없으면) `.tmp` 복구 → (없으면) 예전 SecureStore 값을 파일로 옮기고 성공 후 SecureStore에서 삭제.
+  - 쓰기: `.tmp`에 쓰고 원본 삭제 후 이동(원자적 교체), 키별 순서 보장 큐, 실패는 console.warn.
+  - 테스트 `storage/appStorage.test.mjs` 4건(expo 모듈을 메모리 가짜로 바꿔 끼움). 모바일 테스트 41건.
+- 실기기 확인: 다시 불러오기 후 `run-as com.xkvk11.DusthealthAIMobile ls files/app-storage`에 8개 파일, 일정 4,090바이트(예전 한도의 두 배), 경고 사라짐. 일정 개수는 확인 직전 USB가 끊겨 못 셈.
+- 실기기 연결 주의: 이날 USB가 여러 번 끊겨 adb reverse(8081·8001)가 사라졌다 → "서버에 연결할 수 없어요"·"Unable to load script". `adb reverse tcp:8081 tcp:8081`, `adb reverse tcp:8001 tcp:8001` 후 Reload. 케이블·포트 점검 권장.
