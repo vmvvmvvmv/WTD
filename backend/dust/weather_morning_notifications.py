@@ -8,7 +8,7 @@ import requests
 from django.utils import timezone
 
 from dust.models import AirQualityStation, DustNotificationLog, NotificationDevice, WeatherHourlyMeasurement
-from dust.views import _current_station_location, _dfs_grid_from_lat_lng, _resolve_station_name
+from dust.views import _current_station_location, _dfs_grid_from_lat_lng, _find_air_quality_station, _resolve_station_name
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
@@ -85,14 +85,14 @@ def _station_for_region(city: str, region: str) -> AirQualityStation | None:
     station_name = _resolve_station_name(city, region)
     if not station_name:
         return None
-    return AirQualityStation.objects.filter(sido=city, station_name=station_name).first()
+    return _find_air_quality_station(city, station_name)
 
 
 def _grid_for_region(city: str, region: str) -> dict | None:
     station = _station_for_region(city, region)
     if not station:
         return None
-    location = _current_station_location(station.sido, station.station_name)
+    location = _current_station_location(station.sido, station.name)
     if not location:
         return None
     return _dfs_grid_from_lat_lng(location["lat"], location["lng"])
