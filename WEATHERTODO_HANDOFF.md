@@ -759,3 +759,10 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 지도 화면·측정소 시트·지도 검색: 글자색을 textColors(heading/primary/secondary/muted/disabled)로, 초록빛이 섞여 있던 테두리(#d9eee2, #eef3ef)를 bauhausColors.border·구분선 #E7EDF5로, 굵기 900은 제목·큰 숫자만(라벨·버튼 700, 보조 600), 모드 선택 카드 모서리 12 → 14.
 - 남긴 직접 색: 오류 빨강(#9d332a 등), 기온 배경(추움 파랑·더움 빨강 등 의미 있는 색), 풍속 초록, 모드 아이콘 주황(#E18B2D = semanticColors caution).
 - 검증: tsc·eslint 오류 0·테스트 34건·babel 통과. 실기기 확인 필요: 지도 검색창·검색 결과·측정소 시트의 글자 대비와 굵기.
+
+## 59. 2026-10-10 테스트 안내 문서, npm test, 옷차림 카드 글자 정리 (Claude)
+
+- 노션 "WeatherToDo 개발" 아래 `테스트 안내` 페이지: 검사 네 가지(커밋 전 자동 검사, 타입 검사·린트, 모바일 34건, 백엔드 88건)가 무엇을 막고 언제·어떻게 돌리는지, 영역별 테스트가 확인하는 내용을 쉬운 말로 표에 정리. 테스트를 추가하면 표에도 한 줄 추가.
+- `fe27ebd`: mobile `npm test` 스크립트(`node --test "src/**/*.test.mjs"`, Node 24 glob). 이제 모바일 테스트는 `npm test`.
+- `b93164f` 옷차림 카드(`components/outfit/outfitStyles.ts`): 홈 활동 가이드 기준에 맞춤. 직접 쓴 회색 5가지 → textColors, 9~10px → 10~11px(배지급 최소 10, 본문 11), 900은 카드 제목만(강조 700, 설명 600), 카드 모서리 20/16 → 14, 작은 요소 10 → 8, 칩 아이콘 색을 `semanticColors.outfit.accent`(= blueText 값)로.
+- 실기기 확인 필요: 홈 두 인물 아래 설명이 11px로 커져 줄바꿈이 늘지 않는지, 캘린더 날짜 시트의 옷차림 카드.
