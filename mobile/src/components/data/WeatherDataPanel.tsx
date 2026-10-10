@@ -6,6 +6,7 @@ import type { GestureResponderEvent } from 'react-native';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { DATA_LIST_PAGE_SIZE, dataRanges } from '../../constants/dust';
+import { WeatherIcon } from '../shared/WeatherIcon';
 import { styles } from '../../styles/appStyles';
 import type { RegionState, WeatherDailyItem, WeatherState } from '../../types/dust';
 import { toNumber } from '../../utils/dust';
@@ -13,7 +14,6 @@ import { toNumber } from '../../utils/dust';
 type WeatherDataMetricKey = 'temperature' | 'humidity' | 'wind_speed' | 'rain_mm';
 type ChartMode = 'line' | 'bar';
 
-const DETAIL_WEATHER_ICON = require('../../../assets/icons/detail-weather-v2.png');
 const DETAIL_WEATHER_BACKGROUND = require('../../../assets/home-metric-clear-v3.png');
 
 const weatherMetrics: { key: WeatherDataMetricKey; code: string; label: string; unit: string; decimals: number }[] = [
@@ -322,7 +322,7 @@ export function WeatherDataPanel({
             <Text style={styles.detailSummaryTitle}>{activeMetric.label} 상세 현황</Text>
           </View>
           <View style={styles.detailSummaryIcon}>
-            <Image resizeMode="contain" source={DETAIL_WEATHER_ICON} style={styles.detailSummaryIconImage} />
+            <WeatherIcon kind="partlyCloudy" size={38} style={styles.detailSummaryIconImage} />
           </View>
         </View>
         <View style={styles.detailSummaryBody}>

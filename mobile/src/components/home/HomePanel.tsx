@@ -14,10 +14,11 @@ import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/da
 import { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { buildCalendarRiskByEvent, type CalendarLocationForecast } from '../calendar/calendarForecast';
-import { getWeatherIcon, getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
+import { getWeatherVisualKind, type WeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
 import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRemoval';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
+import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
 
 type HomeCircularGaugeProps = {
@@ -771,7 +772,7 @@ export function HomePanel({
                       style={[styles.homeHeroBannerForecastItem, item.isCurrent && styles.homeHeroBannerForecastItemCurrent]}
                     >
                       <Text style={[styles.homeHeroBannerForecastTime, item.isCurrent && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
-                      <Ionicons color={item.isRainy ? bauhausColors.blue : '#6A7FA8'} name={getWeatherIcon(item.label)} size={21} />
+                      <WeatherIcon kind={weatherIconKind(item.label)} size={23} />
                       <Text style={styles.homeHeroBannerForecastTemp}>
                         {item.temperature === undefined ? '-' : `${Math.round(item.temperature)}°`}
                       </Text>
@@ -843,11 +844,7 @@ export function HomePanel({
                     accessibilityLabel={item.forecastLabel || undefined}
                     style={[styles.activityGuideIconBox, completed ? styles.activityGuideIconBoxCompleted : { backgroundColor: ACTIVITY_WEATHER_ICONS[item.weatherKind].background }]}
                   >
-                    <Ionicons
-                      color={completed ? '#B7C0CC' : ACTIVITY_WEATHER_ICONS[item.weatherKind].color}
-                      name={ACTIVITY_WEATHER_ICONS[item.weatherKind].name}
-                      size={28}
-                    />
+                    <WeatherIcon kind={ACTIVITY_WEATHER_ICONS[item.weatherKind].kind} size={29} style={completed ? { opacity: 0.45 } : undefined} />
                   </View>
                   <View style={styles.activityGuideTextGroup}>
                     <View style={styles.activityGuideTitleRow}>
