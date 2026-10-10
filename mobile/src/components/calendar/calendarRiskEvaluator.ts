@@ -2,6 +2,7 @@ import type { CalendarEvent, HourlyDustItem, PredictionResponse, WeatherHourlyIt
 import { toNumber } from '../../utils/dust';
 import { calculateOutingIndex, isRainyWeather, isThunderWeather } from '../../features/outing/outingIndex';
 import { semanticColors } from '../../theme/semanticColors';
+import { addMinutesToDateTime } from './calendarUtils';
 
 export type CalendarRiskLevel = 'good' | 'watch' | 'adjust' | 'bad' | 'unknown';
 
@@ -13,6 +14,8 @@ export type CalendarRiskResult = {
   level: CalendarRiskLevel;
   outingIndex?: number;
   pm10?: number;
+  // 일정을 1~3시간 옮기면 비를 피할 수 있을 때의 제안
+  rainFreeSuggestion?: RainFreeSuggestion;
   rainMm?: number;
   rainProbability?: number;
   rainTimeRange?: string;
@@ -23,6 +26,12 @@ export type CalendarRiskResult = {
   weatherLabel?: string;
   windSpeed?: number;
   windTimeRange?: string;
+};
+
+export type RainFreeSuggestion = {
+  endTime?: string;
+  offsetHours: number;
+  time: string;
 };
 
 type DustPoint = {
@@ -299,6 +308,28 @@ function addOneHour(label: string) {
   return `${String(hour).padStart(2, '0')}:${match[2]}`;
 }
 
+const RAIN_FREE_OFFSETS = [-1, 1, -2, 2, -3, 3];
+
+// 하루 안의 일정이 비와 겹치면 앞뒤로 1~3시간 옮겨 예보가 있고 비가 없는 시간을 찾습니다.
+function findRainFreeSuggestion(event: CalendarEvent, points: WeatherPoint[], now: Date): RainFreeSuggestion | undefined {
+  if (event.endDate && event.endDate !== event.date) return undefined;
+  if (!points.some((point) => isPointInEventRange(point.date, point.label, event) && rainyPoint(point))) return undefined;
+  for (const offsetHours of RAIN_FREE_OFFSETS) {
+    const start = addMinutesToDateTime(event.date, event.time, offsetHours * 60);
+    const end = event.endTime ? addMinutesToDateTime(event.date, event.endTime, offsetHours * 60) : undefined;
+    if (start.date !== event.date || (end && end.date !== event.date) || start.time < '06:00') continue;
+    if ((dateTimeMs(start.date, start.time) ?? 0) < now.getTime()) continue;
+    const shifted = { ...event, endTime: end?.time, time: start.time };
+    const shiftedPoints = points.filter((point) => isPointInEventRange(point.date, point.label, shifted));
+    if (shiftedPoints.length > 0 && !shiftedPoints.some(rainyPoint)) return { endTime: end?.time, offsetHours, time: start.time };
+  }
+  return undefined;
+}
+
+export function rainFreeSuggestionText({ endTime, offsetHours, time }: RainFreeSuggestion) {
+  return `${Math.abs(offsetHours)}시간 ${offsetHours < 0 ? '앞당기면' : '미루면'} 비를 피할 수 있어요 (${endTime ? `${time}~${endTime}` : time})`;
+}
+
 function rainSummaryText(probability: number | undefined, timeRange: string) {
   return typeof probability === 'number'
     ? `강수 확률 ${Math.round(probability)}% ${timeRange} 예상`
@@ -492,6 +523,10 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
     ? '오늘은 물을 꼭 챙기세요. 햇볕이 강한 시간에는 중간중간 쉬어가세요.'
     : undefined;
   const rainNote = rainSummary ? rainSummary.text + '. 우산 챙기셨나요?' : undefined;
+  const rainFreeSuggestion = rainy
+    ? findRainFreeSuggestion(event, weatherPoints, context.now ?? new Date())
+    : undefined;
+  const rainFreeNote = rainFreeSuggestion ? rainFreeSuggestionText(rainFreeSuggestion) : undefined;
   const coldOrSnowNote = snowy || lowTemperature
     ? '나갈 때 생각보다 춥거나 눈이 올 수 있어요. 따뜻하게 입으세요.'
     : undefined;
@@ -519,6 +554,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
           thunderNote,
           heatNote,
           rainNote,
+          rainFreeNote,
           coldOrSnowNote,
           windNote,
           activityNote.trim() || undefined,
@@ -530,6 +566,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
           thunderNote,
           heatNote,
           rainNote,
+          rainFreeNote,
           coldOrSnowNote,
           windNote,
           activityNote.trim() || undefined,
@@ -545,6 +582,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
     level,
     outingIndex,
     pm10,
+    rainFreeSuggestion,
     rainMm,
     rainProbability,
     rainTimeRange: rainSummary?.timeRange,
