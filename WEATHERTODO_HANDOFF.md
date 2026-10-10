@@ -874,3 +874,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
   4. `theme/appTheme.buildOutingAccentTheme`가 외출지수를 계산하지만 결과(score)를 안 쓰고 항상 같은 파랑을 돌려줌 → 상수로 바꾸고, accentTone/softTone/borderTone을 모든 화면에 props로 내려보내는 것도 정리 가능.
   5. `types/dust.ts` 한 파일에 모든 타입, `utils/dust.ts`에 성격 다른 함수 섞임.
   6. 백엔드 `app/`·`api/` 앱은 로그인·회원 기능을 끈 뒤 모델(데이터)만 남은 상태.
+- `ff04bde` (구조 과제 4) 강조색을 상수로: `buildOutingAccentTheme`가 외출지수를 매번 계산하고도 버리고 항상 같은 파랑을 돌려주던 것을 `theme/appTheme.ts` 상수(accentTone/accentSoftTone/accentBorderTone)로. 23개 파일에서 강조색 props 제거(-197/+35줄), `theme/colors.ts` 삭제. tsc·eslint·테스트 통과. 기기 확인은 USB가 끊겨 못 함(색 값은 같음).
