@@ -28,12 +28,12 @@ import { AppTabBar } from '../navigation/AppTabBar';
 import { useNotificationSettings } from '../notifications/useNotificationSettings';
 import { loadStoredAppState, saveOutfitSettings } from '../storage/appStorage';
 import { styles } from '../styles/appStyles';
-import { buildOutingAccentTheme } from '../theme/appTheme';
 import { bauhausColors } from '../theme/bauhaus';
 import type { OutfitSettings, RegionState, StationDustItem, TabKey } from '../types/dust';
 import { normalizeLatLng, toNumber, isSameRegion } from '../utils/dust';
 import { buildMobileMapUrl } from '../utils/mobileMapUrl';
 import { useTodayLabel } from '../utils/useTodayLabel';
+import { accentTone } from '../theme/appTheme';
 
 // 탭 이동, 화면 사이 연결(지역 전환·검색 패널·토스트), 저장된 설정 복원을 맡는 최상위 화면입니다.
 // 데이터와 상태는 기능별 훅이 관리합니다: 지역(useRegions), 측정소(useStations), 홈 데이터(useDashboardData),
@@ -105,10 +105,6 @@ export function AppContent() {
   const currentPm10 = toNumber(currentItem?.pm10Value) ?? toNumber(latestPastItem?.pm10Value);
   const currentPm25 = toNumber(currentItem?.pm25Value) ?? toNumber(latestPastItem?.pm25Value);
   const currentO3 = toNumber(currentItem?.o3Value) ?? toNumber(latestPastItem?.o3Value);
-  const accentTheme = buildOutingAccentTheme({ pm10: currentPm10, weather });
-  const accentTone = accentTheme.tone;
-  const accentSoftTone = accentTheme.softTone;
-  const accentBorderTone = accentTheme.borderTone;
   const calendarLocationForecasts = useCalendarLocationForecasts(calendarEvents, hasLoadedRegionStore, todayDateLabel);
   const {
     settings: notificationSettings,
@@ -358,9 +354,6 @@ export function AppContent() {
   const tabBar = (
     <AppTabBar
       activeTab={activeTab}
-      accentBorderTone={accentBorderTone}
-      accentSoftTone={accentSoftTone}
-      accentTone={accentTone}
       onNavigate={switchTab}
     />
   );
@@ -378,8 +371,6 @@ export function AppContent() {
         <WeatherBackdrop label={weather?.label} />
         <ScreenTransition transitionKey="map">
         <FullMapScreen
-          accentBorderTone={accentBorderTone}
-          accentTone={accentTone}
           bottomToast={bottomToast}
           dismissMapSearchKeyboard={mapSearch.dismissMapSearchKeyboard}
           favoriteRegions={favoriteRegions}
@@ -429,9 +420,6 @@ export function AppContent() {
         <View style={[styles.screen, styles.calendarOnlyScreen]}>
           <View style={styles.tabPageContent}>
             <CalendarPanel
-              accentBorderTone={accentBorderTone}
-              accentSoftTone={accentSoftTone}
-              accentTone={accentTone}
               events={calendarEvents}
               defaultLocation={calendarDefaultLocation}
               eventLocationForecasts={calendarLocationForecasts}
@@ -482,7 +470,6 @@ export function AppContent() {
       >
         {activeTab === 'home' ? (
           <HomeHeader
-            accentTone={accentTone}
             currentItem={currentItem}
             error={error}
             favoriteRegions={favoriteRegions}
@@ -508,7 +495,6 @@ export function AppContent() {
         )}
         {activeTab === 'home' && showHomeRegionSearch && (
           <HomeRegionSearchPanel
-            accentTone={accentTone}
             favoriteRegions={favoriteRegions}
             gpsRegion={gpsRegion}
             isLoadingStations={isLoadingStations}
@@ -528,8 +514,6 @@ export function AppContent() {
             currentPm10={currentPm10}
             currentPm25={currentPm25}
             currentO3={currentO3}
-            accentSoftTone={accentSoftTone}
-            accentTone={accentTone}
             calendarEvents={calendarEvents}
             eventLocationForecasts={calendarLocationForecasts}
             onDeleteCalendarEvent={removeCalendarEvent}
@@ -561,9 +545,6 @@ export function AppContent() {
         {activeTab === 'account' && (
           <RegionPanel
             favoriteRegions={favoriteRegions}
-            accentBorderTone={accentBorderTone}
-            accentSoftTone={accentSoftTone}
-            accentTone={accentTone}
             isLocating={isLocating}
             isSavingNotificationSettings={isSavingNotificationSettings}
             isSendingTestNotification={isSendingTestNotification}
@@ -583,7 +564,7 @@ export function AppContent() {
       </ScreenTransition>
       </KeyboardAvoidingView>
       {regionTransition.isTransitioning && activeTab === 'home' && (
-        <RegionLoadingOverlay accentTone={accentTone} opacity={regionTransition.opacity} scale={regionTransition.scale} title={`${activeCity} ${activeRegion}`} />
+        <RegionLoadingOverlay opacity={regionTransition.opacity} scale={regionTransition.scale} title={`${activeCity} ${activeRegion}`} />
       )}
       {bottomToast}
       {tabBar}

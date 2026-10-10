@@ -16,6 +16,7 @@ import { ActivityTypeSelector, type CalendarActivityInput } from './editor/Activ
 import { DateTimePicker } from './editor/DateTimePicker';
 import { NotificationLeadSelector } from './editor/NotificationLeadSelector';
 import { RepeatSelector } from './editor/RepeatSelector';
+import { accentTone } from '../../theme/appTheme';
 
 const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon: AppActionIconName; title: string }> = {
   indoor: {
@@ -36,8 +37,6 @@ const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon:
 };
 
 type Props = {
-  accentSoftTone: string;
-  accentTone: string;
   activityInput: CalendarActivityInput;
   endDate: string;
   endTime: string;
@@ -72,8 +71,6 @@ type Props = {
 };
 
 export function CalendarEventEditor({
-  accentSoftTone,
-  accentTone,
   activityInput,
   endDate,
   endTime,
@@ -294,8 +291,6 @@ export function CalendarEventEditor({
             <View style={styles.calendarSheetDivider} />
             <View style={styles.calendarSheetDateTimeBlock}>
               <DateTimePicker
-                accentSoftTone={accentSoftTone}
-                accentTone={accentTone}
                 endDate={endDate}
                 endTime={endTime}
                 onChangeEndDate={onChangeEndDate}
@@ -310,8 +305,6 @@ export function CalendarEventEditor({
             <View pointerEvents={isRepeatLocked ? 'none' : 'auto'} style={[styles.calendarSheetRow, isRepeatLocked && styles.calendarSheetRowLocked]}>
               <Ionicons color="#8a94a3" name="repeat-outline" size={20} />
               <RepeatSelector
-                accentSoftTone={accentSoftTone}
-                accentTone={accentTone}
                 onChangeRepeatEndDate={onChangeRepeatEndDate}
                 onChangeRepeatMode={onChangeRepeatMode}
                 onChangeRepeatWeekdays={onChangeRepeatWeekdays}
@@ -325,8 +318,6 @@ export function CalendarEventEditor({
             <View style={styles.calendarSheetRow}>
               <Ionicons color="#8a94a3" name="compass-outline" size={20} />
               <ActivityTypeSelector
-                accentSoftTone={accentSoftTone}
-                accentTone={accentTone}
                 activityInput={activityInput}
                 onChangeActivityInput={onChangeActivityInput}
               />
@@ -344,8 +335,6 @@ export function CalendarEventEditor({
             <View style={styles.calendarSheetRow}>
               <AppActionIcon name="notification" size={24} />
               <NotificationLeadSelector
-                accentSoftTone={accentSoftTone}
-                accentTone={accentTone}
                 notificationHoursBefore={notificationHoursBefore}
                 onChangeNotificationHoursBefore={onChangeNotificationHoursBefore}
               />

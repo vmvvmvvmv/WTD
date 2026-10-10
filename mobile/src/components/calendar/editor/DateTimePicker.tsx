@@ -8,12 +8,11 @@ import { styles } from '../../../styles/appStyles';
 import { addMinutesToDateTime, durationMinutes, endForTime, formatDuration, formatDateDisplay } from '../calendarUtils';
 import { animatePickerLayout, formatMonthDay } from './pickerShared';
 import { TimeWheelPicker } from './TimeWheelPicker';
+import { accentTone } from '../../../theme/appTheme';
 
 const DURATION_OPTIONS = [30, 60, 120, 180, 240];
 
 export function DateTimePicker({
-  accentSoftTone,
-  accentTone,
   endDate,
   endTime,
   onChangeEndDate,
@@ -23,8 +22,6 @@ export function DateTimePicker({
   startDate,
   startTime,
 }: {
-  accentSoftTone: string;
-  accentTone: string;
   endDate: string;
   endTime: string;
   onChangeEndDate: (value: string) => void;
@@ -138,8 +135,6 @@ export function DateTimePicker({
         })}
       </View>
       <TimeWheelPicker
-        accentSoftTone={accentSoftTone}
-        accentTone={accentTone}
         onChange={setActiveTime}
         value={activeField === 'start' ? startTime : endTime}
       />
@@ -161,8 +156,6 @@ export function DateTimePicker({
       </Pressable>
       {showDateWheel && (
         <CalendarDatePickerGrid
-          accentSoftTone={accentSoftTone}
-          accentTone={accentTone}
           onChange={(date) => {
             setStartDateTime(date, startTime);
             animatePickerLayout();

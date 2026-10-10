@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { styles } from '../../../styles/appStyles';
+import { accentTone } from '../../../theme/appTheme';
 
 const notificationLeadOptions: Array<{ label: string; value: number | null }> = [
   { label: '\uC5C6\uC74C', value: null },
@@ -11,13 +12,9 @@ const notificationLeadOptions: Array<{ label: string; value: number | null }> = 
 ];
 
 export function NotificationLeadSelector({
-  accentSoftTone,
-  accentTone,
   notificationHoursBefore,
   onChangeNotificationHoursBefore,
 }: {
-  accentSoftTone: string;
-  accentTone: string;
   notificationHoursBefore?: number | null;
   onChangeNotificationHoursBefore: (value: number | null) => void;
 }) {

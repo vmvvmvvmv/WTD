@@ -9,12 +9,11 @@ import { WeatherIcon } from '../shared/WeatherIcon';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/dust';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { accentSoftTone, accentTone } from '../../theme/appTheme';
 
 type CalendarRange = { endDate: string; startDate: string };
 
 type Props = {
-  accentSoftTone: string;
-  accentTone: string;
   cellIndex: number;
   // 일정 줄 자리를 미리 잡지 않습니다(주 보기 위쪽 날짜 줄).
   compact?: boolean;
@@ -37,8 +36,6 @@ type Props = {
 };
 
 export function CalendarDayCell({
-  accentSoftTone,
-  accentTone,
   cellIndex,
   compact,
   date,

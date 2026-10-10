@@ -10,9 +10,6 @@ import { useCalendarSlide } from './useCalendarSlide';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 
 type Props = {
-  accentBorderTone: string;
-  accentSoftTone: string;
-  accentTone: string;
   eventCountByDate: Record<string, number>;
   eventItemsByDate: Record<string, Array<CalendarEvent | null>>;
   getEventTone: (event: CalendarEvent) => string;
@@ -32,9 +29,6 @@ type Props = {
 const weekDays = ['\uC77C', '\uC6D4', '\uD654', '\uC218', '\uBAA9', '\uAE08', '\uD1A0'];
 
 export function CalendarMonthGrid({
-  accentBorderTone,
-  accentSoftTone,
-  accentTone,
   eventCountByDate,
   eventItemsByDate,
   getEventTone,
@@ -84,8 +78,6 @@ export function CalendarMonthGrid({
 
               return (
                 <CalendarDayCell
-                  accentSoftTone={accentSoftTone}
-                  accentTone={accentTone}
                   cellIndex={cellIndex}
                   date={cell.date}
                   day={cell.day}

@@ -4,10 +4,9 @@ import { styles } from '../../styles/appStyles';
 import { useCalendarSlide } from './useCalendarSlide';
 import { buildMonthCells } from './calendarUtils';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
+import { accentSoftTone, accentTone } from '../../theme/appTheme';
 
 type Props = {
-  accentSoftTone: string;
-  accentTone: string;
   eventDates: Set<string>;
   onGoToday?: () => void;
   onMoveYear: (offset: number) => void;
@@ -18,7 +17,7 @@ type Props = {
 };
 
 // 1년 12달을 한눈에. 달을 누르면 그 달 보기로 갑니다. 일정 있는 날은 점으로 표시합니다.
-export function CalendarYearGrid({ accentSoftTone, accentTone, eventDates, onGoToday, onMoveYear, onSelectMonth, todayDateLabel, transitionDirection, year }: Props) {
+export function CalendarYearGrid({ eventDates, onGoToday, onMoveYear, onSelectMonth, todayDateLabel, transitionDirection, year }: Props) {
   const todayMonthKey = todayDateLabel.slice(0, 7);
   const { animatedStyle, swipeHandlers } = useCalendarSlide(String(year), transitionDirection, onMoveYear);
 

@@ -4,13 +4,13 @@ import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
+import { accentTone } from '../../theme/appTheme';
 
 type Tab<Key extends string> = { key: Key; label: string };
 
 // 목록·일·주·월·년 탭. 밑줄이 고른 탭으로 미끄러져 갑니다.
 // 누른 채로 좌우로 밀면 손가락 아래 탭으로 바로바로 바뀝니다(바뀔 때마다 가벼운 진동).
-export function CalendarViewTabs<Key extends string>({ accentTone, onChange, tabs, value }: {
-  accentTone: string;
+export function CalendarViewTabs<Key extends string>({ onChange, tabs, value }: {
   onChange: (key: Key) => void;
   tabs: Tab<Key>[];
   value: Key;

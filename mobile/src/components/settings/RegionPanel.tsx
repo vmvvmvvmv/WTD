@@ -9,13 +9,11 @@ import type { NotificationSettings, OutfitSettings, RegionState } from '../../ty
 import { isSameRegion } from '../../utils/dust';
 import { NotificationToggleRow } from '../shared/DustWidgets';
 import { AppActionIcon } from '../shared/AppActionIcon';
+import { accentTone } from '../../theme/appTheme';
 
 // Manages location, notification options, and favorite regions on the settings screen.
 export function RegionPanel({
   favoriteRegions,
-  accentBorderTone,
-  accentSoftTone,
-  accentTone,
   isLocating,
   isSavingNotificationSettings,
   isSendingTestNotification,
@@ -31,9 +29,6 @@ export function RegionPanel({
   selectedRegion,
 }: {
   favoriteRegions: RegionState[];
-  accentBorderTone: string;
-  accentSoftTone: string;
-  accentTone: string;
   isLocating: boolean;
   isSavingNotificationSettings: boolean;
   isSendingTestNotification: boolean;
@@ -94,7 +89,6 @@ export function RegionPanel({
           </View>
         </View>
         <NotificationToggleRow
-          accentTone={accentTone}
           description="홈은 오늘 하루 날씨, 캘린더는 일정 시간 날씨로 추천해요"
           label="옷차림 추천 보기"
           value={outfitSettings.enabled}
@@ -150,7 +144,6 @@ export function RegionPanel({
           </View>
         </View>
         <NotificationToggleRow
-          accentTone={accentTone}
           description="천식·호흡기 질환이 있거나 어린이·노약자라면 켜 주세요. 미세먼지 '보통'부터 조심하라고 알려 드려요"
           label="민감군 모드"
           value={outfitSettings.sensitiveMode}
@@ -170,7 +163,6 @@ export function RegionPanel({
           {isSavingNotificationSettings && <ActivityIndicator color={accentTone} />}
         </View>
         <NotificationToggleRow
-          accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable}
           description="앱의 모든 알림을 켜고 꺼요"
           label={'\uC54C\uB9BC \uBC1B\uAE30'}
@@ -178,7 +170,6 @@ export function RegionPanel({
           onValueChange={(value) => onToggleNotificationSetting('enabled', value)}
         />
         <NotificationToggleRow
-          accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
           description="일정마다 정한 시간 전에 그 시간대 날씨와 함께 알려 줘요"
           label={'\uC77C\uC815 \uC54C\uB9BC'}
@@ -186,7 +177,6 @@ export function RegionPanel({
           onValueChange={(value) => onToggleNotificationSetting('calendarReminders', value)}
         />
         <NotificationToggleRow
-          accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
           description="매일 아침 7시에 오늘 날씨를 알려 줘요. 일정 제목은 보내지 않고 날짜와 시간만 서버로 보내요"
           label={'\uC544\uCE68 \uB0A0\uC528 \uC54C\uB9BC'}
@@ -194,7 +184,6 @@ export function RegionPanel({
           onValueChange={(value) => onToggleNotificationSetting('weatherMorningAlerts', value)}
         />
         <NotificationToggleRow
-          accentTone={accentTone}
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
           description="미세먼지·초미세먼지가 나쁨이거나 오늘 예보가 나쁨이면 하루 한 번 알려 줘요"
           label="미세먼지 나쁨 알림"

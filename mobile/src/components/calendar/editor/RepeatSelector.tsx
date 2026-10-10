@@ -7,6 +7,7 @@ import { formatDateDisplay, parseDateParts, stepDatePart, weekdayLabels } from '
 import type { CalendarRepeatMode } from '../calendarRepeat';
 import { animatePickerLayout, formatMonthDay, pickerUnits } from './pickerShared';
 import type { DateTimeUnit } from './pickerShared';
+import { accentSoftTone, accentTone } from '../../../theme/appTheme';
 
 const repeatOptions: Array<{ label: string; value: CalendarRepeatMode }> = [
   { label: '안 함', value: 'none' },
@@ -42,13 +43,9 @@ function stepRepeatEndDate(value: string, unit: DateTimeUnit, direction: 1 | -1)
 }
 
 function RepeatDatePicker({
-  accentSoftTone,
-  accentTone,
   onChangeRepeatEndDate,
   repeatEndDate,
 }: {
-  accentSoftTone: string;
-  accentTone: string;
   onChangeRepeatEndDate: (value: string) => void;
   repeatEndDate: string;
 }) {
@@ -89,8 +86,6 @@ function RepeatDatePicker({
 }
 
 export function RepeatSelector({
-  accentSoftTone,
-  accentTone,
   onChangeRepeatEndDate,
   onChangeRepeatMode,
   onChangeRepeatWeekdays,
@@ -99,8 +94,6 @@ export function RepeatSelector({
   repeatWeekdays,
   startDate,
 }: {
-  accentSoftTone: string;
-  accentTone: string;
   onChangeRepeatEndDate: (value: string) => void;
   onChangeRepeatMode: (value: CalendarRepeatMode) => void;
   onChangeRepeatWeekdays: (value: number[]) => void;
@@ -183,8 +176,6 @@ export function RepeatSelector({
           </Pressable>
           {isRepeatDatePickerOpen && (
             <RepeatDatePicker
-              accentSoftTone={accentSoftTone}
-              accentTone={accentTone}
               onChangeRepeatEndDate={onChangeRepeatEndDate}
               repeatEndDate={repeatEndDate}
             />

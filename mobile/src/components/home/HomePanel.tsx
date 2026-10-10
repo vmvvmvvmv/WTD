@@ -22,6 +22,7 @@ import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRem
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
+import { accentTone } from '../../theme/appTheme';
 
 type HomeCircularGaugeProps = {
   gaugeSize?: number;
@@ -576,8 +577,6 @@ export function HomePanel({
   currentPm10,
   currentPm25,
   currentO3,
-  accentSoftTone,
-  accentTone,
   calendarEvents,
   eventLocationForecasts,
   onDeleteCalendarEvent,
@@ -603,8 +602,6 @@ export function HomePanel({
   currentPm10?: number;
   currentPm25?: number;
   currentO3?: number;
-  accentSoftTone: string;
-  accentTone: string;
   calendarEvents?: CalendarEvent[];
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   onDeleteCalendarEvent?: (eventId: string) => void;
