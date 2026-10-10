@@ -63,6 +63,7 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     outfitSettings = {
       enabled: parsed.enabled !== false,
       figure: parsed.figure === 'female' ? 'female' : 'male',
+      sensitiveMode: parsed.sensitiveMode === true,
       sensitivity: ['cold', 'normal', 'hot'].includes(parsed.sensitivity ?? '') ? parsed.sensitivity as OutfitSettings['sensitivity'] : 'normal',
     };
   } catch {

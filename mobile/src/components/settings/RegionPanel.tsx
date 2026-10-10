@@ -143,6 +143,24 @@ export function RegionPanel({
       <View style={styles.settingsSection}>
         <View style={styles.settingsSectionHeader}>
           <View style={styles.settingsSectionIcon}>
+            <Ionicons color={accentTone} name="heart-outline" size={24} />
+          </View>
+          <View style={styles.settingsSectionTitleGroup}>
+            <Text style={styles.settingsSectionTitle}>건강</Text>
+          </View>
+        </View>
+        <NotificationToggleRow
+          accentTone={accentTone}
+          description="천식·호흡기 질환이 있거나 어린이·노약자라면 켜 주세요. 미세먼지 '보통'부터 조심하라고 알려 드려요"
+          label="민감군 모드"
+          value={outfitSettings.sensitiveMode}
+          onValueChange={(value) => onUpdateOutfitSetting('sensitiveMode', value)}
+        />
+      </View>
+
+      <View style={styles.settingsSection}>
+        <View style={styles.settingsSectionHeader}>
+          <View style={styles.settingsSectionIcon}>
             <AppActionIcon name="notification" size={25} />
           </View>
           <View style={styles.settingsSectionTitleGroup}>

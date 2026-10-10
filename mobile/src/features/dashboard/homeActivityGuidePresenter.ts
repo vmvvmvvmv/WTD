@@ -35,7 +35,7 @@ function includesWeather(label: string | undefined, words: string[]) {
   return words.some((word) => normalized.includes(word));
 }
 
-function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult) {
+function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult, sensitiveMode: boolean) {
   if (risk.level === 'unknown') return '아직 예보가 없어요. 가까운 날 다시 확인해 주세요.';
   if (!hasWeatherForecast(risk)) return '예보가 들어오면 여기에 바로 반영돼요.';
 
@@ -48,7 +48,7 @@ function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult) {
   if (hasRainRisk(risk)) return '우산 챙기셨나요? 이동 시간도 조금 여유 있게 잡으세요.';
 
   if ((risk.windSpeed ?? 0) >= 8) return '바람이 강해요. 바람막이가 있으면 좋겠어요.';
-  if ((risk.pm10 ?? 0) > (event.sensitive ? 30 : 80)) return '오늘은 마스크를 챙기고 오래 밖에 있지 마세요.';
+  if ((risk.pm10 ?? 0) > (event.sensitive || sensitiveMode ? 30 : 80)) return '오늘은 마스크를 챙기고 오래 밖에 있지 마세요.';
   if (risk.level === 'bad') return '가능하면 외출 시간을 조금 조정해 보세요.';
   if (risk.level === 'adjust') return '나가기 전에 날씨와 공기를 한 번 더 확인해 주세요.';
   if (event.activityType === 'indoor') return '실내 일정이라 날씨 걱정은 덜어도 되겠어요.';
@@ -103,6 +103,7 @@ export function buildHomeActivityGuideItems(
   riskByEvent: Record<string, CalendarRiskResult>,
   currentDate: string,
   currentTime: string,
+  sensitiveMode = false,
 ): HomeActivityGuideItem[] {
   return events.flatMap((event) => {
     const risk = riskByEvent[event.id];
@@ -112,7 +113,7 @@ export function buildHomeActivityGuideItems(
     const location = [event.locationCity, event.locationRegion].filter(Boolean).join(' ') || event.location || '';
     return [{
       activityType: event.activityType,
-      advice: buildAdvice(event, risk),
+      advice: buildAdvice(event, risk, sensitiveMode),
       forecastLabel: activityForecastLabel(risk),
       id: event.id,
       isCompleted: isEventCompleted(event, currentDate, currentTime),

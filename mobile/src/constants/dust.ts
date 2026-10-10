@@ -26,6 +26,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
 export const DEFAULT_OUTFIT_SETTINGS: OutfitSettings = {
   enabled: true,
   figure: 'male',
+  sensitiveMode: false,
   sensitivity: 'normal',
 };
 
