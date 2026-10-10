@@ -1,5 +1,3 @@
-import { semanticColors } from '../../theme/semanticColors';
-
 export type OutingIndexInput = {
   pm10?: number;
   rainMm?: number;
@@ -57,20 +55,3 @@ export function calculateOutingIndex({ pm10, rainMm, rainProbability, temperatur
   }
   return clampOutingIndex(score);
 }
-
-export function getOutingGrade(score?: number) {
-  if (typeof score !== 'number') return '확인 중';
-  if (score >= 82) return '좋음';
-  if (score >= 62) return '무난';
-  if (score >= 42) return '주의';
-  return '경고';
-}
-
-export function getOutingSemanticTone(score?: number) {
-  if (typeof score !== 'number') return semanticColors.outing.unavailable;
-  if (score >= 62) return semanticColors.outing.fit;
-  if (score >= 42) return semanticColors.outing.caution;
-  return semanticColors.outing.unfit;
-}
-
-export function getOutingTone(score?: number) { return getOutingSemanticTone(score).tone; }
