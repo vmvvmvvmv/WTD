@@ -1,12 +1,14 @@
-﻿import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
-import type { NotificationSettings, OutfitSettings, RegionState } from '../../types/dust';
-import { isSameRegion } from '../../utils/dust';
+import type { OutfitSettings } from '../../types/outfit';
+import type { RegionState } from '../../types/region';
+import type { NotificationSettings } from '../../types/settings';
+import { isSameRegion } from '../../features/region/regionUtils';
 import { NotificationToggleRow } from '../shared/DustWidgets';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { accentTone } from '../../theme/appTheme';

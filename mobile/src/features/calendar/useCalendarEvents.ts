@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 import { withoutFollowingOccurrences } from '../../components/calendar/calendarRepeat';
 import { saveCalendarEvents } from '../../storage/appStorage';
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 
 export function useCalendarEvents(hasLoadedStore: boolean) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);

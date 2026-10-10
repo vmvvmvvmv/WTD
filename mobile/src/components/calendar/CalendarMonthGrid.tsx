@@ -2,7 +2,7 @@ import { Animated, Pressable, Text, View } from 'react-native';
 import { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { CalendarDayCell } from './CalendarDayCell';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import type { CalendarMonthCell } from './calendarUtils';

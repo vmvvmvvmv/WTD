@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react';
 
 import { DEFAULT_CITY, DEFAULT_REGION, DEFAULT_REGION_STATE } from '../../constants/dust';
 import { saveFavoriteRegions, saveGpsRegion, saveSelectedRegion } from '../../storage/appStorage';
-import type { RegionState, StationDustItem } from '../../types/dust';
-import { haversineKm, isSameRegion, normalizeLatLng } from '../../utils/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import { isSameRegion } from './regionUtils';
+import { haversineKm, normalizeLatLng } from '../../utils/geo';
 
 const MAX_FAVORITES = 15;
 

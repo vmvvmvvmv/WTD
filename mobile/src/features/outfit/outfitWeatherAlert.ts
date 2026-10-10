@@ -1,4 +1,4 @@
-import type { OutfitRecommendation } from '../../types/dust';
+import type { OutfitRecommendation } from '../../types/outfit';
 
 export type OutfitWeatherAlert = {
   detail: string;

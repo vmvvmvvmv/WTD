@@ -1,6 +1,7 @@
-import type { PastDustItem, WeatherState } from '../../types/dust';
+import type { PastDustItem } from '../../types/dust';
+import type { WeatherState } from '../../types/weather';
 import { semanticColors } from '../../theme/semanticColors';
-import { toNumber } from '../../utils/dust';
+import { toNumber } from '../../utils/format';
 import { getAirQualityMeta } from '../airQuality/airQualityGrade';
 
 export type HomeMetricSlide = {

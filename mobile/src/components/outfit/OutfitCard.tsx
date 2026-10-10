@@ -18,7 +18,8 @@ import Animated, {
 
 import { buildOutfitWeatherAlert } from '../../features/outfit/outfitWeatherAlert';
 import { useOutfitRecommendation } from '../../features/outfit/useOutfitRecommendation';
-import type { CalendarEvent, OutfitFigure, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { OutfitFigure, OutfitRecommendation, OutfitSensitivity } from '../../types/outfit';
 import { MustHaveIcon, OutfitIcon } from './OutfitIcon';
 import { OUTFIT_MOTION } from './motion';
 import { outfitStyles } from './outfitStyles';

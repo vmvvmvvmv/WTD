@@ -3,8 +3,10 @@ import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'r
 
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
-import type { RegionState, StationDustItem } from '../../types/dust';
-import { isSameRegion, stationIdentity } from '../../utils/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import { isSameRegion } from '../../features/region/regionUtils';
+import { stationIdentity } from '../../features/stations/stationUtils';
 import { accentTone } from '../../theme/appTheme';
 
 type Props = {

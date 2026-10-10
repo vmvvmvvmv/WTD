@@ -3,7 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../../styles/appStyles';
 import { textColors } from '../../../theme/bauhaus';
-import type { CalendarEvent } from '../../../types/dust';
+import type { CalendarEvent } from '../../../types/calendar';
 import { accentTone } from '../../../theme/appTheme';
 
 export type CalendarActivityInput = CalendarEvent['activityType'];

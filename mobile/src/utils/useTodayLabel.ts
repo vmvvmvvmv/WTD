@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppState } from 'react-native';
 
-import { toIsoDate } from './dust';
+import { toIsoDate } from './date';
 
 // 오늘 날짜(폰 시간 0시 기준, 'YYYY-MM-DD'). 앱을 켜 둔 채 자정을 넘기거나 다시 열어도 바로 바뀝니다.
 export function useTodayLabel() {

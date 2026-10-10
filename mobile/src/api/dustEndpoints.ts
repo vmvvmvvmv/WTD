@@ -1,5 +1,7 @@
 import { API_URL, APP_TEST_TOKEN } from '../config/runtime';
-import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity, RegionState } from '../types/dust';
+import type { CalendarEvent } from '../types/calendar';
+import type { OutfitRecommendation, OutfitSensitivity } from '../types/outfit';
+import type { RegionState } from '../types/region';
 
 type QueryValue = string | number | boolean | null | undefined;
 

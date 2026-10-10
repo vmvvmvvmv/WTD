@@ -1,6 +1,9 @@
 import { getHourlyDust, getKoreaStations, getOptionalCurrentDust, getPastDust, getPrediction } from '../../api/dustEndpoints';
-import type { CurrentDustItem, PastDustItem, RegionState, StationDustItem } from '../../types/dust';
-import { addDays, normalizeLatLng, normalizePredictionResponse, toCompactDate } from '../../utils/dust';
+import type { CurrentDustItem, PastDustItem, StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import { normalizePredictionResponse } from './predictionResponse';
+import { addDays, toCompactDate } from '../../utils/date';
+import { normalizeLatLng } from '../../utils/geo';
 import { loadStoredWeather } from '../weather/weatherData';
 import { buildDashboardHourlyItems, findStationForWeather } from './dashboardData';
 import type { DashboardCacheSnapshot } from './dashboardCache';

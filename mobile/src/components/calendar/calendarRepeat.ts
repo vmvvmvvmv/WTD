@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { addMinutesToDateTime, formatDate, makeCalendarId, parseDateParts } from './calendarUtils';
 
 export type CalendarRepeatMode = 'none' | 'yearly' | 'monthly' | 'weekly' | 'daily';

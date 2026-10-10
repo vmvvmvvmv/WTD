@@ -1,4 +1,5 @@
-import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { OutfitRecommendation, OutfitSensitivity } from '../../types/outfit';
 
 const memoryCache = new Map<string, OutfitRecommendation>();
 

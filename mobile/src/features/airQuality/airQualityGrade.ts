@@ -35,3 +35,17 @@ export function getAirQualityMeta(metric: AirQualityMetric, value?: number) {
     ...semanticColors.airQuality[grade],
   };
 }
+
+// 지도 정보창에서 쓰는 등급 글자·색.
+export function getPm10Label(value?: number) { return getAirQualityMeta('pm10', value).label; }
+export function getPm25Label(value?: number) { return getAirQualityMeta('pm25', value).label; }
+export function getO3Label(value?: number) { return getAirQualityMeta('o3', value).label; }
+export function getPm10Tone(value?: number) { return getAirQualityMeta('pm10', value).tone; }
+export function getPm25Tone(value?: number) { return getAirQualityMeta('pm25', value).tone; }
+export function getO3Tone(value?: number) { return getAirQualityMeta('o3', value).tone; }
+
+// 지도 정보창 PM10 막대 길이(0~100%).
+export function getPm10Progress(value?: number) {
+  if (typeof value !== 'number') return 0;
+  return Math.max(4, Math.min(100, (value / 150) * 100));
+}

@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { styles } from '../styles/appStyles';
-import type { TabKey } from '../types/dust';
+import type { TabKey } from '../types/navigation';
 import { tabRoutes } from './routes';
 import { accentBorderTone, accentTone } from '../theme/appTheme';
 

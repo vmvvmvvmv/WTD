@@ -2,7 +2,8 @@ import { useEffect, useRef } from 'react';
 import { BackHandler, Keyboard } from 'react-native';
 
 import { weatherStateFromStation } from '../../features/weather/weatherData';
-import type { StationDustItem, TabKey } from '../../types/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { TabKey } from '../../types/navigation';
 import type { useMapSearch } from './useMapSearch';
 
 type MapSearch = ReturnType<typeof useMapSearch>;

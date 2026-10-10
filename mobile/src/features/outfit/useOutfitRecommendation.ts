@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ApiHttpError, postDailyOutfitRecommendation, postOutfitRecommendation } from '../../api/dustEndpoints';
-import type { CalendarEvent, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { OutfitRecommendation, OutfitSensitivity } from '../../types/outfit';
 import { clearCachedOutfit, getCachedOutfit, getLastOutfit, outfitCacheKeyForEvents, setCachedOutfit } from './outfitCache';
 
 export type OutfitLoadStatus = 'idle' | 'loading' | 'ready' | 'error' | 'unavailable';

@@ -2,7 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
-import type { CalendarEvent, HourlyDustItem, OutfitFigure, OutfitSensitivity, PredictionResponse, WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
+import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
+import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';

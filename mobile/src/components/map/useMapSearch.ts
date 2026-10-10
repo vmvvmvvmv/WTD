@@ -4,8 +4,11 @@ import type { WebView as WebViewType } from 'react-native-webview';
 
 import { loadStoredWeather, weatherStateFromStation } from '../../features/weather/weatherData';
 import { saveMapRecentSearches } from '../../storage/appStorage';
-import type { RegionState, StationDustItem, WeatherState } from '../../types/dust';
-import { normalizeLatLng, normalizeSearchText, stationIdentity, uniqueStations } from '../../utils/dust';
+import type { StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import type { WeatherState } from '../../types/weather';
+import { normalizeSearchText, stationIdentity, uniqueStations } from '../../features/stations/stationUtils';
+import { normalizeLatLng } from '../../utils/geo';
 
 export function findStationSuggestions(stations: StationDustItem[], searchText: string, limit: number) {
   const keyword = normalizeSearchText(searchText.trim());

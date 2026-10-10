@@ -1,6 +1,6 @@
 import { Alert } from 'react-native';
 
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 
 // 일정 삭제 전 확인. 반복 일정이면 "이 일정만 / 이후 일정 모두"를 고르게 한다(캘린더·홈 공통).
 export function confirmCalendarEventRemoval(event: CalendarEvent, actions: { removeFollowing: () => void; removeOne: () => void }) {

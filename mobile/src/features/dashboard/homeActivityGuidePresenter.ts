@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { type CalendarRiskLevel, type CalendarRiskResult, rainFreeSuggestionText } from '../../components/calendar/calendarRiskEvaluator';
 import { semanticColors, type SemanticTone } from '../../theme/semanticColors';
 import { getWeatherVisualKind } from '../../utils/weather';

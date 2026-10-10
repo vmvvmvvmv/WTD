@@ -2,8 +2,12 @@ import { useEffect, useState } from 'react';
 import { getHourlyDust, getHourlyWeather, getMidTermWeather, getOptionalCurrentDust, getPrediction } from '../../api/dustEndpoints';
 import type { CalendarLocationForecast } from '../../components/calendar/calendarForecast';
 import { calendarEventLocationKey } from '../../components/calendar/calendarLocation';
-import type { CalendarEvent, CurrentDustItem, WeatherHourlyItem, WeatherMidTermItem } from '../../types/dust';
-import { addDays, normalizePredictionResponse, toCompactDate, toNumber } from '../../utils/dust';
+import type { CalendarEvent } from '../../types/calendar';
+import type { CurrentDustItem } from '../../types/dust';
+import type { WeatherHourlyItem, WeatherMidTermItem } from '../../types/weather';
+import { normalizePredictionResponse } from '../dashboard/predictionResponse';
+import { addDays, toCompactDate } from '../../utils/date';
+import { toNumber } from '../../utils/format';
 import { buildDashboardHourlyItems, buildDashboardWeatherHourlyItems } from '../dashboard/dashboardData';
 import { weatherStateFromHourlyItem } from '../weather/weatherData';
 

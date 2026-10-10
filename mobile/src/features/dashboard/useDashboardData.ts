@@ -2,18 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 
 import { ApiHttpError, getCurrentDust } from '../../api/dustEndpoints';
-import type {
-  CurrentDustItem,
-  HourlyDustItem,
-  PastDustItem,
-  PredictionResponse,
-  RegionState,
-  StationDustItem,
-  WeatherHourlyItem,
-  WeatherMidTermItem,
-  WeatherState,
-} from '../../types/dust';
-import { isSameRegion } from '../../utils/dust';
+import type { CurrentDustItem, HourlyDustItem, PastDustItem, PredictionResponse, StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
+import { isSameRegion } from '../region/regionUtils';
 import { loadStoredWeather } from '../weather/weatherData';
 import { loadDashboardCache, saveDashboardCache } from './dashboardCache';
 import { hasCompleteDashboardCache } from './dashboardCachePolicy';

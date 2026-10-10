@@ -1,7 +1,7 @@
-﻿import { Platform } from 'react-native';
+import { Platform } from 'react-native';
 
 import { EAS_PROJECT_ID, IS_EXPO_GO } from '../config/runtime';
-import type { CalendarEvent } from '../types/dust';
+import type { CalendarEvent } from '../types/calendar';
 
 export type CalendarNotificationRisk = {
   pm10?: number;

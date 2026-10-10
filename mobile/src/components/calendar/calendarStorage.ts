@@ -1,4 +1,4 @@
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 
 // Calendar events are stored locally, so validate every persisted field before putting it back into app state.
 export function parseStoredCalendarEvents(value: string | null): CalendarEvent[] {

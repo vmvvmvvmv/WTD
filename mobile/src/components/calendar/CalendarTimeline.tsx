@@ -3,7 +3,7 @@ import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
-import type { CalendarEvent } from '../../types/dust';
+import type { CalendarEvent } from '../../types/calendar';
 import { CalendarDayCell } from './CalendarDayCell';
 import { useCalendarSlide } from './useCalendarSlide';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';

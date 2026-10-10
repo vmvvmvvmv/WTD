@@ -1,6 +1,6 @@
 import type { AppActionIconName } from '../../components/shared/AppActionIcon';
-import type { WeatherHourlyItem } from '../../types/dust';
-import { toNumber } from '../../utils/dust';
+import type { WeatherHourlyItem } from '../../types/weather';
+import { toNumber } from '../../utils/format';
 import { isRainyWeather } from '../outing/outingIndex';
 import { type BestOutingWindow, bestOutingWindowText } from './bestOutingWindow';
 

@@ -1,15 +1,8 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
-import type {
-  CurrentDustItem,
-  HourlyDustItem,
-  PastDustItem,
-  PredictionResponse,
-  RegionState,
-  WeatherHourlyItem,
-  WeatherMidTermItem,
-  WeatherState,
-} from '../../types/dust';
+import type { CurrentDustItem, HourlyDustItem, PastDustItem, PredictionResponse } from '../../types/dust';
+import type { RegionState } from '../../types/region';
+import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 
 const CACHE_DIR = `${FileSystem.documentDirectory ?? ''}dashboard-cache`;
 const CACHE_TTL_MS = 5 * 60 * 1000;
