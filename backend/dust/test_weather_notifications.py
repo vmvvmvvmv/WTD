@@ -1,99 +1,66 @@
-from datetime import date, datetime, timezone
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from django.test import SimpleTestCase
+from django.utils import timezone
 
-from dust.weather_morning_notifications import WeatherRisk, build_weather_morning_body
+from dust.weather_morning_notifications import build_weather_morning_message, hour_blocks_text
 
 
-def risk_with(*, cold=False, heat=False, rain=False, thunder=False, wind=False, temperatures=()):
-    points = [SimpleNamespace(
-        measured_at=datetime(2026, 10, 5, 9 + index, tzinfo=timezone.utc),
-        rain_probability=None,
+def point(hour, *, label='맑음', pty='0', rain_mm=None, rain_probability=10, temperature=18.0, wind_speed=2.0):
+    measured_at = timezone.make_aware(datetime(2026, 10, 11, 0, 0)) + timedelta(hours=hour)
+    return SimpleNamespace(
+        label=label,
+        measured_at=measured_at,
+        precipitation_type=pty,
+        rain_mm=rain_mm,
+        rain_probability=rain_probability,
         temperature=temperature,
-    ) for index, temperature in enumerate(temperatures)]
-    marker = points[0] if points else SimpleNamespace(
-        measured_at=datetime(2026, 10, 5, 9, tzinfo=timezone.utc),
-        rain_probability=None,
-        temperature=None,
-    )
-    return WeatherRisk(
-        points=points,
-        rain_points=[marker] if rain else [],
-        snow_cold_points=[marker] if cold else [],
-        wind_points=[marker] if wind else [],
-        thunder_points=[marker] if thunder else [],
-        heat_points=[marker] if heat else [],
+        wind_speed=wind_speed,
     )
 
 
-class WeatherNotificationPriorityTests(SimpleTestCase):
-    def test_snow_or_cold_leads_over_thunder_and_heat(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(cold=True, heat=True, thunder=True),
-            [],
-        )
+class HourBlocksTests(SimpleTestCase):
+    def test_separate_blocks_are_not_merged(self):
+        self.assertEqual(hour_blocks_text([6, 7, 15, 16, 17]), '6~8시, 15~18시')
+        self.assertEqual(hour_blocks_text([6, 9, 12]), '6~7시, 9~10시 등')
 
-        self.assertIn("기온이 낮거나 눈이 올 수 있어요", body)
-        self.assertNotIn("천둥·번개", body)
-        self.assertNotIn("물을 꼭 챙기세요", body)
 
-    def test_rain_and_wind_are_combined_before_heat(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(heat=True, rain=True, wind=True),
-            [],
-        )
+class WeatherMorningMessageTests(SimpleTestCase):
+    def test_every_hazard_is_listed_with_its_own_time(self):
+        points = [point(7), point(8, label='비', rain_probability=80), point(9, label='비', rain_probability=70),
+                  point(13, wind_speed=9.4), point(14, wind_speed=8.2), point(20, label='비', rain_probability=60)]
+        title, body = build_weather_morning_message('강남구', points, [])
+        self.assertEqual(title, '오늘 강남구 날씨')
+        first = body.split('\n')[0]
+        self.assertEqual(first, '비 8~10시, 20~21시(최대 80%) · 강한 바람 13~15시(최대 9m/s)')
+        self.assertIn('챙길 것: 우산 · 바람막이', body)
 
-        self.assertIn("비와 강한 바람이 예상돼요", body)
-        self.assertNotIn("물을 꼭 챙기세요", body)
+    def test_snow_and_freezing_are_reported_separately(self):
+        points = [point(7, temperature=-3.0), point(8, label='눈', pty='3', temperature=-1.0), point(14, temperature=4.0)]
+        _, body = build_weather_morning_message('강남구', points, [])
+        self.assertTrue(body.startswith('눈 8~9시'))
+        self.assertIn('기온 -3~4° (기상청 예보)', body)
+        self.assertIn('미끄럽지 않은 신발 · 두꺼운 겉옷', body)
 
-    def test_temperature_range_is_included_for_rain_notification(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(rain=True, temperatures=(18.2, 22.4, 20.1)),
-            [],
-        )
+    def test_event_times_say_which_hazard_hits_them(self):
+        points = [point(9), point(15, label='비', rain_probability=80), point(16)]
+        title, body = build_weather_morning_message('강남구', points, [{'date': '2026-10-11', 'time': '09:00'}, {'date': '2026-10-11', 'time': '15:30', 'title': '병원'}])
+        self.assertEqual(title, '오늘 강남구 날씨 · 일정 2개')
+        self.assertIn('일정 09:00, 15:30 · 15:30 일정 때 비', body)
+        self.assertNotIn('병원', body)  # 일정 제목은 서버에 두지 않으므로 문구에도 쓰지 않는다.
 
-        self.assertIn("예상 기온 18~22°C", body)
-        self.assertIn("비가 올 수 있어요. 우산을 챙기세요", body)
-        self.assertNotIn("예상예요", body)
+    def test_big_temperature_range_and_heat(self):
+        points = [point(7, temperature=19.0), point(14, temperature=31.0)]
+        _, body = build_weather_morning_message('강남구', points, [])
+        self.assertIn('기온 19~31° · 일교차 12° (기상청 예보)', body)
+        self.assertIn('챙길 것: 얇은 겉옷 · 물·양산', body)
 
-    def test_single_temperature_is_included_for_normal_notification(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(temperatures=(21.6,)),
-            [],
-        )
+    def test_thunder_tells_to_stay_inside(self):
+        _, body = build_weather_morning_message('강남구', [point(15, label='천둥번개')], [])
+        self.assertIn('천둥·번개 15~16시', body)
+        self.assertIn('천둥·번개 때는 실내에 머무세요', body)
 
-        self.assertIn("예상 기온 22°C", body)
-
-    def test_event_summary_uses_readable_time_first_format(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(temperatures=(21.6,)),
-            [{"title": "업무 회의", "time": "09:00"}],
-        )
-
-        self.assertIn("09:00 일정이 있어요", body)
-        self.assertNotIn("업무 회의", body)  # 일정 제목은 서버에 두지 않으므로 문구에도 쓰지 않는다.
-        self.assertNotIn("[", body)
-
-    def test_hot_weather_mentions_water_and_parasol(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(heat=True, temperatures=(31.0, 33.0)),
-            [],
-        )
-
-        self.assertIn("물과 양산을 챙기고", body)
-
-    def test_normal_weather_copy_is_short(self):
-        body = build_weather_morning_body(
-            date(2026, 10, 5),
-            risk_with(temperatures=(20.0, 23.0)),
-            [],
-        )
-
-        self.assertIn("큰 날씨 변화가 없어요", body)
+    def test_calm_day_is_short(self):
+        _, body = build_weather_morning_message('강남구', [point(9, temperature=20.0), point(15, temperature=23.0)], [])
+        self.assertEqual(body, '비·눈 예보 없음\n기온 20~23° (기상청 예보)')
