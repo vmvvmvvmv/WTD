@@ -724,3 +724,9 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 템플릿의 인라인 JavaScript 값은 `_script_json`으로 `<`, `>`, `&`를 이스케이프한다. Naver Maps 클라이언트 ID도 JavaScript 문자열로 안전하게 넣고 SDK URL에는 URL 인코딩해 붙인다.
 - 존재하지 않는 `build/index.html`을 가리키던 Django React SPA catch-all과 `build` 템플릿·정적 파일 설정을 제거했다. 기존 `/app/` 페이지와 `/api/`, `/dust/`, `/outfit/` 라우팅은 유지했다. 모바일에서 참조되지 않는 임시 `screens/MapScreen.tsx`도 제거했다.
 - 검증: 지도 렌더링·비/눈/바람 아이콘·모드 전환·스크립트 입력 이스케이프·오래된 경로 404·기존 `/app/` 템플릿 테스트 포함 백엔드 88건 통과, 모바일 TypeScript typecheck 통과. 실기기 WebView에서 실제 지도 SDK 로드·마커·검색은 추가 확인 필요.
+
+## 55. 2026-10-10 산책 시간 아이콘 PNG + 미세먼지 알림 앱 연결 확인 (Claude)
+
+- 홈 "산책하기 좋은 시간" 줄 아이콘: Ionicons walk-outline → 앱 그림체의 걷는 사람 PNG(`AppActionIcon name="activityOutdoor" size={26}`), 좋은 시간이 없으면 흐리게(opacity 0.45). 쓰지 않게 된 bauhaus import 제거. 커밋 `72e7d49`.
+- 54장의 "남은 연결"은 Codex 리팩터(`bd91009`)의 `useNotificationSettings.ts`에 이미 들어갔다(등록 요청 `dustSpikeAlerts`, effect 의존성, 토글 메시지). 남은 것은 운영 서버 migrate와 timer 추가.
+- 검증: pre-commit tsc 통과, 모바일 테스트 34건.
