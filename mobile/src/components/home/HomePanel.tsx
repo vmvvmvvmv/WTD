@@ -908,12 +908,7 @@ export function HomePanel({
                     <AppActionIcon name={guide.icon} size={30} />
                   </View>
                   <View style={styles.activityGuideTextGroup}>
-                    <View style={styles.activityGuideTitleRow}>
-                      <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{guide.title}</Text>
-                      <View style={styles.activityGuideCompletedBadge}>
-                        <Text style={styles.activityGuideCompletedBadgeText}>기본</Text>
-                      </View>
-                    </View>
+                    <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{guide.title}</Text>
                     <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{guide.detail}</Text>
                   </View>
                 </Pressable>
