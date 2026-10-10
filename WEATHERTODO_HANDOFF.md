@@ -699,3 +699,14 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - 원인: 일정·예보 변경 시 기존 예약을 먼저 전부 취소했고, 개별 예약 실패는 빈 ID 목록으로 넘겼다. Expo 예약 함수도 같은 ID의 기존 알림을 먼저 취소했다.
 - 수정: Expo가 생성한 고유 ID로 새 알림을 예약한다. 전부 예약하고 새 ID 목록을 저장한 뒤에만 이전 ID를 취소한다. 예약·저장 실패 시 새로 생성한 알림만 정리하고 기존 알림을 유지한다. 빠른 변경으로 여러 동기화가 겹치지 않도록 순서대로 실행한다.
 - 검증: 실패 재현 테스트는 수정 전 실패, 수정 후 통과. 부분 예약 실패·저장 실패·정상 교체를 포함한 알림 테스트 4건, 모바일 전체 테스트 33건, TypeScript typecheck 통과. 변경 파일 ESLint 오류 0(기존 경고 26개). 실기기에서 일정 알림 예약·변경·삭제 확인 필요.
+
+## 54. 2026-10-10 미세먼지 나쁨 알림 + 아침 알림 FieldError 수정 (Claude)
+
+- 먼저 고친 버그(`c2a9000`): `weather_morning_notifications._station_for_region`이 `AirQualityStation`을 없는 필드 `station_name`으로 조회해 `send_dust_notifications`(아침 날씨 알림)가 매번 FieldError로 멈췄다(weather_morning_notifications.log에 기록). `_find_air_quality_station` + `station.name`으로 수정, 로컬 dry-run에서 2건 생성 확인.
+- 새 명령 `send_dust_spike_notifications`(`dust/dust_spike_notifications.py`, `3155a7c`): 측정값(최근 2시간 안)이 PM10 80 초과면 "지금 미세먼지 나쁨(PM10 95㎍/㎥)이에요. 마스크 챙기세요.", 아니면 오늘 남은 HourlyDustPrediction 중 처음 80을 넘는 시각으로 "오후 3시부터 미세먼지 나쁨이 예상돼요." 150 초과는 "매우 나쁨". 기기·날짜별 하루 한 번(DustNotificationLog type `dust_spike`), 22~07시는 보내지 않음(`--force`로 무시), 같은 지역은 한 번만 계산. `--dry-run` 지원.
+- `NotificationDevice.dust_spike_alerts`(기본 False, 마이그레이션 0014, 로컬 DB 적용함), 등록 API `dustSpikeAlerts`.
+- `collect_hourly.bat` 마지막 단계로 추가. **운영(Lightsail systemd timer)에도 같은 단계 추가와 `migrate` 필요.**
+- 앱: `NotificationSettings.dustSpikeAlerts`(기본 켜짐), 설정 > 알림에 "미세먼지 나쁨 알림" 스위치, `registerNotificationDevice`에 `dustSpikeAlerts` 인자.
+- **남은 연결(Codex 작업과 겹쳐 보류)**: Codex가 진행 중인 `mobile/src/notifications/useNotificationSettings.ts`에서 ① 켜짐 상태 `registerNotificationDevice({...})`에 `dustSpikeAlerts: settings.dustSpikeAlerts,` ② effect 의존성에 `settings.dustSpikeAlerts` ③ 토글 메시지 분기 `dustSpikeAlerts` → '미세먼지 나쁨 알림을 켰어요/껐어요'. 연결 전까지는 서버에 false로 전달되어 알림이 가지 않는다.
+- 참고: 로컬 DB의 서울 강남구 시간별 예측은 오늘 08시까지만 있어(예측 생성이 일부 측정소만 갱신) 지금은 주로 측정값 기준으로 동작한다.
+- 검증: 백엔드 테스트 28건(새 5건: 지금 나쁨, 첫 나쁨 예측 시각, 오늘 안 넘으면 없음, 조용한 시간, 한 번 보내고 기록), 모바일 tsc·테스트 34건·babel 통과.
