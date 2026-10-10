@@ -657,7 +657,7 @@ export const styles = StyleSheet.create({
   calendarEditorCard: { backgroundColor: bauhausColors.white, gap: 10, padding: 14, ...handDrawnCardShape, ...bauhausSmallShadow },
   calendarListCard: { backgroundColor: bauhausColors.white, gap: 8, padding: 14, ...handDrawnCardShape, ...bauhausSmallShadow },
   calendarSelectionSheet: { backgroundColor: bauhausColors.white, bottom: 78, gap: 10, left: 0, marginHorizontal: 0, maxHeight: 245, paddingHorizontal: 14, paddingTop: 8, paddingBottom: 14, position: 'absolute', right: 0, ...handDrawnCardShape, ...bauhausMediumShadow, zIndex: 4 },
-  calendarDaySheet: { backgroundColor: bauhausColors.white, borderTopLeftRadius: 24, borderTopRightRadius: 24, bottom: 0, gap: 10, left: 0, maxHeight: 330, paddingHorizontal: 14, paddingTop: 0, paddingBottom: 14, position: 'absolute', right: 0, ...bauhausMediumShadow, shadowOffset: { width: 0, height: -4 }, zIndex: 4 },
+  calendarDaySheet: { backgroundColor: bauhausColors.white, borderRadius: 0, bottom: 0, gap: 10, left: 0, maxHeight: 330, paddingHorizontal: 14, paddingTop: 0, paddingBottom: 14, position: 'absolute', right: 0, ...bauhausMediumShadow, shadowOffset: { width: 0, height: -4 }, zIndex: 4 },
   calendarDaySheetDragArea: { alignItems: 'center', minHeight: 30, justifyContent: 'center' },
   calendarDaySheetList: { flex: 1, minHeight: 0 },
   calendarDaySheetListExpanded: { flex: 1, maxHeight: '100%' },
