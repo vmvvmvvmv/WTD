@@ -15,13 +15,13 @@ const WEATHER_ICON_SOURCES = {
 
 // Visible artwork bounds in each 256px PNG canvas (alpha > 32).
 const WEATHER_ICON_BOUNDS = {
-  clear: [61, 61, 195, 195],
-  partlyCloudy: [41, 41, 228, 195],
-  cloudy: [46, 77, 220, 173],
-  rain: [46, 77, 220, 216],
-  snow: [46, 77, 220, 227],
-  wind: [31, 77, 220, 233],
-  thunder: [46, 77, 220, 243],
+  clear: [61, 61, 196, 196],
+  partlyCloudy: [41, 41, 229, 196],
+  cloudy: [46, 77, 221, 174],
+  rain: [46, 77, 221, 228],
+  snow: [46, 77, 221, 237],
+  wind: [30, 77, 221, 235],
+  thunder: [46, 77, 221, 244],
 } as const satisfies Record<keyof typeof WEATHER_ICON_SOURCES, readonly [number, number, number, number]>;
 
 const WEATHER_ICON_LABELS: Record<WeatherIconKind, string> = {
@@ -41,7 +41,7 @@ export function weatherIconKind(label?: string | null, windSpeed?: number | null
   if (/눈|snow/.test(value)) return 'snow';
   if (/비|소나기|강수|rain|shower/i.test(value)) return 'rain';
   if (/강풍|강한 바람|wind/i.test(value) || (windSpeed != null && windSpeed >= 8)) return 'wind';
-  if (/구름 조금|구름 많|partly/i.test(value)) return 'partlyCloudy';
+  if (/구름\s*(?:조금|많)|partly/i.test(value)) return 'partlyCloudy';
   if (/흐림|구름|안개|cloud|fog/i.test(value)) return 'cloudy';
   if (/맑음|clear|sun/i.test(value)) return 'clear';
   return value ? 'clear' : 'unknown';
