@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { ActivityIndicator, Animated, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
+import { accentTone } from '../../theme/appTheme';
 
 // 지역이 바뀔 때 홈 위에 잠깐 띄우는 "불러오는 중" 카드의 상태와 애니메이션.
 export function useRegionTransition() {
@@ -30,8 +31,7 @@ export function useRegionTransition() {
   return { finish, isTransitioning, opacity, scale, start };
 }
 
-export function RegionLoadingOverlay({ accentTone, opacity, scale, title }: {
-  accentTone: string;
+export function RegionLoadingOverlay({ opacity, scale, title }: {
   opacity: Animated.Value;
   scale: Animated.Value;
   title: string;

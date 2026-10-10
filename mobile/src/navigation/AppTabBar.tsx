@@ -4,19 +4,15 @@ import { Pressable, Text, View } from 'react-native';
 import { styles } from '../styles/appStyles';
 import type { TabKey } from '../types/dust';
 import { tabRoutes } from './routes';
+import { accentBorderTone, accentTone } from '../theme/appTheme';
 
 type AppTabBarProps = {
   activeTab: TabKey;
-  accentBorderTone: string;
-  accentSoftTone: string;
-  accentTone: string;
   onNavigate: (tabKey: TabKey) => void;
 };
 
 export function AppTabBar({
   activeTab,
-  accentBorderTone,
-  accentTone,
   onNavigate,
 }: AppTabBarProps) {
   return (

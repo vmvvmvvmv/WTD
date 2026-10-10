@@ -15,6 +15,7 @@ import { eventDateLabel, eventRangeLength, formatDateDisplay, formatSelectedDate
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { useCalendarDaySheetDrag } from './useCalendarDaySheetDrag';
+import { accentTone } from '../../theme/appTheme';
 
 const TEXT = {
   adjust: '주의',
@@ -28,7 +29,6 @@ const TEXT = {
 };
 
 type Props = {
-  accentTone: string;
   onAddEvent?: () => void;
   events: CalendarEvent[];
   isExpanded?: boolean;
@@ -93,7 +93,6 @@ function MetricChip({
 }
 
 export function CalendarDaySheet({
-  accentTone,
   events,
   isExpanded = false,
   onAddEvent,

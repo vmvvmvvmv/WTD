@@ -11,14 +11,13 @@ import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLay
 import { buildTimelineBlocks, isMultiDayEvent } from './calendarTimelineLayout';
 import { parseDateParts, weekdayLabels } from './calendarUtils';
 import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { accentTone } from '../../theme/appTheme';
 
 const HOUR_HEIGHT = 56;
 const GUTTER_WIDTH = 44;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
 
 type Props = {
-  accentSoftTone: string;
-  accentTone: string;
   // 1개면 일 보기, 7개면 주 보기.
   dates: string[];
   events: CalendarEvent[];
@@ -40,8 +39,6 @@ function nowMinute() {
 
 // 삼성 캘린더처럼: 위에 날짜(와 여러 날 일정 막대), 아래에 0~24시 시간표.
 export function CalendarTimeline({
-  accentSoftTone,
-  accentTone,
   dates,
   events,
   getEventTone,
@@ -99,8 +96,6 @@ export function CalendarTimeline({
             <View style={[styles.calendarGridWeekRow, styles.calendarTimelineDayRow]}>
               {cells.map((cell, index) => (
                 <CalendarDayCell
-                  accentSoftTone={accentSoftTone}
-                  accentTone={accentTone}
                   cellIndex={index}
                   compact
                   date={cell.date}

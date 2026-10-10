@@ -1,27 +1,6 @@
-import type { WeatherState } from '../types/dust';
-import { calculateOutingIndex } from '../features/outing/outingIndex';
-import { lightColors } from './colors';
+import { bauhausColors } from './bauhaus';
 
-export type AppAccentTheme = {
-  borderTone: string;
-  score?: number;
-  softTone: string;
-  tone: string;
-};
-
-export function buildOutingAccentTheme({ pm10, weather }: { pm10?: number; weather?: WeatherState | null }): AppAccentTheme {
-  const score = calculateOutingIndex({
-    pm10,
-    rainMm: weather?.rainMm,
-    temperature: weather?.temperature,
-    weatherLabel: weather?.label,
-    windSpeed: weather?.windSpeed,
-  });
-
-  return {
-    borderTone: lightColors.primaryBorder,
-    score,
-    softTone: lightColors.primarySoft,
-    tone: lightColors.primary,
-  };
-}
+// 앱 강조색. 예전엔 외출지수에 따라 바꾸려 했지만 지금은 항상 파랑이라 상수로 둡니다.
+export const accentTone = bauhausColors.blue;
+export const accentSoftTone = bauhausColors.blueSoft;
+export const accentBorderTone = bauhausColors.border;

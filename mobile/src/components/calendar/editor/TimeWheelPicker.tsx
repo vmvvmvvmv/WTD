@@ -3,6 +3,7 @@ import { Pressable, ScrollView, Text, View } from 'react-native';
 
 import { styles } from '../../../styles/appStyles';
 import { parseTimeParts } from '../calendarUtils';
+import { accentTone } from '../../../theme/appTheme';
 
 const TIME_WHEEL_ITEM_HEIGHT = 56;
 
@@ -68,9 +69,7 @@ function TimeWheelColumn({ labels, onSelect, selectedIndex }: {
   );
 }
 
-export function TimeWheelPicker({ accentSoftTone, accentTone, onChange, value }: {
-  accentSoftTone: string;
-  accentTone: string;
+export function TimeWheelPicker({ onChange, value }: {
   onChange: (value: string) => void;
   value: string;
 }) {

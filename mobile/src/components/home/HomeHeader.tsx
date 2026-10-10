@@ -7,11 +7,11 @@ import type { CurrentDustItem, RegionState, WeatherState } from '../../types/dus
 import { formatCurrentBasis, isSameRegion } from '../../utils/dust';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
+import { accentTone } from '../../theme/appTheme';
 
 type PanelAnimation = { opacity: Animated.Value; translateY: Animated.Value };
 
 type Props = {
-  accentTone: string;
   currentItem: CurrentDustItem | null;
   error: string;
   favoriteRegions: RegionState[];
@@ -30,7 +30,6 @@ type Props = {
 
 // 홈 맨 위(스크롤해도 붙어 있음): 지역 이름·지역 검색·날씨 칩, 기준 시각(또는 오류), 즐겨찾기 지역 바꾸기.
 export function HomeHeader({
-  accentTone,
   currentItem,
   error,
   favoriteRegions,

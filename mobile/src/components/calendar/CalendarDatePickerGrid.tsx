@@ -6,11 +6,10 @@ import Reanimated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { buildMonthCells, formatDate, monthLabel, parseDateParts, weekdayLabels } from './calendarUtils';
+import { accentSoftTone, accentTone } from '../../theme/appTheme';
 
 // 일정 편집에서 날짜를 고르는 작은 달력입니다. 고른 날은 강조색 원, 오늘은 강조색 글자로 보여줍니다.
-export function CalendarDatePickerGrid({ accentSoftTone, accentTone, onChange, value }: {
-  accentSoftTone: string;
-  accentTone: string;
+export function CalendarDatePickerGrid({ onChange, value }: {
   onChange: (date: string) => void;
   value: string;
 }) {
