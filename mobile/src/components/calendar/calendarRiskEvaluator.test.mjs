@@ -13,7 +13,7 @@ registerHooks({
   },
 });
 
-const { evaluateCalendarEventRisk } = await import('./calendarRiskEvaluator.ts');
+const { evaluateCalendarEventRisk, rainFreeSuggestionText } = await import('./calendarRiskEvaluator.ts');
 
 const event = {
   activityType: 'outdoor',
@@ -82,4 +82,26 @@ test('still uses current weather for a schedule starting soon', () => {
   });
 
   assert.equal(result.weatherLabel, '맑음');
+});
+
+test('suggests the nearest rain-free time that is not in the past', () => {
+  const weatherItems = [7, 8, 9, 10, 11, 12, 13, 14].map((hour) => ({
+    date: '2026-10-12',
+    hour: `${String(hour).padStart(2, '0')}:00`,
+    label: hour === 10 || hour === 11 ? '비' : '맑음',
+    rain_probability: hour === 10 || hour === 11 ? 80 : 10,
+    temperature: 18,
+  }));
+  const earlier = evaluateCalendarEventRisk(event, { now: new Date(2026, 9, 9, 12, 0), todayDateLabel: '2026-10-09', weatherItems });
+  assert.deepEqual(earlier.rainFreeSuggestion, { endTime: '10:00', offsetHours: -2, time: '08:00' });
+  assert.match(earlier.desc, /2시간 앞당기면 비를 피할 수 있어요 \(08:00~10:00\)/);
+
+  const later = evaluateCalendarEventRisk(event, { now: new Date(2026, 9, 12, 8, 30), todayDateLabel: '2026-10-12', weatherItems });
+  assert.equal(rainFreeSuggestionText(later.rainFreeSuggestion), '2시간 미루면 비를 피할 수 있어요 (12:00~14:00)');
+});
+
+test('does not suggest a shift when every nearby hour is rainy', () => {
+  const weatherItems = [7, 8, 9, 10, 11, 12, 13, 14, 15].map((hour) => ({ date: '2026-10-12', hour: `${String(hour).padStart(2, '0')}:00`, label: '비', rain_probability: 80 }));
+  const result = evaluateCalendarEventRisk(event, { now: new Date(2026, 9, 9, 12, 0), todayDateLabel: '2026-10-09', weatherItems });
+  assert.equal(result.rainFreeSuggestion, undefined);
 });

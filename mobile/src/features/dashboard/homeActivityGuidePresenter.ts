@@ -1,5 +1,5 @@
 import type { CalendarEvent } from '../../types/dust';
-import type { CalendarRiskLevel, CalendarRiskResult } from '../../components/calendar/calendarRiskEvaluator';
+import { type CalendarRiskLevel, type CalendarRiskResult, rainFreeSuggestionText } from '../../components/calendar/calendarRiskEvaluator';
 import { semanticColors, type SemanticTone } from '../../theme/semanticColors';
 import { getWeatherVisualKind } from '../../utils/weather';
 
@@ -44,6 +44,7 @@ function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult) {
     return '눈길이 미끄러울 수 있어요. 따뜻하게 입고 조심히 이동하세요.';
   }
 
+  if (risk.rainFreeSuggestion) return rainFreeSuggestionText(risk.rainFreeSuggestion);
   if (hasRainRisk(risk)) return '우산 챙기셨나요? 이동 시간도 조금 여유 있게 잡으세요.';
 
   if ((risk.windSpeed ?? 0) >= 8) return '바람이 강해요. 바람막이가 있으면 좋겠어요.';
