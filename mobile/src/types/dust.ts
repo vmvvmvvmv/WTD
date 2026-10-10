@@ -81,20 +81,6 @@ export type WeatherHourlyItem = {
   source?: string;
 };
 
-export type WeatherDailyItem = {
-  date?: string;
-  stationId?: string;
-  stationName?: string;
-  avgTemperature?: string | number | null;
-  minTemperature?: string | number | null;
-  maxTemperature?: string | number | null;
-  avgHumidity?: string | number | null;
-  avgWindSpeed?: string | number | null;
-  maxWindSpeed?: string | number | null;
-  rainMm?: string | number | null;
-  source?: string;
-};
-
 export type WeatherMidTermItem = {
   date?: string;
   announcedAt?: string;
@@ -150,12 +136,6 @@ export type StationDustItem = {
   weatherTime?: string;
   lat?: number;
   lng?: number;
-};
-
-// 梨쀫큸 ?????以꾩쓽 ?뺥깭?낅땲??
-export type BriefingMessage = {
-  role: 'user' | 'bot';
-  text: string;
 };
 
 // ?깆뿉???좏깮 媛?ν븳 ????+ 援?援?痢≪젙??吏???곹깭?낅땲??
@@ -241,5 +221,3 @@ export type OutfitRecommendation = {
   };
   weather_condition?: 'normal' | 'rain' | 'showers' | 'snow' | 'strong_wind' | string;
 };
-
-

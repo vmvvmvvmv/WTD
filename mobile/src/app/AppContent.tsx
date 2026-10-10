@@ -1,14 +1,10 @@
-import { useCalendarLocationForecasts } from '../features/calendar/useCalendarLocationForecasts';
-import { loadStoredWeather, weatherStateFromStation } from '../features/weather/weatherData';
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  AppState,
   BackHandler,
   Easing,
   ImageBackground,
@@ -24,94 +20,29 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
-import { buildOutingAccentTheme } from '../theme/appTheme';
-import { bauhausColors, textColors } from '../theme/bauhaus';
-import { DataPanel } from '../components/data/DataPanel';
-import { WeatherDataPanel } from '../components/data/WeatherDataPanel';
-import type { WeatherDataMetricKey } from '../components/data/WeatherDataPanel';
 import { HomePanel } from '../components/home/HomePanel';
 import { FullMapScreen } from '../components/map/FullMapScreen';
 import { findStationSuggestions, useMapSearch } from '../components/map/useMapSearch';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { AppActionIcon } from '../components/shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../components/shared/WeatherIcon';
-import { DETAIL_DATA_ENABLED } from '../config/features';
-import { styles } from '../styles/appStyles';
-import { AppTabBar } from '../navigation/AppTabBar';
-import { getTabRoute } from '../navigation/routes';
-import {
-  ApiHttpError,
-  getCurrentDust,
-  getKoreaStations,
-  getOptionalPastDust,
-  getPastWeather,
-  postBriefingMessage,
-} from '../api/dustEndpoints';
-import {
-  DATA_LIST_PAGE_SIZE,
-  DEFAULT_CITY,
-  DEFAULT_OUTFIT_SETTINGS,
-  DEFAULT_REGION,
-  DEFAULT_REGION_STATE,
-  dataMetrics,
-  dataRanges,
-} from '../constants/dust';
 import { API_URL, APP_TEST_TOKEN, IS_EXPO_GO } from '../config/runtime';
+import { DEFAULT_OUTFIT_SETTINGS } from '../constants/dust';
 import { useCalendarEvents } from '../features/calendar/useCalendarEvents';
+import { useCalendarLocationForecasts } from '../features/calendar/useCalendarLocationForecasts';
 import { useCalendarReminderSync } from '../features/calendar/useCalendarReminderSync';
-import { loadDashboardCache, saveDashboardCache } from '../features/dashboard/dashboardCache';
-import { hasCompleteDashboardCache } from '../features/dashboard/dashboardCachePolicy';
-import { fetchDashboardDust, fetchDashboardWeather } from '../features/dashboard/dashboardService';
-import { loadStationCache, saveStationCache } from '../features/stations/stationCache';
-import {
-  loadStoredAppState,
-  saveFavoriteRegions,
-  saveGpsRegion,
-  saveOutfitSettings,
-  saveSelectedRegion,
-} from '../storage/appStorage';
+import { useDashboardData } from '../features/dashboard/useDashboardData';
+import { useRegions } from '../features/region/useRegions';
+import { useStations } from '../features/stations/useStations';
+import { weatherStateFromStation } from '../features/weather/weatherData';
+import { AppTabBar } from '../navigation/AppTabBar';
 import { useNotificationSettings } from '../notifications/useNotificationSettings';
-import type {
-  BriefingMessage,
-  CurrentDustItem,
-  DataMetricKey,
-  HourlyDustItem,
-  OutfitSettings,
-  PastDustItem,
-  PredictionResponse,
-  RegionState,
-  StationDustItem,
-  TabKey,
-  WeatherDailyItem,
-  WeatherState,
-  WeatherHourlyItem,
-  WeatherMidTermItem,
-} from '../types/dust';
-import {
-  addDays,
-  csvSafe,
-  formatCurrentBasis,
-  formatMapValue,
-  formatValue,
-  getMetricLabel,
-  getMetricTone,
-  getMetricValue,
-  getNo2Tone,
-  getO3Tone,
-  getPm10Label,
-  getPm10Progress,
-  getPm25Label,
-  getPm25Tone,
-  getO3Label,
-  haversineKm,
-  isSameRegion,
-  normalizeLatLng,
-  stationIdentity,
-  toCompactDate,
-  toIsoDate,
-  toNumber,
-  wait,
-} from '../utils/dust';
+import { loadStoredAppState, saveOutfitSettings } from '../storage/appStorage';
+import { styles } from '../styles/appStyles';
+import { buildOutingAccentTheme } from '../theme/appTheme';
+import { bauhausColors, textColors } from '../theme/bauhaus';
+import type { OutfitSettings, RegionState, StationDustItem, TabKey } from '../types/dust';
+import { formatCurrentBasis, isSameRegion, normalizeLatLng, stationIdentity, toIsoDate, toNumber } from '../utils/dust';
 import { getWeatherVisualKind } from '../utils/weather';
 
 const HOME_WEATHER_BACKGROUNDS = {
@@ -121,17 +52,13 @@ const HOME_WEATHER_BACKGROUNDS = {
   snow: require('../../assets/weather-hero-snow.png'),
 } as const;
 
-function getHomeWeatherBackground(label?: string) {
-  return HOME_WEATHER_BACKGROUNDS[getWeatherVisualKind(label)];
-}
-
-function WeatherBackdrop({ label, prominent = false }: { label?: string; prominent?: boolean }) {
+function WeatherBackdrop({ label }: { label?: string }) {
   return (
     <View pointerEvents="none" style={styles.weatherScreenBackdrop}>
       <ImageBackground
-        source={getHomeWeatherBackground(label)}
+        source={HOME_WEATHER_BACKGROUNDS[getWeatherVisualKind(label)]}
         style={styles.weatherScreenBackdropImage}
-        imageStyle={[styles.weatherScreenBackdropImageStyle, prominent && styles.weatherScreenBackdropImageStrong]}
+        imageStyle={styles.weatherScreenBackdropImageStyle}
       />
     </View>
   );
@@ -169,62 +96,22 @@ function ScreenTransition({ children, transitionKey }: { children: ReactNode; tr
   );
 }
 
-// 앱 전체의 탭 상태, API 데이터, 위치/즐겨찾기/알림 설정을 관리하는 최상위 컨테이너입니다.
+// 탭 이동, 화면 사이 연결(지역 전환·검색 패널·토스트), 저장된 설정 복원을 맡는 최상위 화면입니다.
+// 데이터와 상태는 기능별 훅이 관리합니다: 지역(useRegions), 측정소(useStations), 홈 데이터(useDashboardData),
+// 일정(useCalendarEvents), 알림(useNotificationSettings), 지도 검색(useMapSearch).
 export function AppContent() {
-  // 탭과 홈/상세/지도/챗봇에서 공유하는 API 데이터 상태입니다.
   const [activeTab, setActiveTab] = useState<TabKey>('home');
-  const [prediction, setPrediction] = useState<PredictionResponse | null>(null);
-  const [pastItems, setPastItems] = useState<PastDustItem[]>([]);
-  const [hourlyItems, setHourlyItems] = useState<HourlyDustItem[]>([]);
-  const [weatherHourlyItems, setWeatherHourlyItems] = useState<WeatherHourlyItem[]>([]);
-  const [weatherMidTermItems, setWeatherMidTermItems] = useState<WeatherMidTermItem[]>([]);
-  const [detailWeatherItems, setDetailWeatherItems] = useState<WeatherDailyItem[]>([]);
-  const [dataItems, setDataItems] = useState<PastDustItem[]>([]);
-  const [currentItem, setCurrentItem] = useState<CurrentDustItem | null>(null);
-  const [currentNotice, setCurrentNotice] = useState('');
-  const [stationItems, setStationItems] = useState<StationDustItem[]>([]);
-  const [weather, setWeather] = useState<WeatherState | null>(null);
-  const [yesterdayWeather, setYesterdayWeather] = useState<WeatherState | null>(null);
-  const [detailWeather, setDetailWeather] = useState<WeatherState | null>(null);
-
-  // 상세 데이터 탭의 기간, 오염물질, 차트 선택 상태입니다.
-  const [dataMetric, setDataMetric] = useState<DataMetricKey>('pm10');
-  const [dataDetailMode, setDataDetailMode] = useState<'dust' | 'weather'>('dust');
-  const [weatherDataMetric, setWeatherDataMetric] = useState<WeatherDataMetricKey>('temperature');
-  const [dataRangeDays, setDataRangeDays] = useState(30);
-  const [selectedChartDate, setSelectedChartDate] = useState<string | null>(null);
-
-  // 챗봇 대화 입력과 메시지 상태입니다.
-  const [briefingInput, setBriefingInput] = useState('');
-  const [briefingMessages, setBriefingMessages] = useState<BriefingMessage[]>([]);
-  const [isBriefingLoading, setIsBriefingLoading] = useState(false);
-
-  // GPS 기준 지역, 사용자가 선택한 지역, 즐겨찾기 지역 상태입니다.
-  const [isLocating, setIsLocating] = useState(false);
-  const [locationMessage, setLocationMessage] = useState('');
-  const [selectedRegion, setSelectedRegion] = useState<RegionState | null>(null);
-  const [gpsRegion, setGpsRegion] = useState<RegionState | null>(null);
-  const [detailRegion, setDetailRegion] = useState<RegionState | null>(null);
-  const [favoriteRegions, setFavoriteRegions] = useState<RegionState[]>([]);
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
   const [homeRegionSearchText, setHomeRegionSearchText] = useState('');
-  const [showDataRegionPicker, setShowDataRegionPicker] = useState(false);
-  const [dataRegionSearchText, setDataRegionSearchText] = useState('');
-
-  // 알림 권한과 일정 알림 설정 저장 상태입니다.
   const [outfitSettings, setOutfitSettings] = useState<OutfitSettings>(DEFAULT_OUTFIT_SETTINGS);
   const [notificationMessage, setNotificationMessage] = useState('');
   const [isRegionTransitioning, setIsRegionTransitioning] = useState(false);
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isRefreshingCurrent, setIsRefreshingCurrent] = useState(false);
-  const [isLoadingStations, setIsLoadingStations] = useState(false);
-  const [isLoadingPast, setIsLoadingPast] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [error, setError] = useState('');
+  const todayDateLabel = toIsoDate(new Date());
 
   const {
     events: calendarEvents,
@@ -236,12 +123,48 @@ export function AppContent() {
     updateEvent: updateCalendarEvent,
     updateEventSeries: updateCalendarEventSeries,
   } = useCalendarEvents(hasLoadedRegionStore);
+  const { ensureMapStations, isLoadingStations, loadStations, mapStations, setStationItems, stationItems } = useStations();
+  const {
+    favoriteRegions,
+    gpsRegion,
+    hydrate: hydrateRegions,
+    isLocating,
+    locateNearestRegion,
+    locationMessage,
+    removeFavorite: removeFavoriteRegion,
+    selectedRegion,
+    setLocationMessage,
+    setSelectedRegion,
+    toggleFavorite: toggleFavoriteRegion,
+  } = useRegions(hasLoadedRegionStore, setNotificationMessage);
+  const {
+    clear: clearDashboard,
+    currentItem,
+    error,
+    hourlyItems,
+    isRefreshingCurrent,
+    loadCurrentDust,
+    loadDashboard,
+    loadWeather,
+    pastItems,
+    prediction,
+    weather,
+    weatherHourlyItems,
+    weatherMidTermItems,
+    yesterdayWeather,
+  } = useDashboardData({
+    autoRefresh: activeTab === 'home',
+    onSettled: () => finishRegionTransition(),
+    selectedRegion,
+    setStationItems,
+    stationItems,
+    todayDateLabel,
+  });
 
   // 현재 선택 지역과 불러온 데이터에서 UI 색상과 표시값을 계산합니다.
   const latestPastItem = pastItems[pastItems.length - 1];
   const activeCity = selectedRegion?.city ?? '';
   const activeRegion = selectedRegion?.region ?? '';
-  const activeDataRegion = detailRegion ?? selectedRegion;
   const currentPm10 = toNumber(currentItem?.pm10Value) ?? toNumber(latestPastItem?.pm10Value);
   const currentPm25 = toNumber(currentItem?.pm25Value) ?? toNumber(latestPastItem?.pm25Value);
   const currentO3 = toNumber(currentItem?.o3Value) ?? toNumber(latestPastItem?.o3Value);
@@ -249,7 +172,6 @@ export function AppContent() {
   const accentTone = accentTheme.tone;
   const accentSoftTone = accentTheme.softTone;
   const accentBorderTone = accentTheme.borderTone;
-  const todayDateLabel = toIsoDate(new Date());
   const calendarLocationForecasts = useCalendarLocationForecasts(calendarEvents, hasLoadedRegionStore, todayDateLabel);
   const {
     settings: notificationSettings,
@@ -283,7 +205,7 @@ export function AppContent() {
     return `${mobileMapUrl}${suffix ? `?${suffix}` : ''}`;
   };
 
-  // WebView 지도 제어, 스크롤 제어, 탭 이동 감지를 위한 ref입니다.
+  // 스크롤 제어와 탭 이동 감지를 위한 ref입니다.
   const mainScrollRef = useRef<ScrollView>(null);
   const previousTabRef = useRef<TabKey>(activeTab);
 
@@ -292,19 +214,9 @@ export function AppContent() {
   const regionTransitionScale = useRef(new Animated.Value(0.98)).current;
   const homePanelOpacity = useRef(new Animated.Value(0)).current;
   const homePanelTranslateY = useRef(new Animated.Value(-8)).current;
-  const dataRegionPickerOpacity = useRef(new Animated.Value(0)).current;
-  const dataRegionPickerTranslateY = useRef(new Animated.Value(-8)).current;
   const notificationToastOpacity = useRef(new Animated.Value(0)).current;
   const notificationToastTranslateY = useRef(new Animated.Value(16)).current;
-  // 비동기 응답이 도착했을 때 지금 선택된 지역과 같은지 비교하기 위한 최신 값입니다.
-  const selectedRegionRef = useRef(selectedRegion);
-  selectedRegionRef.current = selectedRegion;
-  const weatherRequestRef = useRef(0);
 
-  const mapStations = useMemo(
-    () => stationItems.filter((station) => normalizeLatLng(station.lat, station.lng)),
-    [stationItems],
-  );
   const {
     closeMapSearch, dismissMapSearchKeyboard, findStationForRegion, focusGpsMapRegion, focusMapStation,
     isMapSearchFocused, mapMarkerMode, mapRecentSearches, mapSearchInputRef, mapSearchMessage,
@@ -315,205 +227,10 @@ export function AppContent() {
     setShowSearchSuggestions, showSearchSuggestions, switchMapMarkerMode,
   } = useMapSearch(mapStations, gpsRegion, hasLoadedRegionStore, activeTab === 'map', todayDateLabel);
 
-  const loadWeather = async (lat: number, lng: number) => {
-    // 늦게 도착한 이전 좌표의 응답이 최신 날씨를 덮어쓰지 않도록 마지막 요청만 반영합니다.
-    const requestId = ++weatherRequestRef.current;
-    try {
-      const storedWeather = await loadStoredWeather(lat, lng, todayDateLabel);
-      if (requestId !== weatherRequestRef.current) return;
-      setWeather(storedWeather.weather);
-      setYesterdayWeather(storedWeather.yesterdayWeather);
-    } catch {
-      if (requestId !== weatherRequestRef.current) return;
-      setWeather(null);
-      setYesterdayWeather(null);
-    }
-  };
-
   // 홈 화면 지역 검색어에 맞는 측정소 후보를 계산합니다.
   const homeRegionSuggestions = useMemo(() => {
     return findStationSuggestions(mapStations, homeRegionSearchText, 6);
   }, [homeRegionSearchText, mapStations]);
-
-  // 상세 데이터 지역 검색어에 맞는 측정소 후보를 계산합니다.
-  const dataRegionSuggestions = useMemo(() => {
-    return findStationSuggestions(mapStations, dataRegionSearchText, 6);
-  }, [dataRegionSearchText, mapStations]);
-
-  // 현재 선택 지역의 최신 미세먼지 값을 다시 불러옵니다.
-  const loadCurrentDust = async () => {
-    if (!selectedRegion) return;
-    setIsRefreshingCurrent(true);
-    setError('');
-    try {
-      const currentData = await getCurrentDust(selectedRegion);
-      setCurrentItem((currentData.item as CurrentDustItem | undefined) ?? null);
-      setCurrentNotice(currentData.notice ?? '');
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '현재 데이터를 불러오지 못했습니다.');
-    } finally {
-      setIsRefreshingCurrent(false);
-    }
-  };
-
-  // 전국 측정소 목록과 실시간 값을 불러와 지도/검색에서 사용합니다.
-  const loadStations = async () => {
-    setIsLoadingStations(true);
-    try {
-      const cachedStations = await loadStationCache();
-      if (cachedStations?.length) {
-        setStationItems(cachedStations);
-      }
-      const stationData = await getKoreaStations();
-      const nextStations = (stationData.items as StationDustItem[] | undefined) ?? [];
-      setStationItems(nextStations);
-      saveStationCache(nextStations);
-    } finally {
-      setIsLoadingStations(false);
-    }
-  };
-
-  // 상세 데이터 탭에서 선택한 기간의 일평균 데이터를 불러옵니다.
-  const loadPastData = async (days = dataRangeDays) => {
-    if (!activeDataRegion) return;
-    setIsLoadingPast(true);
-    setError('');
-    try {
-      const today = new Date();
-      const latestDailyDate = addDays(today, -1);
-      const pastData = await getOptionalPastDust({
-        region: activeDataRegion,
-        startDate: toCompactDate(addDays(today, -days)),
-        endDate: toCompactDate(latestDailyDate),
-      });
-      const nextItems = (pastData?.items as PastDustItem[] | undefined) ?? [];
-      setDataItems(nextItems);
-      if (nextItems.length === 0) setError('선택한 지역의 상세 데이터를 아직 불러오지 못했습니다.');
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '상세 데이터를 불러오지 못했습니다.');
-    } finally {
-      setIsLoadingPast(false);
-    }
-  };
-
-  // 상세 데이터 탭의 날씨 화면에서 ASOS 일자료를 불러옵니다.
-  const loadWeatherDetail = async () => {
-    if (!activeDataRegion) return;
-    setIsLoadingPast(true);
-    setError('');
-    try {
-      const today = new Date();
-      const latestDailyDate = addDays(today, -1);
-      const weatherData = await getPastWeather({
-        region: activeDataRegion,
-        startDate: toCompactDate(addDays(today, -dataRangeDays)),
-        endDate: toCompactDate(latestDailyDate),
-      });
-      setDetailWeatherItems((weatherData?.items as WeatherDailyItem[] | undefined) ?? []);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '기상 데이터를 불러오지 못했습니다.');
-    } finally {
-      setIsLoadingPast(false);
-    }
-  };
-
-  // 홈/챗봇에서 쓰는 현재값, 과거 흐름, 예측 데이터를 한 번에 불러옵니다.
-  const loadDashboard = async (force = false) => {
-    if (!selectedRegion) return;
-    const region = selectedRegion;
-    // 응답을 기다리는 사이 지역이 바뀌었다면 이전 지역 데이터로 화면을 덮어쓰지 않습니다.
-    const isStale = () => !selectedRegionRef.current || !isSameRegion(selectedRegionRef.current, region);
-    const cachedDashboard = await loadDashboardCache(region);
-    if (isStale()) return;
-    if (cachedDashboard) {
-      setPrediction(cachedDashboard.prediction);
-      setPastItems(cachedDashboard.pastItems);
-      setHourlyItems(cachedDashboard.hourlyItems);
-      setWeatherHourlyItems(cachedDashboard.weatherHourlyItems ?? []);
-      setWeatherMidTermItems(cachedDashboard.weatherMidTermItems ?? []);
-      setCurrentItem(cachedDashboard.currentItem);
-      setCurrentNotice(cachedDashboard.currentNotice);
-      setWeather(cachedDashboard.weather ?? null);
-      setIsLoading(false);
-      finishRegionTransition();
-      if (!force && hasCompleteDashboardCache(cachedDashboard)) return;
-    } else {
-      setIsLoading(true);
-    }
-    setError('');
-    const weatherPromise = fetchDashboardWeather(region, todayDateLabel, stationItems).then(
-      (value) => ({ ok: true as const, value }),
-      (error: unknown) => ({ error, ok: false as const }),
-    );
-    try {
-      const {
-        currentItem: currentDustItem,
-        currentNotice: nextCurrentNotice,
-        hourlyItems: nextHourlyItems,
-        pastItems: nextPastItems,
-        prediction: predictionData,
-      } = await fetchDashboardDust(region, todayDateLabel, cachedDashboard);
-      if (isStale()) return;
-
-      setPrediction(predictionData);
-      setPastItems(nextPastItems);
-      setHourlyItems(nextHourlyItems);
-      setCurrentItem(currentDustItem);
-      setCurrentNotice(nextCurrentNotice);
-      setIsLoading(false);
-      finishRegionTransition();
-      try {
-        const weatherResult = await weatherPromise;
-        if (!weatherResult.ok) throw weatherResult.error;
-        const storedWeather = weatherResult.value;
-        if (isStale()) return;
-        const nextWeatherHourlyItems = storedWeather.hourlyItems;
-        const nextWeatherMidTermItems = storedWeather.midTermItems;
-        const currentWeatherData = storedWeather.weather;
-        const yesterdayWeatherData = storedWeather.yesterdayWeather;
-        if (storedWeather.stations.length > 0 && stationItems.length === 0) setStationItems(storedWeather.stations);
-
-        setWeatherHourlyItems(nextWeatherHourlyItems);
-        setWeatherMidTermItems(nextWeatherMidTermItems);
-        setWeather(currentWeatherData);
-        setYesterdayWeather(yesterdayWeatherData);
-        void saveDashboardCache(region, {
-          currentItem: currentDustItem,
-          currentNotice: nextCurrentNotice,
-          hourlyItems: nextHourlyItems,
-          pastItems: nextPastItems,
-          prediction: predictionData,
-          weather: currentWeatherData,
-          weatherHourlyItems: nextWeatherHourlyItems,
-          weatherMidTermItems: nextWeatherMidTermItems,
-        });
-      } catch (weatherError) {
-        console.warn('대시보드 날씨 데이터를 불러오지 못했습니다.', weatherError);
-        // Weather is secondary for first paint; keep the dust dashboard visible.
-        void saveDashboardCache(region, {
-          currentItem: currentDustItem,
-          currentNotice: nextCurrentNotice,
-          hourlyItems: nextHourlyItems,
-          pastItems: nextPastItems,
-          prediction: predictionData,
-          weather: cachedDashboard?.weather ?? null,
-          weatherHourlyItems: cachedDashboard?.weatherHourlyItems ?? [],
-          weatherMidTermItems: cachedDashboard?.weatherMidTermItems ?? [],
-        });
-      }
-    } catch (caught) {
-      if (!cachedDashboard && !isStale()) {
-        // 응답이 왔지만 실패한 경우와 서버에 닿지 못한 경우를 구분해 안내합니다.
-        setError(caught instanceof ApiHttpError ? '데이터를 불러오지 못했어요.' : '서버에 연결할 수 없어요.');
-      }
-    } finally {
-      // 이전 지역 요청이 새 지역의 로딩 표시를 먼저 끄지 않도록 합니다.
-      if (!isStale()) {
-        setIsLoading(false);
-        finishRegionTransition();
-      }
-    }
-  };
 
   // 지역이 바뀔 때 홈 화면 위에 짧은 로딩 애니메이션을 띄웁니다.
   const startRegionTransition = () => {
@@ -555,15 +272,16 @@ export function AppContent() {
   const homeMapPreviewUrl = homeMapPreviewCoords
     ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: 'weather', zoom: 11, view: 'preview' })
     : buildMobileMapUrl({ mode: 'weather', view: 'preview' });
-  const fullMapUrlRef = useRef<string | null>(null);  
+  // 지도 탭에 들어온 순간의 주소를 고정해, 머무는 동안 WebView가 다시 로드되지 않게 합니다.
+  const fullMapUrlRef = useRef<string | null>(null);
   if (activeTab === 'map' && !fullMapUrlRef.current) {
-      fullMapUrlRef.current = homeMapPreviewCoords
-        ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: mapMarkerMode, zoom: 11, view: 'full' })
-        : buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
-    } else if (activeTab !== 'map') {
-      fullMapUrlRef.current = null;
-    }
-    const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
+    fullMapUrlRef.current = homeMapPreviewCoords
+      ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: mapMarkerMode, zoom: 11, view: 'full' })
+      : buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
+  } else if (activeTab !== 'map') {
+    fullMapUrlRef.current = null;
+  }
+  const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
   const calendarMapPickerUrl = calendarMapPickerCoords
     ? buildMobileMapUrl({ lat: calendarMapPickerCoords.lat, lng: calendarMapPickerCoords.lng, zoom: 15, view: 'picker' })
     : buildMobileMapUrl({ view: 'picker' });
@@ -579,43 +297,7 @@ export function AppContent() {
     }
     : null;
 
-  // 지도 하단 정보창에서 지역명을 누르거나 마커를 더블 탭했을 때 상세 데이터 탭으로 이동합니다.
-  const openStationDetail = (station: StationDustItem) => {
-    if (!DETAIL_DATA_ENABLED) {
-      setMapSearchMessage('상세 데이터 화면은 현재 숨겨져 있습니다.');
-      return;
-    }
-    const city = station.sido;
-    const region = station.city || station.name;
-    if (!city || !region) {
-      setMapSearchMessage('상세 데이터를 열 지역 정보가 없습니다.');
-      return;
-    }
-    setSelectedStation(null);
-    setShowSearchSuggestions(false);
-    Keyboard.dismiss();
-    setMapSearchMessage('');
-    setDataMetric('pm10');
-    setDataRangeDays(30);
-    setSelectedChartDate(null);
-    setDataItems([]);
-    setDetailRegion({ city, region, label: station.name });
-  };
-
-  const openSelectedRegionDetail = () => {
-    if (!DETAIL_DATA_ENABLED || !selectedRegion) return;
-    Keyboard.dismiss();
-    setShowFavoritePicker(false);
-    setShowHomeRegionSearch(false);
-    setHomeRegionSearchText('');
-    setDataMetric('pm10');
-    setDataRangeDays(30);
-    setSelectedChartDate(null);
-    setDataItems([]);
-    setDetailRegion(selectedRegion);
-  };
-
-  // WebView 안의 네이버 지도에서 보낸 마커 선택/상세 이동 이벤트를 처리합니다.
+  // WebView 안의 네이버 지도에서 보낸 마커 선택 이벤트를 처리합니다.
   const handleMapMessage = (event: { nativeEvent: { data: string } }) => {
     try {
       const payload = JSON.parse(event.nativeEvent.data) as { type?: string; station?: StationDustItem };
@@ -627,67 +309,8 @@ export function AppContent() {
         setMapSearchMessage('');
         setShowSearchSuggestions(false);
       }
-      if (payload.type === 'station-detail' && payload.station) {
-        Keyboard.dismiss();
-        setIsMapSearchFocused(false);
-        openStationDetail(payload.station);
-      }
     } catch {
       // Ignore non-JSON messages from the WebView.
-    }
-  };
-
-  // 챗봇 대화와 입력값을 초기 상태로 되돌립니다.
-  const resetBriefingMessages = () => {
-    setBriefingMessages([]);
-    setBriefingInput('');
-  };
-
-  // 상세 데이터 탭을 기본 화면으로 되돌립니다.
-  const resetDataTab = () => {
-    setDetailRegion(null);
-    setShowDataRegionPicker(false);
-    setDataRegionSearchText('');
-    setDataMetric('pm10');
-    setDataRangeDays(30);
-    setSelectedChartDate(null);
-    setDataItems([]);
-    setError('');
-  };
-
-  // 사용자의 챗봇 질문을 백엔드에 보내고 답변을 대화 목록에 추가합니다.
-  const sendBriefingQuestion = async (question: string, quickType = '') => {
-    const trimmedQuestion = question.trim();
-    if (!trimmedQuestion || isBriefingLoading) return;
-
-    setBriefingInput('');
-    setIsBriefingLoading(true);
-    setBriefingMessages((messages) => [...messages.slice(-5), { role: 'user', text: trimmedQuestion }]);
-    const startedAt = Date.now();
-    try {
-      if (!selectedRegion) throw new Error('지역을 먼저 선택해 주세요.');
-      const data = await postBriefingMessage({
-        question: trimmedQuestion,
-        quickType,
-        region: selectedRegion,
-        currentData: currentItem,
-        prediction,
-        weather,
-      });
-      await wait(Math.max(0, 850 - (Date.now() - startedAt)));
-      if (previousTabRef.current === 'calendar') {
-        setBriefingMessages((messages) => [...messages, { role: 'bot', text: data.answer ?? '답변을 불러오지 못했습니다.' }]);
-      }
-    } catch (caught) {
-      await wait(Math.max(0, 650 - (Date.now() - startedAt)));
-      if (previousTabRef.current === 'calendar') {
-        setBriefingMessages((messages) => [
-          ...messages,
-          { role: 'bot', text: caught instanceof Error ? caught.message : '챗봇 답변을 불러오지 못했습니다.' },
-        ]);
-      }
-    } finally {
-      setIsBriefingLoading(false);
     }
   };
 
@@ -695,15 +318,18 @@ export function AppContent() {
     setOutfitSettings((current) => ({ ...current, [key]: value }));
   };
 
+  const closeHomeRegionPanels = () => {
+    setShowFavoritePicker(false);
+    setShowHomeRegionSearch(false);
+    setHomeRegionSearchText('');
+  };
+
   // 홈 기준 지역을 바꾸고 관련 화면 데이터를 새로 불러올 준비를 합니다.
   const applyRegion = (region: RegionState, message?: string) => {
-    const isSameSelectedRegion = selectedRegion ? isSameRegion(region, selectedRegion) : false;
-    if (isSameSelectedRegion) {
-      setShowFavoritePicker(false);
-      setShowHomeRegionSearch(false);
-      setHomeRegionSearchText('');
-      if (message) setLocationMessage(message);
-      setActiveTab('home');
+    closeHomeRegionPanels();
+    if (message) setLocationMessage(message);
+    setActiveTab('home');
+    if (selectedRegion && isSameRegion(region, selectedRegion)) {
       if (!currentItem || !prediction || pastItems.length === 0) {
         startRegionTransition();
         void loadDashboard();
@@ -712,57 +338,18 @@ export function AppContent() {
       }
       return;
     }
-
     startRegionTransition();
     setSelectedRegion(region);
-    setShowFavoritePicker(false);
-    setShowHomeRegionSearch(false);
-    setHomeRegionSearchText('');
-    setCurrentItem(null);
-    setPrediction(null);
-    setPastItems([]);
-    setHourlyItems([]);
-    setWeather(null);
-    setWeatherHourlyItems([]);
-    setWeatherMidTermItems([]);
-    setDetailWeather(null);
-    setDetailWeatherItems([]);
-    setCurrentNotice('');
-    setDataItems([]);
-    if (message) setLocationMessage(message);
-    setActiveTab('home');
+    clearDashboard();
   };
 
-  // 앱을 바로 종료해도 즐겨찾기가 남도록 변경 즉시 SecureStore에 저장합니다.
-  const persistFavoriteRegions = (regions: RegionState[]) => {
-    saveFavoriteRegions(regions);
-  };
-
-  // 즐겨찾기 지역을 삭제하고 저장소에도 즉시 반영합니다.
-  const removeFavoriteRegion = (region: RegionState) => {
-    setFavoriteRegions((regions) => {
-      if (!regions.some((item) => isSameRegion(item, region))) return regions;
-      const nextRegions = regions.filter((item) => !isSameRegion(item, region));
-      persistFavoriteRegions(nextRegions);
-      setNotificationMessage(`${region.city} ${region.region} 즐겨찾기에서 삭제했어요.`);
-      return nextRegions;
+  // 현재 GPS 좌표와 가장 가까운 측정소를 찾아 앱의 기준 지역으로 설정합니다.
+  const applyNearestGpsRegion = async () => {
+    const region = await locateNearestRegion({
+      ensureMapStations,
+      onCoords: (coords) => loadWeather(coords.lat, coords.lng),
     });
-  };
-
-  // 지도/홈 검색에서 별표를 눌렀을 때 즐겨찾기 추가와 해제를 처리합니다.
-  const toggleFavoriteRegion = (region: RegionState) => {
-    setFavoriteRegions((regions) => {
-      if (regions.some((item) => isSameRegion(item, region))) {
-        const nextRegions = regions.filter((item) => !isSameRegion(item, region));
-        persistFavoriteRegions(nextRegions);
-        setNotificationMessage(`${region.city} ${region.region} 즐겨찾기에서 삭제했어요.`);
-        return nextRegions;
-      }
-      const nextRegions = [region, ...regions].slice(0, 15);
-      persistFavoriteRegions(nextRegions);
-      setNotificationMessage(`${region.city} ${region.region} 즐겨찾기에 추가했어요.`);
-      return nextRegions;
-    });
+    if (region) applyRegion(region, `${region.city} ${region.region} 기준으로 설정했습니다.`);
   };
 
   // 홈 상단 지역명을 눌렀을 때 즐겨찾기 선택 패널을 여닫습니다.
@@ -787,246 +374,86 @@ export function AppContent() {
     if (stationItems.length === 0) loadStations();
   };
 
+  const regionFromStation = (station: StationDustItem): RegionState | null => {
+    const city = station.sido;
+    const region = station.city || station.name;
+    return city && region ? { city, region, label: station.name } : null;
+  };
+
   // 홈 지역 검색 결과를 눌렀을 때 홈 기준 지역으로 적용합니다.
   const selectHomeRegionSuggestion = (station: StationDustItem) => {
-    const city = station.sido;
-    const region = station.city || station.name;
-    if (!city || !region) return;
-    const nextRegion = { city, region, label: station.name };
-    setHomeRegionSearchText('');
-    setShowHomeRegionSearch(false);
-    applyRegion(nextRegion, `${city} ${region} 기준으로 변경했습니다.`);
+    const region = regionFromStation(station);
+    if (region) applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`);
   };
 
-  // 홈 지역 검색 결과 오른쪽 별표로 즐겨찾기를 추가하거나 해제합니다.
-  const toggleHomeSuggestionFavorite = (station: StationDustItem) => {
-    const city = station.sido;
-    const region = station.city || station.name;
-    if (!city || !region) return;
-    toggleFavoriteRegion({ city, region, label: station.name });
+  // 지도·홈 검색 결과의 별표로 즐겨찾기를 추가하거나 해제합니다.
+  const toggleStationFavorite = (station: StationDustItem) => {
+    const region = regionFromStation(station);
+    if (region) toggleFavoriteRegion(region);
   };
 
-  // 상세 데이터에서 조회할 지역을 바꾸고 기존 차트/목록 선택을 초기화합니다.
-  const applyDataRegion = (region: RegionState | null) => {
-    setShowDataRegionPicker(false);
-    setDataRegionSearchText('');
-    setDataMetric('pm10');
-    setSelectedChartDate(null);
-    setDataItems([]);
-    setError('');
-    setDetailRegion(region);
-  };
-
-  // 상세 데이터 지역 검색 결과를 선택했을 때 조회 지역으로 적용합니다.
-  const selectDataRegionSuggestion = (station: StationDustItem) => {
-    const city = station.sido;
-    const region = station.city || station.name;
-    if (!city || !region) return;
-    applyDataRegion({ city, region, label: station.name });
-  };
-
-  // 현재 GPS 좌표와 가장 가까운 측정소를 찾아 앱의 기준 지역으로 설정합니다.
-  const applyNearestGpsRegion = async () => {
-    setIsLocating(true);
-    setLocationMessage('위치 권한을 확인하는 중입니다.');
-    try {
-      const currentPermission = await Location.getForegroundPermissionsAsync();
-      const permission = currentPermission.granted ? currentPermission : await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        setLocationMessage('위치 권한이 없어 기본 지역 기준으로 표시합니다.');
-        return;
-      }
-
-      setLocationMessage('현재 위치를 가져오는 중입니다.');
-      const hasLocationService = await Location.hasServicesEnabledAsync();
-      if (!hasLocationService) {
-        setLocationMessage('위치 서비스가 꺼져 있어 기본 지역 기준으로 표시합니다.');
-        return;
-      }
-
-      const position =
-        (await Location.getLastKnownPositionAsync({ maxAge: 1000 * 60 * 10 })) ??
-        (await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }));
-      const gpsCoords = normalizeLatLng(position.coords.latitude, position.coords.longitude);
-      if (!gpsCoords) {
-        setLocationMessage('현재 위치 좌표가 올바르지 않습니다. 에뮬레이터 Location에서 Latitude와 Longitude 입력값을 확인해 주세요.');
-        return;
-      }
-      loadWeather(gpsCoords.lat, gpsCoords.lng);
-
-      let stations = mapStations;
-      if (stations.length === 0) {
-        setLocationMessage('가까운 측정소를 찾는 중입니다.');
-        const cachedStations = await loadStationCache();
-        if (cachedStations?.length) {
-          setStationItems(cachedStations);
-          stations = cachedStations.filter((station) => normalizeLatLng(station.lat, station.lng));
-        }
-      }
-
-      if (stations.length === 0) {
-        const stationData = await getKoreaStations();
-        const nextStations = (stationData.items ?? []) as StationDustItem[];
-        setStationItems(nextStations);
-        saveStationCache(nextStations);
-        stations = nextStations.filter((station) => normalizeLatLng(station.lat, station.lng));
-      }
-
-      const nearest = stations
-        .map((station) => {
-          const stationCoords = normalizeLatLng(station.lat, station.lng);
-          if (!stationCoords) return null;
-          return {
-            station,
-            distance: haversineKm(gpsCoords.lat, gpsCoords.lng, stationCoords.lat, stationCoords.lng),
-          };
-        })
-        .filter((item): item is { station: StationDustItem; distance: number } => item !== null)
-        .sort((a, b) => a.distance - b.distance)[0];
-
-      if (!nearest) {
-        setLocationMessage('가까운 측정소를 찾지 못했습니다.');
-        return;
-      }
-
-      const city = nearest.station.sido || DEFAULT_CITY;
-      const region = nearest.station.city || nearest.station.name || DEFAULT_REGION;
-      const nextRegion = { city, region, label: nearest.station.name };
-      setGpsRegion(nextRegion);
-      applyRegion(nextRegion, `${city} ${region} 기준으로 설정했습니다.`);
-    } catch (caught) {
-      setLocationMessage(caught instanceof Error ? caught.message : '현재 위치를 불러오지 못했습니다.');
-    } finally {
-      setIsLocating(false);
-    }
-  };
-
-  // 사용자가 선택한 홈 기준 지역을 저장합니다.
+  // 저장해 둔 지역·설정·일정을 불러옵니다.
   useEffect(() => {
     let cancelled = false;
-
-    const loadRegionStore = async () => {
-      try {
-        const storedState = await loadStoredAppState();
+    loadStoredAppState()
+      .then((storedState) => {
         if (cancelled) return;
-        const nextRegion = storedState.selectedRegion;
-        const nextGpsRegion = storedState.gpsRegion;
-        const nextFavorites = storedState.favoriteRegions;
-        const canUseStoredRegion = nextRegion && (!isSameRegion(nextRegion, DEFAULT_REGION_STATE) || nextFavorites.length > 0);
-        if (nextGpsRegion) setGpsRegion(nextGpsRegion);
-        if (canUseStoredRegion) setSelectedRegion(nextRegion);
-        if (!canUseStoredRegion && nextGpsRegion) setSelectedRegion(nextGpsRegion);
-        if (!canUseStoredRegion && !nextGpsRegion) setSelectedRegion(DEFAULT_REGION_STATE);
-        setFavoriteRegions(nextFavorites);
+        hydrateRegions(storedState);
         setMapRecentSearches(storedState.mapRecentSearches);
         hydrateNotificationSettings(storedState.notificationSettings, storedState.notificationToken);
         setOutfitSettings(storedState.outfitSettings);
         setCalendarEvents(storedState.calendarEvents);
         setHasLoadedRegionStore(true);
-      } catch {
-        if (!cancelled) {
-          setHasLoadedRegionStore(false);
-        }
-      }
-    };
-
-    loadRegionStore();
+      })
+      .catch(() => {
+        if (!cancelled) setHasLoadedRegionStore(false);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // GPS로 잡은 실제 위치 기준 지역을 저장합니다.
   useEffect(() => {
-    if (!hasLoadedRegionStore || !selectedRegion) return;
-    saveSelectedRegion(selectedRegion);
-  }, [hasLoadedRegionStore, selectedRegion]);
-
-  // 즐겨찾기 목록이 바뀔 때 저장소와 동기화합니다.
-  useEffect(() => {
-    if (!hasLoadedRegionStore || !gpsRegion) return;
-    saveGpsRegion(gpsRegion);
-  }, [gpsRegion, hasLoadedRegionStore]);
-
-  useEffect(() => {
-    if (!selectedRegion || mapStations.length === 0) return;
-    const station = findStationForRegion(selectedRegion);
-    const coords = normalizeLatLng(station?.lat, station?.lng);
-    if (!coords) return;
-    loadWeather(coords.lat, coords.lng);
-  }, [mapStations.length, selectedRegion]);
-
-  useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    saveFavoriteRegions(favoriteRegions);
-  }, [favoriteRegions, hasLoadedRegionStore]);
-
-  useEffect(() => {
-    if (!hasLoadedRegionStore) return;
-    saveOutfitSettings(outfitSettings);
+    if (hasLoadedRegionStore) saveOutfitSettings(outfitSettings);
   }, [hasLoadedRegionStore, outfitSettings]);
 
-  // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
+  // 선택 지역의 측정소 좌표로 현재 날씨를 불러옵니다.
+  useEffect(() => {
+    if (!selectedRegion || mapStations.length === 0) return;
+    const coords = normalizeLatLng(findStationForRegion(selectedRegion)?.lat, findStationForRegion(selectedRegion)?.lng);
+    if (coords) loadWeather(coords.lat, coords.lng);
+  }, [mapStations.length, selectedRegion]);
+
+  // 저장값을 불러온 뒤 한 번, 현재 위치 기준 지역을 찾습니다.
   useEffect(() => {
     if (!hasLoadedRegionStore || hasTriedInitialLocation) return;
     setHasTriedInitialLocation(true);
     applyNearestGpsRegion();
   }, [hasLoadedRegionStore, hasTriedInitialLocation]);
 
-  // 서버는 예보를 매시 새로 모으므로, 홈에 머무는 동안 10분마다, 그리고 앱으로 돌아올 때마다 홈 예보를 다시 받습니다.
-  const loadDashboardRef = useRef(loadDashboard);
-  loadDashboardRef.current = loadDashboard;
-  useEffect(() => {
-    if (activeTab !== 'home') return;
-    const refresh = () => {
-      void loadDashboardRef.current(true);
-    };
-    const timer = setInterval(refresh, 10 * 60 * 1000);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') refresh();
-    });
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
-  }, [activeTab]);
-
-  // 지도 탭 진입 시 GPS 기준 측정소로 초기 포커스를 한 번만 보냅니다.
+  // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
   useEffect(() => {
     if (!selectedRegion) return;
     if (activeTab === 'home') loadDashboard();
     if (activeTab === 'map' && stationItems.length === 0) loadStations();
-    if (DETAIL_DATA_ENABLED && detailRegion) {
-      if (dataDetailMode === 'weather') {
-        loadWeatherDetail();
-      } else {
-        loadPastData(dataRangeDays);
-      }
-      if (stationItems.length === 0) loadStations();
-    }
     if (activeTab === 'calendar' && (!currentItem || !prediction || pastItems.length === 0)) loadDashboard();
-  }, [activeTab, dataRangeDays, dataDetailMode, activeCity, activeRegion, selectedRegion, detailRegion]);
+  }, [activeTab, selectedRegion]);
 
-  // 지도 탭을 5분 이상 보지 않으면 선택 마커와 검색 상태를 초기화합니다.
+  // 탭을 떠날 때 그 탭의 임시 상태(지도 선택, 홈 검색 패널)를 정리합니다.
   useEffect(() => {
     const previousTab = previousTabRef.current;
-    if (previousTab === 'calendar' && activeTab !== 'calendar') {
-      resetBriefingMessages();
-    }
     if (previousTab === 'map' && activeTab !== 'map') {
       setSelectedStation(null);
       setMapViewKey((key) => key + 1);
     }
     if (previousTab === 'home' && activeTab !== 'home') {
       Keyboard.dismiss();
-      setShowFavoritePicker(false);
-      setShowHomeRegionSearch(false);
-      setHomeRegionSearchText('');
+      closeHomeRegionPanels();
     }
     previousTabRef.current = activeTab;
   }, [activeTab]);
 
-  // 홈의 즐겨찾기/지역 검색 패널 등장 애니메이션입니다.
+  // 지도 탭을 5분 이상 보지 않으면 선택 마커와 검색 상태를 초기화합니다.
   useEffect(() => {
     if (activeTab === 'map') return;
     const timer = setTimeout(() => {
@@ -1039,15 +466,11 @@ export function AppContent() {
     return () => clearTimeout(timer);
   }, [activeTab]);
 
-  // 상세 데이터 지역 검색 패널 등장 애니메이션입니다.
+  // 홈의 즐겨찾기/지역 검색 패널 등장 애니메이션입니다.
   useEffect(() => {
-    if (activeTab !== 'home' || (!showFavoritePicker && !showHomeRegionSearch)) {
-      homePanelOpacity.setValue(0);
-      homePanelTranslateY.setValue(-8);
-      return;
-    }
     homePanelOpacity.setValue(0);
     homePanelTranslateY.setValue(-8);
+    if (activeTab !== 'home' || (!showFavoritePicker && !showHomeRegionSearch)) return;
     Animated.parallel([
       Animated.timing(homePanelOpacity, {
         toValue: 1,
@@ -1063,31 +486,7 @@ export function AppContent() {
     ]).start();
   }, [activeTab, homePanelOpacity, homePanelTranslateY, showFavoritePicker, showHomeRegionSearch]);
 
-  // 지도 검색 전체 화면 등장 애니메이션입니다.
-  useEffect(() => {
-    if (!detailRegion || !showDataRegionPicker) {
-      dataRegionPickerOpacity.setValue(0);
-      dataRegionPickerTranslateY.setValue(-8);
-      return;
-    }
-    dataRegionPickerOpacity.setValue(0);
-    dataRegionPickerTranslateY.setValue(-8);
-    Animated.parallel([
-      Animated.timing(dataRegionPickerOpacity, {
-        toValue: 1,
-        duration: 160,
-        useNativeDriver: true,
-      }),
-      Animated.spring(dataRegionPickerTranslateY, {
-        toValue: 0,
-        damping: 16,
-        stiffness: 180,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [dataRegionPickerOpacity, dataRegionPickerTranslateY, detailRegion, showDataRegionPicker]);
-
-  // 키보드 높이를 추적해 입력 UI가 하단 탭에 가려지지 않게 합니다.
+  // 키보드 높이를 추적해 하단 토스트가 키보드에 가려지지 않게 합니다.
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
@@ -1103,16 +502,9 @@ export function AppContent() {
       showSubscription.remove();
       hideSubscription.remove();
     };
-  }, [activeTab]);
+  }, []);
 
-  // 알림 설정 저장 결과를 하단 토스트로 보여줍니다.
-  useEffect(() => {
-    if (activeTab !== 'calendar' || !isKeyboardVisible) return;
-    const timer = setTimeout(() => mainScrollRef.current?.scrollToEnd({ animated: true }), 80);
-    return () => clearTimeout(timer);
-  }, [activeTab, briefingMessages.length, isBriefingLoading, isKeyboardVisible, keyboardHeight]);
-
-  // Android 뒤로가기: 지도 검색/선택 상태를 닫고 앱 종료를 막습니다.
+  // 알림·즐겨찾기 결과 메시지를 하단 토스트로 잠깐 보여줍니다.
   useEffect(() => {
     if (!notificationMessage) return;
     notificationToastOpacity.stopAnimation();
@@ -1149,7 +541,7 @@ export function AppContent() {
     return () => clearTimeout(timer);
   }, [notificationMessage, notificationToastOpacity, notificationToastTranslateY]);
 
-  // Android 뒤로가기: 홈 검색/즐겨찾기 패널이 열려 있으면 패널만 닫습니다.
+  // Android 뒤로가기: 지도 검색/선택 상태를 닫고, 아무것도 없으면 홈으로 갑니다.
   useEffect(() => {
     if (activeTab !== 'map') return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -1178,7 +570,7 @@ export function AppContent() {
     return () => subscription.remove();
   }, [activeTab, isMapSearchFocused, mapSearchMessage, mapSearchText, selectedStation, showSearchSuggestions]);
 
-  // Android 뒤로가기: 상세 데이터 지역 검색 패널이 열려 있으면 패널만 닫습니다.
+  // Android 뒤로가기: 홈 검색/즐겨찾기 패널이 열려 있으면 패널만 닫습니다.
   useEffect(() => {
     if (activeTab !== 'home' || (!showHomeRegionSearch && !showFavoritePicker)) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -1188,34 +580,11 @@ export function AppContent() {
         setHomeRegionSearchText('');
         return true;
       }
-      if (showFavoritePicker) {
-        setShowFavoritePicker(false);
-        return true;
-      }
-      return false;
+      setShowFavoritePicker(false);
+      return true;
     });
     return () => subscription.remove();
   }, [activeTab, showFavoritePicker, showHomeRegionSearch]);
-
-  useEffect(() => {
-    if (!detailRegion || !showDataRegionPicker) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      Keyboard.dismiss();
-      setShowDataRegionPicker(false);
-      setDataRegionSearchText('');
-      return true;
-    });
-    return () => subscription.remove();
-  }, [detailRegion, showDataRegionPicker]);
-
-  useEffect(() => {
-    if (!detailRegion || showDataRegionPicker) return;
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      resetDataTab();
-      return true;
-    });
-    return () => subscription.remove();
-  }, [detailRegion, showDataRegionPicker]);
 
   const switchTab = (nextTab: TabKey) => {
     if (nextTab === activeTab) return;
@@ -1249,53 +618,6 @@ export function AppContent() {
     );
   }
 
-  const resolvedDataRegion = activeDataRegion ?? selectedRegion;
-  const dataRegionPickerContent = showDataRegionPicker ? (
-    <Animated.View
-      style={[
-        styles.dataRegionPicker,
-        {
-          opacity: dataRegionPickerOpacity,
-          transform: [{ translateY: dataRegionPickerTranslateY }],
-        },
-      ]}
-    >
-      <Text style={styles.favoritePickerTitle}>지역 검색</Text>
-      <TextInput
-        value={dataRegionSearchText}
-        onChangeText={setDataRegionSearchText}
-        onFocus={() => {
-          if (stationItems.length === 0) loadStations();
-        }}
-                  placeholder={"\uC9C0\uC5ED, \uCE21\uC815\uC18C, \uC8FC\uC18C \uAC80\uC0C9"}
-                  placeholderTextColor="#8a94a3"
-        returnKeyType="search"
-        style={styles.homeRegionSearchInput}
-      />
-      {!!dataRegionSearchText.trim() && dataRegionSuggestions.length === 0 && !isLoadingStations && (
-        <Text style={styles.homeRegionSearchEmpty}>일치하는 지역을 찾지 못했습니다.</Text>
-      )}
-      {dataRegionSuggestions.length > 0 && (
-        <View style={styles.homeRegionSuggestionList}>
-          {dataRegionSuggestions.map((station, index) => {
-            const regionName = station.city || station.name || '';
-            return (
-              <Pressable
-                key={`${stationIdentity(station)}-${index}-data-search`}
-                onPress={() => selectDataRegionSuggestion(station)}
-                style={({ pressed }) => [styles.homeRegionSuggestionItem, pressed && styles.pressedFeedback]}
-              >
-                <View style={styles.homeRegionSuggestionTextGroup}>
-                  <Text style={styles.homeRegionSuggestionTitle}>{station.sido} {regionName}</Text>
-                  <Text style={styles.homeRegionSuggestionMeta}>{[station.name, station.addr].filter(Boolean).join(' / ')}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </Animated.View>
-  ) : null;
   const bottomToast = !!notificationMessage && (
     <Animated.View
       pointerEvents="none"
@@ -1311,89 +633,6 @@ export function AppContent() {
       <Text style={styles.bottomToastText}>{notificationMessage}</Text>
     </Animated.View>
   );
-
-  if (DETAIL_DATA_ENABLED && detailRegion) {
-    return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-        <StatusBar style="dark" />
-        <WeatherBackdrop label={weather?.label} />
-        <ScreenTransition transitionKey={`detail-${resolvedDataRegion.city}-${resolvedDataRegion.region}-${dataDetailMode}`}>
-        <ScrollView
-          ref={mainScrollRef}
-          style={styles.screenTransitionScroll}
-          contentContainerStyle={[styles.screen, styles.detailScreen]}
-          keyboardShouldPersistTaps="handled"
-          refreshControl={<RefreshControl colors={[accentTone]} refreshing={isLoadingPast} tintColor={accentTone} onRefresh={() => dataDetailMode === 'weather' ? loadWeatherDetail() : loadPastData(dataRangeDays)} />}
-        >
-          <View style={styles.detailScreenHeader}>
-            <Pressable onPress={resetDataTab} style={({ pressed }) => [styles.detailBackButton, pressed && styles.pressedFeedback]}>
-              <Ionicons name="chevron-back" size={22} color="#141821" />
-            </Pressable>
-            <View style={styles.detailHeaderTextGroup}>
-              <Text style={styles.detailHeaderTitle}>{resolvedDataRegion.city} {resolvedDataRegion.region}</Text>
-              <Text style={styles.detailHeaderSubText}>상세 데이터</Text>
-            </View>
-          </View>
-          <View style={styles.detailModeCard}>
-            <View style={styles.detailModeRow}>
-              {[
-                { key: 'dust' as const, label: '미세먼지' },
-                { key: 'weather' as const, label: '날씨' },
-              ].map((mode) => (
-                <Pressable
-                  key={mode.key}
-                  onPress={() => setDataDetailMode(mode.key)}
-                  style={({ pressed }) => [styles.detailModeButton, dataDetailMode === mode.key && { backgroundColor: accentTone }, pressed && styles.pressedFeedback]}
-                >
-                  <Text style={[styles.detailModeText, dataDetailMode === mode.key && styles.detailModeTextActive]}>{mode.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-          {dataDetailMode === 'dust' ? (
-            <DataPanel
-              dataMetric={dataMetric}
-              dataRangeDays={dataRangeDays}
-              error={error}
-              accentBorderTone={accentBorderTone}
-              accentSoftTone={accentSoftTone}
-              accentTone={accentTone}
-              isLoadingPast={isLoadingPast}
-              items={dataItems}
-              onMetricChange={setDataMetric}
-              onRangeChange={setDataRangeDays}
-              onSelectChartDate={setSelectedChartDate}
-              onToggleRegionPicker={() => setShowDataRegionPicker((visible) => !visible)}
-              region={resolvedDataRegion}
-              regionPickerContent={dataRegionPickerContent}
-              selectedChartDate={selectedChartDate}
-              showRegionPicker={showDataRegionPicker}
-            />
-          ) : (
-            <WeatherDataPanel
-              accentBorderTone={accentBorderTone}
-              accentSoftTone={accentSoftTone}
-              accentTone={accentTone}
-              currentWeather={detailWeather}
-              error={error}
-              isLoading={isLoadingPast}
-              dataRangeDays={dataRangeDays}
-              items={detailWeatherItems}
-              metric={weatherDataMetric}
-              onMetricChange={setWeatherDataMetric}
-              onRangeChange={setDataRangeDays}
-              onToggleRegionPicker={() => setShowDataRegionPicker((visible) => !visible)}
-              region={resolvedDataRegion}
-              regionPickerContent={dataRegionPickerContent}
-              showRegionPicker={showDataRegionPicker}
-            />
-          )}
-        </ScrollView>
-        </ScreenTransition>
-        {bottomToast}
-      </SafeAreaView>
-    );
-  }
 
   if (activeTab === 'map') {
     return (
@@ -1427,12 +666,7 @@ export function AppContent() {
           onClearRecentSearches={() => setMapRecentSearches([])}
           onRemoveRecentSearch={removeMapRecentSearch}
           onRetryMap={() => setMapViewKey((key) => key + 1)}
-          onToggleFavorite={(station) => {
-            const city = station.sido;
-            const region = station.city || station.name;
-            if (city && region) toggleFavoriteRegion({ city, region, label: station.name });
-          }}
-          openStationDetail={openStationDetail}
+          onToggleFavorite={toggleStationFavorite}
           searchSuggestions={searchSuggestions}
           selectedStation={selectedStation}
           selectedStationWeather={selectedStationWeather}
@@ -1491,6 +725,7 @@ export function AppContent() {
     );
   }
 
+  // 홈과 설정 탭
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
@@ -1499,12 +734,11 @@ export function AppContent() {
         keyboardVerticalOffset={0}
         style={styles.keyboardAvoidingRoot}
       >
-      {activeTab !== 'home' && activeTab !== 'account' && <WeatherBackdrop label={weather?.label} />}
       <ScreenTransition transitionKey={activeTab}>
       <ScrollView
         ref={mainScrollRef}
         style={styles.screenTransitionScroll}
-        contentContainerStyle={[styles.screen, (activeTab === 'home' || activeTab === 'account') && styles.edgeToEdgeScreen]}
+        contentContainerStyle={[styles.screen, styles.edgeToEdgeScreen]}
         keyboardShouldPersistTaps="handled"
         stickyHeaderIndices={activeTab === 'home' ? [0] : undefined}
         refreshControl={<RefreshControl colors={[accentTone]} refreshing={isRefreshingCurrent} tintColor={accentTone} onRefresh={loadCurrentDust} />}
@@ -1563,15 +797,13 @@ export function AppContent() {
               </Text>
             )}
           </View>
-        ) : activeTab === 'account' ? (
+        ) : (
           <View style={styles.tabPageHeader}>
             <View>
               <Text style={styles.tabPageTitle}>설정</Text>
             </View>
             <Ionicons color="#2563eb" name="options-outline" size={24} />
           </View>
-        ) : (
-          <Text style={styles.title}>{getTabRoute(activeTab)?.label}</Text>
         )}
         {activeTab === 'home' && showFavoritePicker && (
           <Animated.View style={[styles.favoritePicker, { opacity: homePanelOpacity, transform: [{ translateY: homePanelTranslateY }] }]}>
@@ -1662,7 +894,7 @@ export function AppContent() {
             )}
             {homeRegionSuggestions.length > 0 && (
               <View style={styles.homeRegionSuggestionList}>
-                  {homeRegionSuggestions.map((station, index) => {
+                {homeRegionSuggestions.map((station, index) => {
                   const regionName = station.city || station.name || '';
                   const alreadyFavorite = favoriteRegions.some((region) => isSameRegion(region, { city: station.sido ?? '', region: regionName }));
                   return (
@@ -1679,7 +911,7 @@ export function AppContent() {
                       </Pressable>
                       <Pressable
                         accessibilityLabel={alreadyFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가'}
-                        onPress={() => toggleHomeSuggestionFavorite(station)}
+                        onPress={() => toggleStationFavorite(station)}
                         style={({ pressed }) => [styles.homeRegionSuggestionStarButton, pressed && styles.pressedFeedback]}
                       >
                         <Ionicons color={alreadyFavorite ? '#E2B93B' : textColors.disabled} name={alreadyFavorite ? 'star' : 'star-outline'} size={22} />
@@ -1704,7 +936,6 @@ export function AppContent() {
             onDeleteCalendarEvent={removeCalendarEvent}
             onDeleteFollowingCalendarEvents={removeFollowingCalendarEvents}
             onOpenCalendar={() => setActiveTab('calendar')}
-            onOpenDetail={openSelectedRegionDetail}
             onOpenMap={() => {
               if (stationItems.length === 0) loadStations();
               setMapViewKey((key) => key + 1);

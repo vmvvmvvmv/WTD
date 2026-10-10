@@ -29,18 +29,3 @@ export const lightColors: AppColors = {
   warning: '#D89232',
   danger: bauhausColors.red,
 } as const;
-
-export const darkColors: AppColors = {
-  background: '#F4F8FC',
-  card: '#FFFFFF',
-  cardMuted: '#E7EFF7',
-  primary: '#3D7FEA',
-  primaryStrong: '#2F6FD7',
-  primarySoft: bauhausColors.blueSoft,
-  primaryBorder: bauhausColors.border,
-  border: bauhausColors.border,
-  text: '#17202A',
-  textMuted: '#718096',
-  warning: '#D89232',
-  danger: '#E85C6B',
-} as const;

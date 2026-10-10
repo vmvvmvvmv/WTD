@@ -10,15 +10,13 @@ import Animated, {
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withDelay,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
 import { buildOutfitWeatherAlert } from '../../features/outfit/outfitWeatherAlert';
-import { useOutfitRecommendation, type OutfitLoadStatus } from '../../features/outfit/useOutfitRecommendation';
+import { useOutfitRecommendation } from '../../features/outfit/useOutfitRecommendation';
 import type { CalendarEvent, OutfitFigure, OutfitRecommendation, OutfitSensitivity } from '../../types/dust';
 import { MustHaveIcon, OutfitIcon } from './OutfitIcon';
 import { OUTFIT_MOTION } from './motion';
