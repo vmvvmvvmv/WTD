@@ -646,3 +646,4 @@ Codex가 시작하려던 작업을 이어서 했다(백엔드 옷차림 파일�
 - `AppActionIcon`의 실제 그림 경계(`artworkBounds`)를 새 파일에 맞게 다시 측정해 작은 버튼에서도 가운데 정렬과 표시 크기를 유지했다.
 - 검증: 모바일 TypeScript typecheck 통과, 변경 파일 ESLint(`--no-cache`) 통과. Android 실기기 홈·캘린더·일정 시트에서 검색·일정·삭제·수정 아이콘 표시를 확인했다. 전체 `expo lint`는 저장소 `.expo` 캐시 파일 쓰기 권한(EPERM) 때문에 완료되지 못했다.
 - 주요 파일: `mobile/assets/icons/action-*.png`, `mobile/src/components/shared/AppActionIcon.tsx`.
+- (45장 보충) 사용자 요청으로 날짜 패널 위 모서리 둥글게는 되돌렸다(각진 모서리 유지, 위로 드리우는 그림자만 남김). 커밋 `c5453a3`. 디자인 선호: 아래에서 올라오는 패널의 모서리는 둥글게 하지 않는다.
