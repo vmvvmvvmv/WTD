@@ -178,10 +178,10 @@ class ExpoDeviceNotRegisteredTests(SimpleTestCase):
                                  enabled=True, calendar_events=[{'title': '병원'}], save=MagicMock())
         module = 'dust.weather_morning_notifications'
         with patch(f'{module}.NotificationDevice.objects.filter', return_value=[device]), \
-                patch(f'{module}.weather_risk_for_region', return_value=object()), \
+                patch(f'{module}.weather_points_for_region', return_value=[object()]), \
                 patch(f'{module}.DustNotificationLog.objects.filter') as logs, \
                 patch(f'{module}.events_for_date', return_value=[]), \
-                patch(f'{module}.build_weather_morning_body', return_value='body'), \
+                patch(f'{module}.build_weather_morning_message', return_value=('title', 'body')), \
                 patch(f'{module}.send_expo_push', side_effect=ExpoDeviceNotRegistered('gone')):
             logs.return_value.exists.return_value = False
             result = send_weather_morning_notifications(date(2026, 10, 9))
@@ -312,21 +312,36 @@ class DustSpikeNotificationTests(SimpleTestCase):
         from datetime import datetime
         self.now = timezone.make_aware(datetime(2026, 10, 10, 13, 0))
 
-    def test_current_bad_measurement_alerts_now(self):
-        from dust.dust_spike_notifications import build_dust_spike_body
-        body = build_dust_spike_body(95.4, None)
-        self.assertEqual(body, '지금 미세먼지 나쁨(PM10 95㎍/㎥)이에요. 마스크 챙기세요.')
-        self.assertIn('매우 나쁨', build_dust_spike_body(160, '보통'))
+    def measurement(self, pm10, pm25, hour=10):
+        from types import SimpleNamespace
+        return SimpleNamespace(measured_at=self.now.replace(hour=hour), pm10_value=pm10, pm25_value=pm25)
 
-    def test_airkorea_bad_forecast_today_alerts_when_now_is_fine(self):
-        from dust.dust_spike_notifications import build_dust_spike_body
-        self.assertEqual(build_dust_spike_body(40, '나쁨'), '오늘 미세먼지 예보가 나쁨이에요. 마스크 챙기세요.')
-        self.assertEqual(build_dust_spike_body(None, '매우나쁨'), '오늘 미세먼지 예보가 매우 나쁨이에요. 마스크 챙기세요.')
+    def test_current_bad_measurement_names_station_and_time(self):
+        from dust.dust_spike_notifications import build_dust_spike_message
+        title, body = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(95.4, 20), (None, None))
+        self.assertEqual(title, '강남구 미세먼지 나쁨')
+        self.assertEqual(body, "지금 미세먼지(PM10) 95㎍/㎥ '나쁨'이에요(강남구 측정소, 10시 측정).\n마스크를 쓰고 바깥 활동을 줄이세요.")
+        _, very_bad = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(160, None), ('보통', None))
+        self.assertIn("'매우 나쁨'", very_bad)
+
+    def test_pm25_alone_is_reported_as_fine_dust(self):
+        from dust.dust_spike_notifications import build_dust_spike_message
+        title, body = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(50, 48), (None, None))
+        self.assertEqual(title, '강남구 초미세먼지 나쁨')
+        self.assertIn("초미세먼지(PM2.5) 48㎍/㎥ '나쁨'", body)
+        both_title, _ = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(120, 80), (None, None))
+        self.assertEqual(both_title, '강남구 미세먼지·초미세먼지 나쁨')
+
+    def test_airkorea_forecast_names_region_and_announcement(self):
+        from dust.dust_spike_notifications import build_dust_spike_message
+        title, body = build_dust_spike_message('강남구', '서울', '강남구', self.measurement(40, 20), ('나쁨', '2026-10-10 05시 발표'))
+        self.assertEqual(title, "서울 미세먼지 예보 '나쁨'")
+        self.assertEqual(body, "에어코리아 예보로 오늘 서울 미세먼지(PM10)가 '나쁨'이에요(10월 10일 5시 발표).\n마스크를 챙기세요.")
 
     def test_no_alert_when_now_and_today_forecast_are_not_bad(self):
-        from dust.dust_spike_notifications import build_dust_spike_body
-        self.assertIsNone(build_dust_spike_body(80, '보통'))
-        self.assertIsNone(build_dust_spike_body(None, None))
+        from dust.dust_spike_notifications import build_dust_spike_message
+        self.assertIsNone(build_dust_spike_message('강남구', '서울', '강남구', self.measurement(80, 35), ('보통', '2026-10-10 05시 발표')))
+        self.assertIsNone(build_dust_spike_message('강남구', '서울', None, None, (None, None)))
 
     def test_quiet_hours_send_nothing(self):
         from datetime import datetime
@@ -344,15 +359,15 @@ class DustSpikeNotificationTests(SimpleTestCase):
         device = SimpleNamespace(city='서울', region='강남구', expo_push_token='ExponentPushToken[x]', save=MagicMock())
         with patch(f'{module}.NotificationDevice.objects.filter', return_value=[device]), \
                 patch(f'{module}.DustNotificationLog.objects') as logs, \
-                patch(f'{module}._station_for_region', return_value=object()), \
-                patch(f'{module}._latest_pm10', return_value=100), \
-                patch(f'{module}._today_forecast_grade', return_value=None), \
+                patch(f'{module}._station_for_region', return_value=SimpleNamespace(name='강남구')), \
+                patch(f'{module}._latest_measurement', return_value=self.measurement(100, 20)), \
+                patch(f'{module}._today_forecast', return_value=(None, None)), \
                 patch(f'{module}.send_expo_push') as push:
             logs.filter.return_value.exists.return_value = False
             result = send_dust_spike_notifications(now=self.now)
         self.assertEqual(result.sent, 1)
         push.assert_called_once()
-        self.assertEqual(push.call_args.args[1], '강남구 미세먼지 알림')
+        self.assertEqual(push.call_args.args[1], '강남구 미세먼지 나쁨')
         logs.update_or_create.assert_called_once()
 
 
