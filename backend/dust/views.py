@@ -1193,15 +1193,15 @@ def mobile_map_client_log(request):
         return Response({"ok": False, "detail": "mobile map logging is disabled."}, status=404)
 
     body = request.data if isinstance(request.data, dict) else {}
-    event = str(body.get("event") or "unknown")[:80]
+    event = str(body.get("event") or "unknown")[:80].replace("\r", " ").replace("\n", " ")
     details = body.get("details") if isinstance(body.get("details"), dict) else {}
     safe_details = {
         str(key)[:50]: str(value)[:200]
         for key, value in details.items()
         if "token" not in str(key).lower() and "key" not in str(key).lower()
     }
-    href = re.sub(r"app_test_token=[^&]+", "app_test_token=[hidden]", str(body.get("href") or ""))[:300]
-    user_agent = str(body.get("userAgent") or "")[:200]
+    href = re.sub(r"app_test_token=[^&]+", "app_test_token=[hidden]", str(body.get("href") or ""))[:300].replace("\r", " ").replace("\n", " ")
+    user_agent = str(body.get("userAgent") or "")[:200].replace("\r", " ").replace("\n", " ")
     print(f"[mobile-map] event={event} details={safe_details} href={href} userAgent={user_agent}", flush=True)
     return Response({"ok": True})
 
