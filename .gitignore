@@ -55,3 +55,7 @@ backend/*.bak
 Thumbs.db
 .vscode/
 .idea/
+
+# Local assistant files
+.claude/
+WEATHERTODO_HANDOFF.md
