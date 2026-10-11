@@ -1,3 +1,4 @@
+import hmac
 import os
 
 from django.http import JsonResponse
@@ -20,7 +21,7 @@ class AppTestTokenMiddleware:
             return self.get_response(request)
 
         supplied_token = request.META.get(TOKEN_HEADER) or request.GET.get(TOKEN_QUERY_PARAM)
-        if supplied_token != expected_token:
+        if not hmac.compare_digest(str(supplied_token or ""), expected_token):
             return JsonResponse({"detail": "Forbidden"}, status=403)
 
         return self.get_response(request)
