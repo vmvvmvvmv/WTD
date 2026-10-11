@@ -57,7 +57,7 @@ DB_PORT = env_value('DB_PORT', '3306')
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = env_bool('DJANGO_DEBUG', True)
+DEBUG = env_bool('DJANGO_DEBUG', False)
 ENABLE_MOBILE_MAP_LOG = env_bool('ENABLE_MOBILE_MAP_LOG', DEBUG)
 # 앱에서 쓰지 않는 선택 기능(챗봇 브리핑, analyze AI, 기상 상세 데이터). 코드는 남기고 운영에서는 라우팅하지 않는다.
 ENABLE_OPTIONAL_FEATURES = env_bool('ENABLE_OPTIONAL_FEATURES', DEBUG)
