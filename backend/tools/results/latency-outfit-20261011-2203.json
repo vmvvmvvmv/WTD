@@ -1,0 +1,174 @@
+{
+  "environment": {
+    "measured_at": "2026-10-11T22:03:06",
+    "server": "http://127.0.0.1:8001 (Django runserver, 같은 PC)",
+    "os": "Windows-10-10.0.26200-SP0",
+    "cpu": "AMD64 Family 25 Model 97 Stepping 2, AuthenticAMD",
+    "python": "3.11.9",
+    "note": "PC 안에서 잰 서버 응답 시간. 폰 통신·화면 그리기 시간은 포함 안 됨."
+  },
+  "outfit": {
+    "condition": "같은 일정 10개, 민감도 cold. 처음 full 요청이 AI(llm)이고 저장값이 아닌 경우만 셈",
+    "valid_samples": 10,
+    "rule": {
+      "n": 10,
+      "median_ms": 17.5,
+      "min_ms": 15.3,
+      "max_ms": 52.4
+    },
+    "full_first": {
+      "n": 10,
+      "median_ms": 1514.9,
+      "min_ms": 1292.5,
+      "max_ms": 2088.2
+    },
+    "full_again": {
+      "n": 10,
+      "median_ms": 19.4,
+      "min_ms": 17.7,
+      "max_ms": 20.6
+    },
+    "raw": [
+      {
+        "start": "2026-10-12T09:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 22.083999996539205,
+        "full_first_ms": 1585.0423000520095,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 17.981300014071167,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-12T11:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 17.155200010165572,
+        "full_first_ms": 1292.4912999733351,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 17.692699970211834,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-12T19:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 16.8470999924466,
+        "full_first_ms": 1645.5912999808788,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 19.009700044989586,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-13T09:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 16.255800030194223,
+        "full_first_ms": 1337.7776000415906,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 20.589199964888394,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-13T12:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 17.6610000198707,
+        "full_first_ms": 2088.1967000314035,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 17.84320001024753,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-13T15:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 52.42939997697249,
+        "full_first_ms": 1441.439900023397,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 17.678900039754808,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-13T18:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 15.331500035244972,
+        "full_first_ms": 1510.5507000116631,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 19.78989999042824,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-14T10:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 17.993199988268316,
+        "full_first_ms": 1414.9307999759912,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 19.698799995239824,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-14T14:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 17.40569999674335,
+        "full_first_ms": 1565.3763000154868,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 19.72149999346584,
+        "full_again_cached": true
+      },
+      {
+        "start": "2026-10-14T18:00:00+09:00",
+        "status": [
+          200,
+          200,
+          200
+        ],
+        "rule_ms": 18.38829996995628,
+        "full_first_ms": 1519.1711999941617,
+        "full_first_source": "llm",
+        "full_first_cached": false,
+        "full_again_ms": 19.982900004833937,
+        "full_again_cached": true
+      }
+    ]
+  }
+}
