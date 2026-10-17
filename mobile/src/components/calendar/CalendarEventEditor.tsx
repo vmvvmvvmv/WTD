@@ -42,7 +42,6 @@ type Props = {
   endTime: string;
   isRepeatLocked?: boolean;
   isOpen: boolean;
-  location: string;
   mapPickerUrl?: string;
   memo: string;
   onChangeEndDate: (value: string) => void;
@@ -64,7 +63,6 @@ type Props = {
   repeatMode: CalendarRepeatMode;
   repeatWeekdays: number[];
   notificationHoursBefore?: number | null;
-  selectedLocation?: CalendarLocationCandidate | null;
   startDate: string;
   startTime: string;
   title: string;
@@ -76,7 +74,6 @@ export function CalendarEventEditor({
   endTime,
   isRepeatLocked = false,
   isOpen,
-  location,
   mapPickerUrl,
   memo,
   onChangeEndDate,
@@ -98,7 +95,6 @@ export function CalendarEventEditor({
   repeatMode,
   repeatWeekdays,
   notificationHoursBefore,
-  selectedLocation,
   startDate,
   startTime,
   title,

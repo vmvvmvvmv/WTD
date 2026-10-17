@@ -1,10 +1,11 @@
-import { AccessibilityInfo, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { ScrollView, useWindowDimensions } from 'react-native';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import Reanimated, { Easing as ReanimatedEasing, LinearTransition, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
@@ -33,7 +34,6 @@ type HomeCircularGaugeProps = {
   gaugeSize?: number;
   large?: boolean;
   progress: number;
-  tone: string;
   unit: string;
   value: string;
 };
@@ -99,38 +99,22 @@ const HOME_SECTION_TABS: { ai?: boolean; icon: AppActionIconName; key: HomeSecti
   { icon: 'map', key: 'map', label: '날씨 지도' },
 ];
 
-function HomeMotionActionIcon({ delayMs = 0, name, size }: { delayMs?: number; name: AppActionIconName; size: number }) {
-  const progress = useRef(new Animated.Value(0)).current;
-
+// 탭을 고른 순간 아이콘이 한 번만 살짝 튀어 오릅니다. 계속 움직이는 건 홈 배너 하나로 둡니다.
+function HomeTabSelectedIcon({ animate, name, size }: { animate: boolean; name: AppActionIconName; size: number }) {
+  const progress = useRef(new Animated.Value(animate ? 0 : 1)).current;
   useEffect(() => {
-    const motion = Animated.loop(
-      Animated.sequence([
-        Animated.delay(delayMs),
-        Animated.timing(progress, {
-          duration: 1700,
-          easing: Easing.inOut(Easing.sin),
-          toValue: 1,
-          useNativeDriver: true,
-        }),
-        Animated.timing(progress, {
-          duration: 1700,
-          easing: Easing.inOut(Easing.sin),
-          toValue: 0,
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    motion.start();
-    return () => motion.stop();
-  }, [delayMs, progress]);
-
+    if (!animate) return;
+    const animation = Animated.spring(progress, { damping: 9, stiffness: 220, toValue: 1, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [animate, progress]);
   return (
     <Animated.View
       pointerEvents="none"
       style={{
         transform: [
-          { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [0, -2.5] }) },
-          { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 1.035] }) },
+          { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) },
+          { scale: progress.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) },
         ],
       }}
     >
@@ -543,16 +527,6 @@ function HomeBannerScene({ animate, scene }: { animate: boolean; scene: HomeBann
   );
 }
 
-function useReduceMotion() {
-  const [reduceMotion, setReduceMotion] = useState(false);
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
-    return () => subscription.remove();
-  }, []);
-  return reduceMotion;
-}
-
 // 게이지 원 안에 숫자가 들어가도록 글자 크기를 줄입니다. 원 안쪽 폭의 약 70%를 쓰고,
 // 숫자 한 자는 글자 크기의 0.6배, 소수점·쉼표는 그 절반 정도 폭으로 셉니다.
 function gaugeValueFontSize(value: string, size: number, baseFontSize: number) {
@@ -616,7 +590,7 @@ function HomeRollingValue({ animate, fontSize, lineHeight, style, value }: {
   );
 }
 
-function HomeCircularGauge({ animate, gaugeSize, large = false, progress, revealed, tone, unit, value }: HomeCircularGaugeProps & {
+function HomeCircularGauge({ animate, gaugeSize, large = false, progress, revealed, unit, value }: HomeCircularGaugeProps & {
   animate: boolean;
   revealed: boolean;
 }) {
@@ -707,7 +681,7 @@ function HomeInfoGaugeSlide({ animate, comparison, gaugeSize, progress, revealed
   return (
     <View style={[styles.homeInfoSlide, styles.homeSplitGaugeSlide, { height: slideHeight, width }]}>
       <View style={[styles.homeSplitGaugeVisual, { width: gaugeSize + 4 }]}>
-        <HomeCircularGauge animate={animate} gaugeSize={gaugeSize} large progress={progress} revealed={revealed} tone={tone} unit={unit} value={value} />
+        <HomeCircularGauge animate={animate} gaugeSize={gaugeSize} large progress={progress} revealed={revealed} unit={unit} value={value} />
       </View>
       <View style={styles.homeSplitGaugeInfo}>
         <Text numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>
@@ -790,13 +764,14 @@ export function HomePanel({
   };
   const infoCarouselRef = useRef<ScrollView>(null);
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
-  const reduceMotion = useReduceMotion();
+  const reduceMotion = useReducedMotion();
   // 한 번이라도 화면에 들어온 게이지 슬라이드. 처음 들어올 때만 호가 차오릅니다.
   const [revealedSlides, setRevealedSlides] = useState<ReadonlySet<string>>(() => new Set());
   const [carouselIndex, setCarouselIndex] = useState(1);
   const [homeSectionTab, setHomeSectionTab] = useState<HomeSectionKey>('guide');
   const homeSectionTabs = HOME_SECTION_TABS.filter((tab) => outfitEnabled || tab.key !== 'outfit');
   const activeHomeSection = homeSectionTabs.some((tab) => tab.key === homeSectionTab) ? homeSectionTab : 'guide';
+  const activeHomeSectionIndex = Math.max(0, homeSectionTabs.findIndex((tab) => tab.key === activeHomeSection));
   const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
   const [mapPreviewRetryCount, setMapPreviewRetryCount] = useState(0);
   const infoSlideWidth = windowWidth;
@@ -974,6 +949,41 @@ export function HomePanel({
     setSelectedForecastKey(index === nowForecastIndex ? null : item.key);
     Haptics.selectionAsync().catch(() => {});
   };
+  // 홈 섹션 탭 전환: 밑줄은 고른 탭으로 미끄러지고, 새 내용은 이동한 방향에서 살짝 밀려 들어옵니다.
+  // 내용 전환과 카드 높이 변화는 Reanimated로 화면 스레드에서 돌려, 탭을 바꿀 때 홈을 다시 그리는 JS 작업과 겹쳐도 끊기지 않게 합니다.
+  const [sectionTabRowWidth, setSectionTabRowWidth] = useState(0);
+  const sectionTabWidth = homeSectionTabs.length > 0 ? sectionTabRowWidth / homeSectionTabs.length : 0;
+  const sectionIndicatorX = useRef(new Animated.Value(0)).current;
+  const [sectionTabTouched, setSectionTabTouched] = useState(false);
+  const sectionPaneDirection = useRef(1);
+  const sectionPaneProgress = useSharedValue(1);
+  const sectionPaneShift = useSharedValue(0);
+  useEffect(() => {
+    const x = activeHomeSectionIndex * sectionTabWidth;
+    if (reduceMotion) sectionIndicatorX.setValue(x);
+    else Animated.timing(sectionIndicatorX, { duration: 250, easing: Easing.out(Easing.cubic), toValue: x, useNativeDriver: true }).start();
+  }, [activeHomeSectionIndex, reduceMotion, sectionIndicatorX, sectionTabWidth]);
+  // 새 탭 내용이 화면에 그려지기 직전에 전환을 시작합니다(누른 순간에 시작하면 예전 내용이 먼저 움직임).
+  const shownHomeSection = useRef(activeHomeSection);
+  useLayoutEffect(() => {
+    if (shownHomeSection.current === activeHomeSection) return;
+    shownHomeSection.current = activeHomeSection;
+    if (reduceMotion) return;
+    sectionPaneShift.value = sectionPaneDirection.current * 16;
+    sectionPaneProgress.value = 0;
+    sectionPaneProgress.value = withTiming(1, { duration: 250, easing: ReanimatedEasing.out(ReanimatedEasing.cubic) });
+    sectionPaneShift.value = withTiming(0, { duration: 250, easing: ReanimatedEasing.out(ReanimatedEasing.cubic) });
+  }, [activeHomeSection, reduceMotion, sectionPaneProgress, sectionPaneShift]);
+  const sectionPaneStyle = useAnimatedStyle(() => ({
+    opacity: sectionPaneProgress.value,
+    transform: [{ translateX: sectionPaneShift.value }],
+  }));
+  const selectHomeSection = (key: HomeSectionKey, index: number) => {
+    if (key === activeHomeSection) return;
+    sectionPaneDirection.current = index > activeHomeSectionIndex ? 1 : -1;
+    setSectionTabTouched(true);
+    setHomeSectionTab(key);
+  };
   return (
     <View>
       {loading ? (
@@ -1094,9 +1104,12 @@ export function HomePanel({
       )}
 
       {/* 활동 가이드·옷차림·날씨 지도를 한 섹션의 탭으로 봅니다. 탭을 바꿔도 내용은 숨기기만 해서 다시 불러오지 않습니다. */}
-      <View style={styles.homeSectionCard}>
-        <View accessibilityRole="tablist" style={styles.homeSectionTabRow}>
-          {homeSectionTabs.map((tab) => {
+      <Reanimated.View
+        layout={reduceMotion ? undefined : LinearTransition.duration(250).easing(ReanimatedEasing.out(ReanimatedEasing.cubic))}
+        style={styles.homeSectionCard}
+      >
+        <View accessibilityRole="tablist" onLayout={(event) => setSectionTabRowWidth(event.nativeEvent.layout.width)} style={styles.homeSectionTabRow}>
+          {homeSectionTabs.map((tab, index) => {
             const selected = tab.key === activeHomeSection;
             return (
               <Pressable
@@ -1104,10 +1117,12 @@ export function HomePanel({
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
                 key={tab.key}
-                onPress={() => setHomeSectionTab(tab.key)}
-                style={({ pressed }) => [styles.homeSectionTab, selected && { borderBottomColor: accentTone }, pressed && styles.pressedFeedback]}
+                onPress={() => selectHomeSection(tab.key, index)}
+                style={({ pressed }) => [styles.homeSectionTab, pressed && styles.pressedFeedback]}
               >
-                {selected ? <HomeMotionActionIcon name={tab.icon} size={24} /> : <AppActionIcon name={tab.icon} size={24} style={styles.homeSectionTabIconMuted} />}
+                {selected
+                  ? <HomeTabSelectedIcon animate={sectionTabTouched && !reduceMotion} name={tab.icon} size={24} />
+                  : <AppActionIcon name={tab.icon} size={24} style={styles.homeSectionTabIconMuted} />}
                 <View style={styles.homeSectionTabLabelRow}>
                   {tab.ai && <Ionicons color={selected ? bauhausColors.blue : textColors.disabled} name="sparkles" size={11} />}
                   <Text style={[styles.homeSectionTabText, selected && styles.homeSectionTabTextSelected]}>{tab.label}</Text>
@@ -1115,8 +1130,15 @@ export function HomePanel({
               </Pressable>
             );
           })}
+          {sectionTabWidth > 0 && (
+            <Animated.View
+              pointerEvents="none"
+              style={[styles.homeSectionTabIndicator, { backgroundColor: accentTone, transform: [{ translateX: sectionIndicatorX }], width: sectionTabWidth }]}
+            />
+          )}
         </View>
 
+        <Reanimated.View style={sectionPaneStyle}>
         <View style={activeHomeSection !== 'guide' && styles.homeSectionHidden}>
           {/* 기본 가이드라는 것을 추천 옷차림의 'AI 추천' 줄과 같은 모양으로 알립니다. */}
           {activityGuideRows.length === 0 && (
@@ -1276,7 +1298,8 @@ export function HomePanel({
             <Ionicons color={accentTone} name="chevron-forward" size={17} />
           </View>
         </Pressable>
-      </View>
+        </Reanimated.View>
+      </Reanimated.View>
     </View>
   );
 }
