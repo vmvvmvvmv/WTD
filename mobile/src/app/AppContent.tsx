@@ -8,7 +8,7 @@ import { CalendarPanel } from '../components/calendar/CalendarPanel';
 import { HomeHeader } from '../components/home/HomeHeader';
 import { HomePanel } from '../components/home/HomePanel';
 import { HomeRegionSearchPanel } from '../components/home/HomeRegionSearchPanel';
-import { RegionLoadingOverlay, useRegionTransition } from '../components/home/RegionLoadingOverlay';
+import { useRegionTransition } from '../components/home/useRegionTransition';
 import { FullMapScreen } from '../components/map/FullMapScreen';
 import { findStationSuggestions, useMapSearch } from '../components/map/useMapSearch';
 import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
@@ -115,8 +115,6 @@ export function AppContent() {
 
   // 현재 선택 지역과 불러온 데이터에서 UI 색상과 표시값을 계산합니다.
   const latestPastItem = pastItems[pastItems.length - 1];
-  const activeCity = selectedRegion?.city ?? '';
-  const activeRegion = selectedRegion?.region ?? '';
   const currentPm10 = toNumber(currentItem?.pm10Value) ?? toNumber(latestPastItem?.pm10Value);
   const currentPm25 = toNumber(currentItem?.pm25Value) ?? toNumber(latestPastItem?.pm25Value);
   const currentO3 = toNumber(currentItem?.o3Value) ?? toNumber(latestPastItem?.o3Value);
@@ -554,6 +552,7 @@ export function AppContent() {
             yesterdayWeather={yesterdayWeather}
             pastItems={pastItems}
             loadFailed={!!error && !currentItem}
+            loading={regionTransition.isTransitioning}
           />
         )}
 
@@ -578,9 +577,6 @@ export function AppContent() {
       </ScrollView>
       </ScreenTransition>
       </KeyboardAvoidingView>
-      {regionTransition.isTransitioning && activeTab === 'home' && (
-        <RegionLoadingOverlay opacity={regionTransition.opacity} scale={regionTransition.scale} title={`${activeCity} ${activeRegion}`} />
-      )}
       {bottomToast}
       {tabBar}
     </SafeAreaView>
