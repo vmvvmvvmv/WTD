@@ -19,8 +19,8 @@ from dust.notification_registry import notification_device_response, upsert_noti
 from dust.services.common import _dfs_grid_from_lat_lng, _parse_measure_date, _to_float
 from dust.services.dust_history import _fetch_past_dust_items_by_station, _latest_past_item_date, _load_recent_realtime_hourly_dust, _load_stored_past_dust, _load_stored_realtime_daily_dust, _load_stored_realtime_hourly_dust, _merge_past_items, _store_past_dust_items
 from dust.services.places import _naver_coord, _strip_html
-from dust.services.stations import _current_station_location, _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
-from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
+from dust.services.stations import _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
+from dust.services.weather import _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
@@ -514,11 +514,6 @@ def hourly_dust(request):
     if not items and measured_date >= timezone.localdate() - timedelta(days=1):
         items = _load_recent_realtime_hourly_dust(city, district, station_name, station=station)
         source = "recent_24h"
-    location = _current_station_location(city, station_name)
-    weather_forecasts = []
-    if location:
-        grid = _dfs_grid_from_lat_lng(location["lat"], location["lng"])
-        weather_forecasts = _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12)
     # 앞으로 12시간 미세먼지는 에어코리아 공식 예보(하루 단위 등급)를 쓴다.
     # 직접 만든 시간별 예측 모델은 generate_hourly_dust_predictions 명령으로 따로 돌려 비교용으로만 남긴다.
     forecast_items = build_hourly_forecast_items(AIRKOREA_SERVICE_KEY, city)
@@ -535,7 +530,6 @@ def hourly_dust(request):
             "source": "airkorea",
             "note": "에어코리아 미세먼지 예보 등급(오늘·내일)을 등급별 대표 PM10 값으로 바꾼 값입니다.",
         },
-        "weatherForecastItems": weather_forecasts,
     })
 
 
