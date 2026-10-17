@@ -1,0 +1,9 @@
+[Unit]
+Description=Send WeatherToDo morning notifications at 07:00 KST
+
+[Timer]
+OnCalendar=*-*-* 07:00:00 Asia/Seoul
+Persistent=true
+
+[Install]
+WantedBy=timers.target
