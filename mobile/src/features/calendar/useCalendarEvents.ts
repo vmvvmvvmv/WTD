@@ -3,12 +3,13 @@ import { useEffect, useState } from 'react';
 import { withoutFollowingOccurrences } from '../../components/calendar/calendarRepeat';
 import { saveCalendarEvents } from '../../storage/appStorage';
 import type { CalendarEvent } from '../../types/calendar';
+import { refreshWidget } from '../../widget/refreshWidget';
 
 export function useCalendarEvents(hasLoadedStore: boolean) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
 
   useEffect(() => {
-    if (hasLoadedStore) void saveCalendarEvents(events);
+    if (hasLoadedStore) void saveCalendarEvents(events).then(refreshWidget);
   }, [events, hasLoadedStore]);
 
   const addEvent = (event: CalendarEvent) => {

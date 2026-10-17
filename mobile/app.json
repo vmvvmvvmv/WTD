@@ -41,12 +41,32 @@
         {
           "locationWhenInUsePermission": "현재 위치를 기준으로 가까운 지역의 날씨와 미세먼지 정보를 보여드리기 위해 위치 권한을 사용합니다."
         }
+      ],
+      [
+        "react-native-android-widget",
+        {
+          "widgets": [
+            {
+              "name": "TodayWidget",
+              "label": "웨더투두 오늘",
+              "description": "현재 기온, 시간대별 날씨, 미세먼지, 오늘 일정",
+              "minWidth": "250dp",
+              "minHeight": "110dp",
+              "targetCellWidth": 4,
+              "targetCellHeight": 2,
+              "resizeMode": "horizontal",
+              "updatePeriodMillis": 1800000,
+              "previewImage": "./assets/widget-preview.png"
+            }
+          ]
+        }
       ]
     ],
     "extra": {
       "eas": {
         "projectId": "50dd194a-ebc6-4121-9d15-19cebf67fc91"
       }
-    }
+    },
+    "scheme": "weathertodo"
   }
 }

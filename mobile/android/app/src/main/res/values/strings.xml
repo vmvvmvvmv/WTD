@@ -2,4 +2,5 @@
   <string name="app_name">웨더투두</string>
   <string name="expo_splash_screen_resize_mode" translatable="false">contain</string>
   <string name="expo_splash_screen_status_bar_translucent" translatable="false">false</string>
+  <string name="widget_todaywidget_description" translatable="false">현재 기온, 시간대별 날씨, 미세먼지, 오늘 일정</string>
 </resources>

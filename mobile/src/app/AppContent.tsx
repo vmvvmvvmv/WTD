@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Animated, BackHandler, Keyboard, Linking, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
@@ -52,6 +52,16 @@ export function AppContent() {
   const [notificationMessage, setNotificationMessage] = useState('');
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
+  // 홈 화면 위젯의 + 버튼(weathertodo://calendar)으로 열리면 캘린더 탭을 보여 줍니다.
+  useEffect(() => {
+    const openCalendar = (url: string | null) => {
+      if (url?.startsWith('weathertodo://calendar')) setActiveTab('calendar');
+    };
+    void Linking.getInitialURL().then(openCalendar);
+    const subscription = Linking.addEventListener('url', ({ url }) => openCalendar(url));
+    return () => subscription.remove();
+  }, []);
+
   const todayDateLabel = useTodayLabel();
   const regionTransition = useRegionTransition();
 
