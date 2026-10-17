@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 from dotenv import load_dotenv  # 추가
 load_dotenv()
@@ -145,6 +146,10 @@ DATABASES = {
         },
     }
 }
+
+# 테스트는 MySQL 계정에 테스트 DB를 만들 권한이 없어도 돌도록 메모리 SQLite를 쓴다.
+if len(sys.argv) > 1 and sys.argv[1] == 'test':
+    DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
 
 
 # Password validation
