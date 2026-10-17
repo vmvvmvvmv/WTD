@@ -1,7 +1,8 @@
 from django.core.management.base import BaseCommand
 
 from dust.midterm_weather import MIDTERM_REGIONS
-from dust.views import KMA_API_KEY, collect_midterm_weather_forecasts
+from dust.config import KMA_API_KEY
+from dust.services.weather import collect_midterm_weather_forecasts
 
 
 class Command(BaseCommand):

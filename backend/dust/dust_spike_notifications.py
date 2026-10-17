@@ -72,7 +72,7 @@ def _latest_measurement(station, now: datetime):
 
 
 def _today_forecast(city: str, now: datetime) -> tuple[str | None, str | None]:
-    from dust.views import AIRKOREA_SERVICE_KEY  # views가 이 모듈보다 늦게 준비될 수 있어 여기서 가져온다.
+    from dust.config import AIRKOREA_SERVICE_KEY  # views가 이 모듈보다 늦게 준비될 수 있어 여기서 가져온다.
 
     return forecast_for(AIRKOREA_SERVICE_KEY, city, now.date())
 
