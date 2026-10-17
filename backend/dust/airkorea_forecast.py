@@ -7,13 +7,13 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from .current_dust_service import canonical_sido_name
+from .external_api import REQUEST_TIMEOUT, public_api_get
 
 
 logger = logging.getLogger(__name__)
 FORECAST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMinuDustFrcstDspth"
 CACHE_TTL = 60 * 60
 FAILURE_CACHE_TTL = 5 * 60
-REQUEST_TIMEOUT = 10
 
 # 예보는 등급만 주므로, 앱의 PM10 기준(30/80/150 초과)에서 같은 등급으로 판정되는 대표값을 쓴다.
 GRADE_PM10 = {"좋음": 15, "보통": 55, "나쁨": 115, "매우나쁨": 180}
@@ -50,7 +50,8 @@ def grade_for_city(grades, city):
 
 
 def _fetch_items(service_key, search_date):
-    response = requests.get(
+    # 화면 요청 중에 부르므로 짧게 기다린다(external_api.REQUEST_TIMEOUT). 실패는 아래에서 5분 저장한다.
+    response = public_api_get(
         FORECAST_URL,
         params={
             "serviceKey": service_key,

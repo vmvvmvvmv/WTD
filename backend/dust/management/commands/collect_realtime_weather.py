@@ -19,7 +19,8 @@ def env_int(name, default):
         return default
 
 
-DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 48)
+# 앱은 72시간을 요청한다(홈·캘린더). 단기예보가 대략 3일 뒤까지라 그보다 길게 잡을 이유는 없다.
+DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 72)
 DEFAULT_WORKERS = env_int("KMA_REQUEST_WORKERS", 2)
 DEFAULT_USE_STATION_ADDRESS_REGIONS = os.getenv("KMA_USE_STATION_ADDRESS_REGIONS", "true").strip().lower() not in ("0", "false", "no", "off")
 DEFAULT_ULTRA_SHORT_CANDIDATES = env_int("KMA_ULTRA_SHORT_CANDIDATES", 1)
