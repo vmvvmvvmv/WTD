@@ -1,7 +1,7 @@
 import os
 from unittest.mock import Mock, patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
 from dust.services.outfit.daily_service import merge_daily_snapshots, recommend_daily_outfit
@@ -284,3 +284,13 @@ class ShowerVsRainTests(SimpleTestCase):
         result = build_rule_result(merged, activity_type="outdoor", sensitivity="normal", occasion="casual")
         self.assertNotIn("방수", " ".join(result["outfit"]["outer"]))
         self.assertEqual(next(item for item in result["must_have"] if item["type"] == "umbrella")["level"], "required")
+
+
+class LlmDailyLimitTests(TestCase):
+    def test_counts_per_client_in_db_and_stops_after_limit(self):
+        from dust.services.outfit.service import DAILY_LLM_LIMIT, _llm_allowed
+
+        results = [_llm_allowed("1.2.3.4") for _ in range(DAILY_LLM_LIMIT + 1)]
+        self.assertTrue(all(results[:DAILY_LLM_LIMIT]))
+        self.assertFalse(results[-1])
+        self.assertTrue(_llm_allowed("5.6.7.8"))

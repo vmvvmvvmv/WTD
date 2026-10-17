@@ -3,8 +3,10 @@ import json
 import logging
 from datetime import timedelta
 
-from django.core.cache import cache
+from django.db.models import F
 from django.utils import timezone
+
+from dust.models import LlmDailyUsage
 
 from .constants import SYSTEM_PROMPT
 from .context_builder import OutfitRequest, build_outfit_request
@@ -47,15 +49,13 @@ def _base_response(rule_result: dict, generated_at, valid_until) -> dict:
 
 
 def _llm_allowed(client_key: str) -> bool:
-    # TODO(확인 필요): 호출 상한 초과 시 429 대신 규칙 응답을 유지하는 정책을 제품 결정 후 확정한다.
+    # 상한을 넘으면 AI 문장만 건너뛰고 규칙 결과는 그대로 돌려준다.
+    # 횟수는 DB에서 한 번의 UPDATE(count + 1)로 올려서, 서버 프로세스가 여러 개이거나 요청이 동시에 와도 빠짐없이 센다.
     digest = hashlib.sha256((client_key or "anonymous").encode("utf-8")).hexdigest()[:24]
-    key = f"outfit-llm-daily:{timezone.localdate().isoformat()}:{digest}"
-    try:
-        count = cache.incr(key)
-    except ValueError:
-        cache.set(key, 1, 60 * 60 * 25)
-        count = 1
-    return count <= DAILY_LLM_LIMIT
+    usage, _ = LlmDailyUsage.objects.get_or_create(day=timezone.localdate(), client_digest=digest)
+    LlmDailyUsage.objects.filter(pk=usage.pk).update(count=F("count") + 1)
+    usage.refresh_from_db(fields=["count"])
+    return usage.count <= DAILY_LLM_LIMIT
 
 
 def recommend_outfit(payload: dict, *, client_key: str = "") -> dict:
