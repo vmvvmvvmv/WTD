@@ -4,7 +4,7 @@ from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import datetime, timedelta
 from django.core.cache import cache
 from django.utils import timezone
-from dust.config import AIRKOREA_REQUEST_WORKERS, AIRKOREA_SERVICE_KEY, API_KEY, REALTIME_DUST_URL, SIDO_NAMES, SIDO_STATION_ADDR_ALIASES, STATION_INFO_URL, STATION_MAPPING, STATION_REALTIME_DUST_URL
+from dust.config import AIRKOREA_REQUEST_WORKERS, AIRKOREA_SERVICE_KEY, API_KEY, REALTIME_DUST_URL, SIDO_NAMES, SIDO_STATION_ADDR_ALIASES, STATION_INFO_URL, STATION_MAPPING
 from dust.current_dust_service import canonical_sido_name, has_usable_realtime_values as _has_usable_realtime_values
 from dust.external_api import public_api_get
 from dust.models import AirQualityStation, DustMeasurement, RealtimeDustMeasurement
@@ -594,10 +594,6 @@ def _load_latest_daily_station_values():
     return values
 
 
-def _has_usable_station_item(item):
-    return any(_first_valid_value(item.get(key)) for key in ('pm10Value', 'pm25Value', 'o3Value', 'no2Value'))
-
-
 def _find_current_realtime_value(city, region, station_name, realtime_values):
     lookup_station = _station_lookup_name(station_name)
     current = realtime_values.get(f'{city}:{station_name}')
@@ -613,33 +609,6 @@ def _find_current_realtime_value(city, region, station_name, realtime_values):
         if value.get("sido") == city and _station_lookup_name(value.get("name")) in candidate_names and _has_usable_realtime_values(value):
             return value
     return None
-
-
-def _fetch_recent_station_realtime_items(station_name):
-    cache_key = f'airkorea_station_realtime_recent_v1_{station_name}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached, None
-
-    params = {
-        "serviceKey": AIRKOREA_SERVICE_KEY,
-        "returnType": "json",
-        "numOfRows": "24",
-        "pageNo": "1",
-        "stationName": station_name,
-        "dataTerm": "DAILY",
-        "ver": "1.3",
-    }
-    try:
-        response = public_api_get(STATION_REALTIME_DUST_URL, params=params)
-        items, result, raw_error = _parse_airkorea_response(response)
-        api_error = None
-        if response.status_code >= 400 or raw_error:
-            api_error = raw_error or result.get("resultMsg") or f"AirKorea status {response.status_code}"
-        cache.set(cache_key, items, 60 * 5)
-        return items, api_error
-    except Exception as exc:
-        return [], str(exc)
 
 
 def _current_station_location(sido, station_name):

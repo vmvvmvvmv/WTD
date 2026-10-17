@@ -1,5 +1,3 @@
-export type DataMetricKey = 'pm10' | 'pm25' | 'o3' | 'no2';
-
 // 예측 API 응답: 미래 날짜별 예측값과 모델 검증 정보.
 export type PredictionResponse = {
   future_dates?: string[];
