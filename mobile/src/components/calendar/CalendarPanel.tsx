@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
+import Reanimated from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/calendar';
@@ -212,7 +213,7 @@ export function CalendarPanel({
 
   return (
     <View style={styles.calendarPanel}>
-      <Animated.View style={[styles.calendarFullStage, { bottom: sheet.calendarBottom }]}>
+      <Reanimated.View style={[styles.calendarFullStage, sheet.stageStyle]}>
         <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
@@ -261,7 +262,7 @@ export function CalendarPanel({
           />
         )}
         </Animated.View>
-      </Animated.View>
+      </Reanimated.View>
 
       {sheet.shouldRender && (
         <CalendarDaySheet
@@ -279,7 +280,7 @@ export function CalendarPanel({
           pm10={selectedForecast.pm10}
           riskByEvent={selectedRiskByEvent}
           selectedDate={selectedDate}
-          style={{ height: sheet.animatedHeight, maxHeight: sheet.animatedHeight, transform: [{ translateY: sheet.translateY }] }}
+          style={sheet.sheetStyle}
           temperature={selectedForecast.temperature}
           todayDateLabel={todayDateLabel}
           weatherRisks={selectedWeatherRisks}
@@ -288,7 +289,7 @@ export function CalendarPanel({
       )}
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
-      <Animated.View style={[styles.calendarFloatingAddDock, { bottom: Animated.add(sheet.calendarBottom, Animated.subtract(20, Animated.multiply(sheet.progress, 4))) }]}>
+      <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
@@ -301,7 +302,7 @@ export function CalendarPanel({
         >
           <AppActionIcon name="schedule" size={38} />
         </Pressable>
-      </Animated.View>
+      </Reanimated.View>
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
@@ -309,7 +310,6 @@ export function CalendarPanel({
         endTime={draft.endTime}
         isRepeatLocked={draft.isRepeatLocked}
         isOpen={draft.isEditorOpen}
-        location={draft.location}
         mapPickerUrl={mapPickerUrl}
         memo={draft.memo}
         onChangeActivityInput={draft.setActivityInput}
@@ -331,7 +331,6 @@ export function CalendarPanel({
         repeatMode={draft.repeatMode}
         repeatWeekdays={draft.repeatWeekdays}
         notificationHoursBefore={draft.notificationHoursBefore}
-        selectedLocation={draft.selectedLocation}
         startDate={draft.startDate}
         startTime={draft.startTime}
         title={draft.title}

@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, PanResponder, Pressable, Text, View } from 'react-native';
-import { useReducedMotion } from 'react-native-reanimated';
+import { PanResponder, Pressable, Text, View } from 'react-native';
+import Reanimated, { useAnimatedStyle, useReducedMotion, useSharedValue, withSpring } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { accentTone } from '../../theme/appTheme';
@@ -17,8 +17,10 @@ export function CalendarViewTabs<Key extends string>({ onChange, tabs, value }: 
 }) {
   const reduceMotion = useReducedMotion();
   const layouts = useRef<Partial<Record<Key, { width: number; x: number }>>>({});
-  const indicatorX = useRef(new Animated.Value(0)).current;
-  const indicatorWidth = useRef(new Animated.Value(0)).current;
+  // 밑줄 위치·폭은 화면 스레드(Reanimated)에서 움직여, 탭을 바꿀 때 화면을 다시 그리는 JS 작업과 겹쳐도 끊기지 않게 합니다.
+  const indicatorX = useSharedValue(0);
+  const indicatorWidth = useSharedValue(0);
+  const indicatorStyle = useAnimatedStyle(() => ({ left: indicatorX.value, width: indicatorWidth.value }));
   const [isMeasured, setIsMeasured] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const rowRef = useRef<View>(null);
@@ -70,14 +72,12 @@ export function CalendarViewTabs<Key extends string>({ onChange, tabs, value }: 
     const layout = layouts.current[value];
     if (!layout) return;
     if (!animated || reduceMotion) {
-      indicatorX.setValue(layout.x);
-      indicatorWidth.setValue(layout.width);
+      indicatorX.value = layout.x;
+      indicatorWidth.value = layout.width;
       return;
     }
-    Animated.parallel([
-      Animated.spring(indicatorX, { damping: 18, stiffness: 220, toValue: layout.x, useNativeDriver: false }),
-      Animated.spring(indicatorWidth, { damping: 18, stiffness: 220, toValue: layout.width, useNativeDriver: false }),
-    ]).start();
+    indicatorX.value = withSpring(layout.x, { damping: 18, stiffness: 220 });
+    indicatorWidth.value = withSpring(layout.width, { damping: 18, stiffness: 220 });
   };
 
   useEffect(() => {
@@ -119,7 +119,7 @@ export function CalendarViewTabs<Key extends string>({ onChange, tabs, value }: 
         );
       })}
       {isMeasured && (
-        <Animated.View pointerEvents="none" style={[styles.calendarViewTabIndicator, { backgroundColor: accentTone, left: indicatorX, width: indicatorWidth }, isDragging && styles.calendarViewTabIndicatorDragging]} />
+        <Reanimated.View pointerEvents="none" style={[styles.calendarViewTabIndicator, { backgroundColor: accentTone }, indicatorStyle, isDragging && styles.calendarViewTabIndicatorDragging]} />
       )}
     </View>
   );

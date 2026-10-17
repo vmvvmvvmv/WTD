@@ -197,6 +197,7 @@ export const calendarStyles = StyleSheet.create({
   calendarWeatherRiskRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: -2 },
   calendarWeatherRiskPill: { alignItems: 'center', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 4, minHeight: 28, paddingHorizontal: 9 },
   calendarWeatherRiskText: { fontSize: 11, fontWeight: '700', lineHeight: 14 },
+  calendarWeatherRiskSweep: { backgroundColor: 'rgba(255,255,255,0.7)', bottom: 0, left: 0, position: 'absolute', top: 0 },
   calendarMetricChip: { alignItems: 'center', flexDirection: 'row', gap: 4, minHeight: 28 },
   calendarMetricChipLabel: { color: textColors.muted, fontSize: 11, fontWeight: '600' },
   calendarMetricChipValue: { fontSize: 12, fontWeight: '700' },

@@ -129,6 +129,8 @@ const appStyles = StyleSheet.create({
   homeSectionTabRow: { borderBottomColor: '#E7EDF5', borderBottomWidth: 1, flexDirection: 'row', marginBottom: 14 },
   homeSectionTab: { alignItems: 'center', borderBottomColor: 'transparent', borderBottomWidth: 2, flex: 1, gap: 3, justifyContent: 'center', marginBottom: -1, minHeight: 64, paddingVertical: 8 },
   homeSectionTabIconMuted: { opacity: 0.55 },
+  // 고른 탭 아래 파란 밑줄. 탭을 바꾸면 이 밑줄 하나가 옆으로 미끄러져 갑니다.
+  homeSectionTabIndicator: { bottom: -1, height: 2, left: 0, position: 'absolute' },
   homeSectionTabLabelRow: { alignItems: 'center', flexDirection: 'row', gap: 3 },
   homeSectionTabText: { color: textColors.muted, fontSize: 13, fontWeight: '700' },
   homeSectionTabTextSelected: { color: textColors.heading, fontWeight: '900' },
