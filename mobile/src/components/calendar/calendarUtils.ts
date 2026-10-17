@@ -131,6 +131,12 @@ export function addMinutesToDateTime(date: string, timeValue: string, minutes: n
   };
 }
 
+// 기본 종료 시각용: 시작 + 분이 자정을 넘으면 그날 23:59로 자릅니다. 자정을 넘는 일정은 종료 시각을 직접 골라서 만듭니다.
+export function addMinutesWithinDay(date: string, timeValue: string, minutes: number) {
+  const end = addMinutesToDateTime(date, timeValue, minutes);
+  return end.date === date ? end : { date, time: '23:59' };
+}
+
 export function compareDateTime(startDate: string, startTime: string, endDate: string, endTime: string) {
   const start = new Date(`${startDate}T${normalizeTime(startTime)}:00`).getTime();
   const end = new Date(`${endDate}T${normalizeTime(endTime)}:00`).getTime();

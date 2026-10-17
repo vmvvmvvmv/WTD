@@ -5,7 +5,7 @@ import { Animated, Pressable, Text, View } from 'react-native';
 
 import { CalendarDatePickerGrid } from '../CalendarDatePickerGrid';
 import { styles } from '../../../styles/appStyles';
-import { addMinutesToDateTime, durationMinutes, endForTime, formatDuration, formatDateDisplay } from '../calendarUtils';
+import { addMinutesToDateTime, addMinutesWithinDay, durationMinutes, endForTime, formatDuration, formatDateDisplay } from '../calendarUtils';
 import { animatePickerLayout, formatMonthDay } from './pickerShared';
 import { TimeWheelPicker } from './TimeWheelPicker';
 import { accentTone } from '../../../theme/appTheme';
@@ -45,7 +45,8 @@ export function DateTimePicker({
   const setStartDateTime = (nextDate: string, nextTime: string) => {
     onChangeStartDate(nextDate);
     onChangeStartTime(nextTime);
-    const shifted = addMinutesToDateTime(nextDate, nextTime, duration > 0 ? duration : 60);
+    const shift = endDate === startDate ? addMinutesWithinDay : addMinutesToDateTime;
+    const shifted = shift(nextDate, nextTime, duration > 0 ? duration : 60);
     onChangeEndDate(shifted.date);
     onChangeEndTime(shifted.time);
   };

@@ -5,7 +5,7 @@ import type { CalendarActivityInput } from './editor/ActivityTypeSelector';
 import type { CalendarRepeatMode } from './calendarRepeat';
 import { buildRepeatedEvents, nextDefaultRepeatEndDate } from './calendarRepeat';
 import {
-  addMinutesToDateTime,
+  addMinutesWithinDay,
   formatDate,
   makeCalendarId,
   normalizeDate,
@@ -69,7 +69,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
   const [startDate, setStartDate] = useState(initialDate);
   const [endDate, setEndDate] = useState(initialDate);
   const [startTime, setStartTime] = useState(() => nextWholeHourDateTime(initialDate).time);
-  const [endTime, setEndTime] = useState(() => addMinutesToDateTime(initialDate, nextWholeHourDateTime(initialDate).time, DEFAULT_DURATION_MINUTES).time);
+  const [endTime, setEndTime] = useState(() => addMinutesWithinDay(initialDate, nextWholeHourDateTime(initialDate).time, DEFAULT_DURATION_MINUTES).time);
   const [location, setLocation] = useState('');
   const [selectedLocation, setSelectedLocation] = useState<CalendarLocationCandidate | null>(null);
   const [memo, setMemo] = useState('');
@@ -82,7 +82,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
 
   const openEditor = (date: string) => {
     const defaultStart = nextWholeHourDateTime(date);
-    const defaultEnd = addMinutesToDateTime(defaultStart.date, defaultStart.time, DEFAULT_DURATION_MINUTES);
+    const defaultEnd = addMinutesWithinDay(defaultStart.date, defaultStart.time, DEFAULT_DURATION_MINUTES);
     const initialLocation = defaultLocation ?? null;
     setEditingEventId(null);
     setEditingScope('single');
@@ -108,7 +108,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     const eventDate = normalizeDate(event.date, initialDate);
     const eventEndDate = normalizeEndDate(event.endDate ?? event.date, eventDate);
     const eventTime = normalizeTime(event.time);
-    const eventEndTime = normalizeTime(event.endTime ?? addMinutesToDateTime(eventDate, eventTime, DEFAULT_DURATION_MINUTES).time);
+    const eventEndTime = normalizeTime(event.endTime ?? addMinutesWithinDay(eventDate, eventTime, DEFAULT_DURATION_MINUTES).time);
     setEditingEventId(event.id);
     setEditingScope(scope);
     setEditingRepeatMeta({
