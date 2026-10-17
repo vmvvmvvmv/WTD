@@ -250,3 +250,15 @@ class OutfitRecommendationCache(models.Model):
 
     def __str__(self):
         return f'{self.source} {self.valid_until:%Y-%m-%d %H:%M}'
+
+
+# 사용자(접속 주소를 알아볼 수 없게 바꾼 값)별 하루 AI 호출 수. 서버 프로세스가 여러 개여도 같은 값을 세도록 DB에 둔다.
+# ponytail: 지난 날짜 행은 지우지 않음(하루·사용자당 1행). 쌓인 양이 문제 되면 정리 명령을 추가.
+class LlmDailyUsage(models.Model):
+    day = models.DateField()
+    client_digest = models.CharField(max_length=24)
+    count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        db_table = 'llm_daily_usage'
+        unique_together = ('day', 'client_digest')
