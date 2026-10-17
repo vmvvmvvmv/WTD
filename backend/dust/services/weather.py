@@ -62,25 +62,6 @@ def _kma_ultra_short_base_datetime_candidates(limit=4):
     return candidates
 
 
-def _kma_ultra_short_nowcast_base_datetime(now=None):
-    current = now or datetime.now()
-    if current.minute < 10:
-        current = current - timedelta(hours=1)
-    return current.strftime("%Y%m%d"), current.strftime("%H00")
-
-
-def _kma_ultra_short_nowcast_base_datetime_candidates(limit=4):
-    current = datetime.now()
-    candidates = []
-    for _ in range(limit):
-        base_date, base_time = _kma_ultra_short_nowcast_base_datetime(current)
-        candidate = (base_date, base_time)
-        if candidate not in candidates:
-            candidates.append(candidate)
-        current = current - timedelta(hours=1)
-    return candidates
-
-
 def _kma_current_weather_label(pty, sky):
     pty_text = str(pty or "0")
     sky_text = str(sky or "")
@@ -247,10 +228,6 @@ def _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12):
     return []
 
 
-def _fetch_kma_temperature_forecast_by_grid(grid, limit=12):
-    return _fetch_kma_hourly_weather_forecast_by_grid(grid, limit)
-
-
 def _nearest_asos_station(lat, lng):
     return min(
         ASOS_STATIONS,
@@ -391,19 +368,6 @@ def _serialize_midterm_forecast(item):
         "rainProbabilityPm": item.rain_probability_pm,
         "source": "kma_mid_term_forecast",
     }
-
-
-def _kma_base_datetime(now=None):
-    now = now or datetime.now()
-    available_at = now - timedelta(minutes=75)
-    base_times = [2, 5, 8, 11, 14, 17, 20, 23]
-    available_hour = available_at.hour
-    base_hour = next((hour for hour in reversed(base_times) if hour <= available_hour), None)
-    base_date = available_at.date()
-    if base_hour is None:
-        base_date = base_date - timedelta(days=1)
-        base_hour = 23
-    return base_date.strftime('%Y%m%d'), f'{base_hour:02d}00'
 
 
 def _kma_base_datetime_candidates(now=None, limit=4):

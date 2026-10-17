@@ -10,21 +10,6 @@ from dust.services.common import _parse_measure_date, _to_float
 from dust.services.stations import _find_air_quality_station, _parse_airkorea_datetime, _parse_airkorea_response
 
 
-def _past_item_to_current_item(item, city, region, station_name):
-    return {
-        "cityName": region,
-        "dataTime": f"{item.get('msurDt')} 일평균 기준",
-        "pm10Value": item.get("pm10Value"),
-        "pm25Value": item.get("pm25Value"),
-        "o3Value": item.get("o3Value"),
-        "no2Value": item.get("no2Value"),
-        "stationName": item.get("msrstnName") or station_name,
-        "city": city,
-        "region": region,
-        "source": "past_latest",
-    }
-
-
 PAST_API_FAILURE_TTL_SECONDS = 10 * 60
 
 

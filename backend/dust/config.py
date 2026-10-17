@@ -57,16 +57,10 @@ STATION_INFO_URL = "http://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstn
 REALTIME_DUST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
 
 
-STATION_REALTIME_DUST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty"
-
-
 KMA_VILAGE_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
 
 
 KMA_ULTRA_SHORT_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
-
-
-KMA_ULTRA_SHORT_NOWCAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
 
 
 KMA_ASOS_DAILY_URL = "http://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList"
