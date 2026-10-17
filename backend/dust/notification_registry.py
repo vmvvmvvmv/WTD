@@ -78,9 +78,9 @@ def upsert_notification_device(payload: Any) -> NotificationDevice:
     city = str(payload.get("city") or "").strip()
     region = str(payload.get("region") or "").strip()
     if not token:
-        raise ValueError("expoPushToken is required.")
+        raise ValueError("expoPushToken이 필요합니다.")
     if not city or not region:
-        raise ValueError("city and region are required.")
+        raise ValueError("city와 region이 필요합니다.")
 
     pm10_threshold = max(1, min(float_from_payload(payload.get("pm10Threshold"), 80), 300))
     regions = clean_notification_regions(payload.get("regions"), city, region)

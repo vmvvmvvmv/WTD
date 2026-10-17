@@ -406,3 +406,35 @@ class PastDustRequestTimeoutTests(SimpleTestCase):
         self.assertEqual(second[0], [])
         self.assertEqual(api_get.call_count, 1)
         self.assertEqual(api_get.call_args.kwargs['timeout'], REQUEST_TIMEOUT)
+
+
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
+class ErrorResponseShapeTests(SimpleTestCase):
+    """오류는 상태 코드와 상관없이 {"error", "code"} 모양이고, 바깥 API 원문은 응답에 넣지 않는다."""
+
+    def test_missing_parameter_returns_error_and_code(self):
+        response = self.client.get('/dust/past/')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json()['code'], 'invalid_parameter')
+        self.assertTrue(response.json()['error'])
+
+    def test_malformed_json_uses_same_shape(self):
+        response = self.client.post('/outfit/recommend/', data='{broken', content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(set(response.json()), {'error', 'code'})
+
+    @patch('dust.views.NAVER_SEARCH_CLIENT_ID', 'id')
+    @patch('dust.views.NAVER_SEARCH_CLIENT_SECRET', 'secret')
+    @patch('dust.views.public_api_get')
+    def test_upstream_error_body_is_not_exposed(self, api_get):
+        api_get.return_value.status_code = 401
+        api_get.return_value.json.return_value = {'errorMessage': 'private upstream detail'}
+        response = self.client.get('/dust/places/naver-search/', {'query': '카페'})
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(response.json(), {'error': '장소 검색에 실패했습니다.', 'code': 'upstream_failed'})
+
+    @patch.dict('os.environ', {'APP_TEST_TOKEN': 'secret-token'})
+    def test_missing_access_token_uses_same_shape(self):
+        response = self.client.get('/dust/past/')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()['code'], 'forbidden')
