@@ -89,7 +89,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'app',          # 템플릿 폴더
-    'api',          # api 서비스 폴더
     'corsheaders',  # CORS
     'dust',
     'rest_framework',
