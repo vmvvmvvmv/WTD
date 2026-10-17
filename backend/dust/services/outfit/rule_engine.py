@@ -16,6 +16,14 @@ SPORT_OUTFITS = {
 }
 
 
+def _with_josa(word: str, with_final: str, without_final: str) -> str:
+    """마지막 글자 받침에 맞춰 조사를 붙인다. 예: 니트+와, 재킷+과, 바람막이+를."""
+    last = word[-1] if word else ""
+    if "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 == 0:
+        return word + without_final
+    return word + with_final
+
+
 def _band_index(feels_avg: float, sensitivity: str) -> int:
     adjusted = feels_avg - 2 if sensitivity == "cold" else feels_avg + 2 if sensitivity == "hot" else feels_avg
     return next(index for index, band in enumerate(BANDS) if adjusted >= band["minimum"])
@@ -122,7 +130,7 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
     required_labels = [item["label"] for item in must_have if item["level"] == "required"]
     summary = f"{main_outer} 차림이 좋아요."
     if weather_condition == "snow":
-        summary = f"눈길 조심하세요. {main_outer}과 방수 신발이 좋아요."
+        summary = f"눈길 조심하세요. {_with_josa(main_outer, '과', '와')} 방수 신발이 좋아요."
     elif weather_condition == "rain":
         summary = f"우산 챙기셨나요? {main_outer}도 잘 맞아요."
     elif weather_condition == "showers":
@@ -134,8 +142,8 @@ def build_rule_result(snapshot: dict, *, activity_type: str, sensitivity: str, o
         summary = f"운동할 때는 {band['top'][0]}, 전후에는 {band['outer'][0]}도 챙기세요."
     if required_labels and weather_condition == "normal":
         summary = f"{main_outer}에 {'·'.join(required_labels)}도 챙기세요."
-    outfit_note = f"{band['top'][0]}과 {band['bottom'][0]}"
-    outfit_note += f", {band['outer'][0]}을 추천해요." if band["outer"] else " 조합을 추천해요."
+    outfit_note = f"{_with_josa(band['top'][0], '과', '와')} {band['bottom'][0]}"
+    outfit_note += f", {_with_josa(band['outer'][0], '을', '를')} 추천해요." if band["outer"] else " 조합을 추천해요."
     return {
         "summary": summary[:40],
         "outfit": {"band": band["band"], "top": band["top"], "bottom": band["bottom"], "outer": band["outer"], "accessories": [item["label"] for item in must_have]},
