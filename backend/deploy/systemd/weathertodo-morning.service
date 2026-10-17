@@ -1,0 +1,7 @@
+[Unit]
+Description=WeatherToDo morning weather notifications
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/WTD/backend/deploy/morning_notifications.sh

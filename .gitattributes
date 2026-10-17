@@ -3,3 +3,6 @@
 
 # 훅 스크립트는 Windows에서도 LF로 둔다(셔뱅 줄이 CRLF면 실행이 깨질 수 있음)
 .githooks/* text eol=lf
+# 서버(리눅스)에서 실행하는 스크립트와 설정은 항상 LF로 둔다. CRLF면 bash와 systemd가 읽지 못한다.
+*.sh text eol=lf
+backend/deploy/** text eol=lf
