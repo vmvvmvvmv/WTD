@@ -1,5 +1,6 @@
 import { AccessibilityInfo, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop } from 'react-native-svg';
 import { ScrollView, useWindowDimensions } from 'react-native';
@@ -24,6 +25,7 @@ import { isDateInEventRange } from '../calendar/calendarUtils';
 import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRemoval';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
+import { HomeBannerSkeleton } from './HomeBannerSkeleton';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
 import { accentTone } from '../../theme/appTheme';
 
@@ -75,6 +77,14 @@ function getHomeWeatherMotionKind(label?: string | null, windSpeed?: number | st
   const numericWindSpeed = toNumber(windSpeed);
   if (numericWindSpeed !== undefined && numericWindSpeed >= 8) return 'wind';
   return weatherKind;
+}
+
+// 시간별 예보에서 고른 시간의 값을 "지금"과 비교하는 문구입니다.
+function comparedToNow(value: number | undefined, nowValue: number | undefined, unit: string, decimals: number) {
+  if (value === undefined || nowValue === undefined) return '지금 값과 비교할 수 없어요';
+  const difference = Number((value - nowValue).toFixed(decimals));
+  if (difference === 0) return '지금과 같아요';
+  return `지금보다 ${Math.abs(difference)}${unit} ${difference > 0 ? '높아요' : '낮아요'}`;
 }
 
 type HomeSectionKey = 'guide' | 'outfit' | 'map';
@@ -469,6 +479,70 @@ function HomeMotionLayer({ children }: { children: ReactNode }) {
   return <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { opacity }]}>{children}</Animated.View>;
 }
 
+type HomeBannerSceneKind = { background: WeatherVisualKind; motion: HomeWeatherMotionKind };
+
+function HomeBannerSceneLayer({ animate, scene }: { animate: boolean; scene: HomeBannerSceneKind }) {
+  return (
+    <>
+      <Image resizeMode="cover" source={HOME_METRIC_BACKGROUNDS[scene.background]} style={styles.homeGaugeFeatureImage} />
+      {animate && (
+        <HomeMotionLayer>
+          {(scene.motion === 'rain' || scene.motion === 'snow') && <HomeFallingWeatherOverlay kind={scene.motion} />}
+          {scene.motion === 'wind' && <HomeWindOverlay />}
+          {scene.motion === 'clear' && <HomeClearSkyOverlay />}
+          {scene.motion === 'cloudy' && <HomeCloudDriftOverlay />}
+        </HomeMotionLayer>
+      )}
+    </>
+  );
+}
+
+// 배너 배경 이미지와 비·눈·구름 효과를 한 장면으로 보고, 장면이 바뀌면
+// 이전 장면은 서서히 사라지고(페이드 아웃) 새 장면은 서서히 나타납니다(페이드 인).
+function HomeBannerScene({ animate, scene }: { animate: boolean; scene: HomeBannerSceneKind }) {
+  const sceneKey = `${scene.background}-${scene.motion}`;
+  const [shown, setShown] = useState<{ current: HomeBannerSceneKind; key: string; previous?: HomeBannerSceneKind & { key: string } }>(
+    { current: scene, key: sceneKey },
+  );
+  const progress = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    if (sceneKey === shown.key) return;
+    if (!animate) {
+      setShown({ current: scene, key: sceneKey });
+      return;
+    }
+    progress.setValue(0);
+    setShown({ current: scene, key: sceneKey, previous: { ...shown.current, key: shown.key } });
+    const animation = Animated.timing(progress, { duration: 500, easing: Easing.inOut(Easing.quad), toValue: 1, useNativeDriver: true });
+    animation.start(({ finished }) => {
+      if (finished) setShown({ current: scene, key: sceneKey });
+    });
+    return () => animation.stop();
+    // 장면이 바뀔 때(sceneKey)만 전환을 시작합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animate, sceneKey]);
+  return (
+    <>
+      {shown.previous && (
+        <Animated.View
+          key={shown.previous.key}
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[shown.previous.background], opacity: progress.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }) }]}
+        >
+          <HomeBannerSceneLayer animate={animate} scene={shown.previous} />
+        </Animated.View>
+      )}
+      <Animated.View
+        key={shown.key}
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[shown.current.background] }, shown.previous && { opacity: progress }]}
+      >
+        <HomeBannerSceneLayer animate={animate} scene={shown.current} />
+      </Animated.View>
+    </>
+  );
+}
+
 function useReduceMotion() {
   const [reduceMotion, setReduceMotion] = useState(false);
   useEffect(() => {
@@ -487,13 +561,89 @@ function gaugeValueFontSize(value: string, size: number, baseFontSize: number) {
   return Math.max(12, Math.min(baseFontSize, Math.floor((size * 0.7) / (units * 0.6))));
 }
 
-function HomeCircularGauge({ gaugeSize, large = false, progress, tone, unit, value }: HomeCircularGaugeProps) {
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+const DIGITS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+// 숫자 한 자리를 0~9가 세로로 쌓인 띠로 그리고, 값이 바뀌면 띠를 굴려 새 숫자로 옮깁니다.
+// 처음 그릴 때는 굴리지 않습니다(0부터 차오르면 가짜 숫자처럼 보임).
+function HomeRollingDigit({ animate, digit, fontSize, lineHeight, style }: {
+  animate: boolean;
+  digit: number;
+  fontSize: number;
+  lineHeight: number;
+  style: object;
+}) {
+  const position = useRef(new Animated.Value(digit)).current;
+  useEffect(() => {
+    if (!animate) {
+      position.setValue(digit);
+      return;
+    }
+    const animation = Animated.timing(position, { duration: 500, easing: Easing.out(Easing.cubic), toValue: digit, useNativeDriver: true });
+    animation.start();
+    return () => animation.stop();
+  }, [animate, digit, position]);
+  return (
+    <View style={{ height: lineHeight, overflow: 'hidden' }}>
+      <Animated.View style={{ transform: [{ translateY: Animated.multiply(position, -lineHeight) }] }}>
+        {DIGITS.map((d) => (
+          <Text key={d} allowFontScaling={false} style={[style, { fontSize, fontVariant: ['tabular-nums'], height: lineHeight, includeFontPadding: false, lineHeight, marginTop: 0, textAlignVertical: 'center' }]}>{d}</Text>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+// 게이지 가운데 값. 숫자는 자리마다 따로 굴러가고 '-' '.' 같은 글자는 그대로 둡니다.
+// 자리는 오른쪽부터 맞춰서, 21 → 9처럼 자릿수가 줄어도 일의 자리는 이어서 굴러갑니다.
+function HomeRollingValue({ animate, fontSize, lineHeight, style, value }: {
+  animate: boolean;
+  fontSize: number;
+  lineHeight: number;
+  style: object;
+  value: string;
+}) {
+  const chars = value.split('');
+  return (
+    <View accessible accessibilityLabel={value} style={{ flexDirection: 'row' }}>
+      {chars.map((char, index) => {
+        const place = chars.length - index;
+        return /\d/.test(char)
+          ? <HomeRollingDigit key={`d${place}`} animate={animate} digit={Number(char)} fontSize={fontSize} lineHeight={lineHeight} style={style} />
+          : <Text key={`s${place}`} allowFontScaling={false} style={[style, { fontSize, height: lineHeight, includeFontPadding: false, lineHeight, marginTop: 0, textAlignVertical: 'center' }]}>{char}</Text>;
+      })}
+    </View>
+  );
+}
+
+function HomeCircularGauge({ animate, gaugeSize, large = false, progress, revealed, tone, unit, value }: HomeCircularGaugeProps & {
+  animate: boolean;
+  revealed: boolean;
+}) {
+  const { fontScale } = useWindowDimensions();
   const size = gaugeSize ?? (large ? 132 : 62);
   const stroke = large ? 10 : 6;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   const arc = circumference * 0.78;
   const safeProgress = Math.max(0.04, Math.min(1, progress));
+  // 슬라이드가 처음 화면에 들어오기 전에는 비워 두고, 들어오면 값까지 한 번 차오릅니다. 그 뒤로 값이 바뀌면 이전 값에서 이어서 움직입니다.
+  const targetProgress = revealed ? safeProgress : 0;
+  const shownProgress = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!animate) {
+      shownProgress.setValue(targetProgress);
+      return;
+    }
+    const animation = Animated.timing(shownProgress, { duration: 600, easing: Easing.out(Easing.cubic), toValue: targetProgress, useNativeDriver: false });
+    animation.start();
+    return () => animation.stop();
+  }, [animate, shownProgress, targetProgress]);
+  const baseFontSize = large ? gaugeValueFontSize(String(value), size, 38) : 11;
+  // 굴러가는 띠의 높이를 글자 높이와 정확히 맞추려고 글자 확대는 직접 계산합니다(원래처럼 최대 1.2배).
+  const textScale = Math.min(fontScale, 1.2);
+  const valueFontSize = baseFontSize * textScale;
+  const valueLineHeight = Math.round(baseFontSize * 1.1 * textScale);
   return (
     <View style={styles.homeCircularGauge}>
       <View style={[styles.homeCircularGaugeCircle, large && styles.homeCircularGaugeCircleLarge, { height: size, width: size }]}>
@@ -509,33 +659,29 @@ function HomeCircularGauge({ gaugeSize, large = false, progress, tone, unit, val
             strokeWidth={stroke}
             transform={`rotate(130 ${size / 2} ${size / 2})`}
           />
-          <Circle
+          <AnimatedCircle
             cx={size / 2}
             cy={size / 2}
             fill="none"
             r={radius}
             stroke="#ffffff"
-            strokeDasharray={`${arc * safeProgress} ${circumference}`}
+            strokeDasharray={`${arc} ${circumference}`}
+            strokeDashoffset={shownProgress.interpolate({ inputRange: [0, 1], outputRange: [arc, 0] })}
             strokeLinecap="round"
             strokeWidth={stroke}
             transform={`rotate(130 ${size / 2} ${size / 2})`}
           />
         </Svg>
         <View style={styles.homeCircularGaugeCenter}>
-          <Text
-            maxFontSizeMultiplier={1.2}
-            numberOfLines={1}
-            style={[
-              styles.homeCircularGaugeValue,
-              large && styles.homeCircularGaugeValueLarge,
-              large && (() => {
-                const fontSize = gaugeValueFontSize(String(value), size, 38);
-                return { fontSize, lineHeight: Math.round(fontSize * 1.1) };
-              })(),
-            ]}
-          >
-            {value}
-          </Text>
+          <View style={{ marginTop: 1 }}>
+            <HomeRollingValue
+              animate={animate}
+              fontSize={valueFontSize}
+              lineHeight={valueLineHeight}
+              style={[styles.homeCircularGaugeValue, large && styles.homeCircularGaugeValueLarge]}
+              value={String(value)}
+            />
+          </View>
           <Text style={[styles.homeCircularGaugeUnit, large && styles.homeCircularGaugeUnitLarge]}>{unit}</Text>
         </View>
       </View>
@@ -543,7 +689,9 @@ function HomeCircularGauge({ gaugeSize, large = false, progress, tone, unit, val
   );
 }
 
-function HomeInfoGaugeSlide({ comparison, gaugeSize, label, progress, slideHeight, status, title, tone, unit, value, width }: {
+function HomeInfoGaugeSlide({ animate, comparison, gaugeSize, progress, revealed, slideHeight, status, title, tone, unit, value, width }: {
+  animate: boolean;
+  revealed: boolean;
   comparison: string;
   gaugeSize: number;
   label: string;
@@ -559,7 +707,7 @@ function HomeInfoGaugeSlide({ comparison, gaugeSize, label, progress, slideHeigh
   return (
     <View style={[styles.homeInfoSlide, styles.homeSplitGaugeSlide, { height: slideHeight, width }]}>
       <View style={[styles.homeSplitGaugeVisual, { width: gaugeSize + 4 }]}>
-        <HomeCircularGauge gaugeSize={gaugeSize} large progress={progress} tone={tone} unit={unit} value={value} />
+        <HomeCircularGauge animate={animate} gaugeSize={gaugeSize} large progress={progress} revealed={revealed} tone={tone} unit={unit} value={value} />
       </View>
       <View style={styles.homeSplitGaugeInfo}>
         <Text numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>
@@ -595,6 +743,7 @@ export function HomePanel({
   hourlyItems,
   pastItems,
   loadFailed = false,
+  loading = false,
   weatherHourlyItems,
   weatherMidTermItems,
   prediction,
@@ -621,6 +770,8 @@ export function HomePanel({
   pastItems: PastDustItem[];
   // 서버에 연결하지 못해 보여줄 데이터가 없는 상태입니다. 단순히 아직 불러오는 중인 것과 구분합니다.
   loadFailed?: boolean;
+  // 지역을 바꿔 새 데이터를 불러오는 중이면 배너 자리에 뼈대를 보여줍니다.
+  loading?: boolean;
   weatherHourlyItems: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
   prediction: PredictionResponse | null;
@@ -639,6 +790,9 @@ export function HomePanel({
   };
   const infoCarouselRef = useRef<ScrollView>(null);
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
+  const reduceMotion = useReduceMotion();
+  // 한 번이라도 화면에 들어온 게이지 슬라이드. 처음 들어올 때만 호가 차오릅니다.
+  const [revealedSlides, setRevealedSlides] = useState<ReadonlySet<string>>(() => new Set());
   const [carouselIndex, setCarouselIndex] = useState(1);
   const [homeSectionTab, setHomeSectionTab] = useState<HomeSectionKey>('guide');
   const homeSectionTabs = HOME_SECTION_TABS.filter((tab) => outfitEnabled || tab.key !== 'outfit');
@@ -661,29 +815,6 @@ export function HomePanel({
     }, retryDelays[mapPreviewRetryCount]);
     return () => clearTimeout(timer);
   }, [mapPreviewFailed, mapPreviewRetryCount]);
-  const infoSlides = useMemo(() => buildHomeMetricSlides({
-    currentO3,
-    currentPm10,
-    currentPm25,
-    gaugeSize: infoGaugeSize,
-    pastItems,
-    todayDateLabel,
-    weather,
-    yesterdayWeather,
-  }).map((slide) => (loadFailed && (slide.value === '-' || slide.value === '--')
-    ? { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' }
-    : slide)), [currentO3, currentPm10, currentPm25, infoGaugeSize, loadFailed, pastItems, todayDateLabel, weather, yesterdayWeather]);
-  const infoSlideCount = infoSlides.length;
-  const carouselSlides = [infoSlides[infoSlideCount - 1], ...infoSlides, infoSlides[0]];
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCarouselIndex((current) => current + 1);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, []);
-  useEffect(() => {
-    infoCarouselRef.current?.scrollTo({ animated: carouselIndex !== 1, x: carouselIndex * infoSlideWidth });
-  }, [carouselIndex, infoSlideWidth]);
   const now = new Date();
   const hourlyForecastItems = weatherHourlyItems
     .map((item, index) => {
@@ -698,8 +829,10 @@ export function HomePanel({
         isRainy: visualKind === 'rain' || visualKind === 'snow' || (rainProbability ?? 0) >= 60 || (toNumber(item.rain_mm) ?? 0) > 0,
         key: `${itemDate || item.measuredAt || 'hour'}-${item.hour || index}`,
         label: item.label || '날씨 확인 중',
+        rainMm: toNumber(item.rain_mm),
         rainProbability,
         temperature: toNumber(item.temperature),
+        windSpeed: item.wind_speed,
         timeLabel: isCurrent
           ? '지금'
           : itemDate === todayDateLabel
@@ -710,6 +843,68 @@ export function HomePanel({
       };
     });
   const bannerForecastItems = hourlyForecastItems;
+  // 시간별 예보 줄에서 고른 시간. null이면 "지금"입니다. 고른 시간이 지나가 목록에서 빠지면 저절로 "지금"으로 돌아갑니다.
+  const [selectedForecastKey, setSelectedForecastKey] = useState<string | null>(null);
+  const selectedForecastIndex = selectedForecastKey ? bannerForecastItems.findIndex((item) => item.key === selectedForecastKey) : -1;
+  // 배너에서 고른 시간을 따라가는 값은 기온과 강수량뿐입니다. 습도·바람·미세먼지는 계속 "지금" 값입니다.
+  const peekForecast = selectedForecastIndex > 0 ? bannerForecastItems[selectedForecastIndex] : undefined;
+  const infoSlides = useMemo(() => buildHomeMetricSlides({
+    currentO3,
+    currentPm10,
+    currentPm25,
+    gaugeSize: infoGaugeSize,
+    pastItems,
+    todayDateLabel,
+    weather: peekForecast && weather
+      ? { ...weather, label: peekForecast.label, rainMm: peekForecast.rainMm, temperature: peekForecast.temperature }
+      : weather,
+    yesterdayWeather,
+  }).map((slide) => {
+    if (loadFailed && (slide.value === '-' || slide.value === '--')) {
+      return { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' };
+    }
+    if (!peekForecast) return slide;
+    if (slide.label === '기온') return { ...slide, comparison: comparedToNow(peekForecast.temperature, weather?.temperature, '°', 0) };
+    if (slide.label === '강수량') return { ...slide, comparison: comparedToNow(peekForecast.rainMm, weather?.rainMm, 'mm', 1) };
+    return { ...slide, title: `${slide.title} · 지금` };
+  }), [currentO3, currentPm10, currentPm25, infoGaugeSize, loadFailed, pastItems, peekForecast, todayDateLabel, weather, yesterdayWeather]);
+  const infoSlideCount = infoSlides.length;
+  const carouselSlides = [infoSlides[infoSlideCount - 1], ...infoSlides, infoSlides[0]];
+  const visibleSlideLabels = [infoSlides[activeInfoSlide]?.label, carouselSlides[carouselIndex]?.label].filter((label): label is string => !!label);
+  const visibleSlideKey = visibleSlideLabels.join('|');
+  useEffect(() => {
+    if (loading) return;
+    setRevealedSlides((current) => (visibleSlideLabels.every((label) => current.has(label))
+      ? current
+      : new Set([...current, ...visibleSlideLabels])));
+    // visibleSlideKey가 visibleSlideLabels를 대신합니다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, visibleSlideKey]);
+  // 지역을 바꾸면(뼈대 로딩) 고른 시간과 "이미 본 슬라이드"를 처음 상태로 돌립니다.
+  const bannerOpacity = useRef(new Animated.Value(1)).current;
+  const wasLoading = useRef(loading);
+  useEffect(() => {
+    if (loading) {
+      setSelectedForecastKey(null);
+      setRevealedSlides(new Set());
+      // 배너가 다시 나타날 때 한 프레임이라도 그대로 보이지 않게 미리 투명하게 둡니다.
+      if (!reduceMotion) bannerOpacity.setValue(0);
+    } else if (wasLoading.current) {
+      // 뼈대에서 실제 화면으로 0.3초에 걸쳐 바뀝니다.
+      if (reduceMotion) bannerOpacity.setValue(1);
+      else Animated.timing(bannerOpacity, { duration: 300, easing: Easing.out(Easing.quad), toValue: 1, useNativeDriver: true }).start();
+    }
+    wasLoading.current = loading;
+  }, [bannerOpacity, loading, reduceMotion]);
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCarouselIndex((current) => current + 1);
+    }, 5000);
+    return () => clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    infoCarouselRef.current?.scrollTo({ animated: carouselIndex !== 1, x: carouselIndex * infoSlideWidth });
+  }, [carouselIndex, infoSlideWidth]);
   const nowHour = now.getHours();
   const bestOutingWindow = useMemo(() => findBestOutingWindow({
     dustItems: hourlyItems,
@@ -735,9 +930,10 @@ export function HomePanel({
     weatherHourlyItems,
     weatherMidTermItems,
   }), [currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode, todayCalendarEvents, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems]);
-  const weatherVisualKind = getWeatherVisualKind(weather?.label);
-  const weatherMotionKind = getHomeWeatherMotionKind(weather?.label, weather?.windSpeed);
-  const reduceMotion = useReduceMotion();
+  // 배너 배경과 날씨 효과도 고른 시간의 날씨를 따라갑니다.
+  const bannerWeatherLabel = peekForecast ? peekForecast.label : weather?.label;
+  const weatherVisualKind = getWeatherVisualKind(bannerWeatherLabel);
+  const weatherMotionKind = getHomeWeatherMotionKind(bannerWeatherLabel, peekForecast ? peekForecast.windSpeed : weather?.windSpeed);
   const weatherBackgroundKind = weatherMotionKind === 'wind' ? 'cloudy' : weatherVisualKind;
   const currentTimeLabel = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
   const activityGuideRows = useMemo(
@@ -768,27 +964,24 @@ export function HomePanel({
     time: `${String(currentHour).padStart(2, '0')}:00`,
     title: '외출',
   }], [currentHour, todayDateLabel]);
+  // 시간별 예보 줄: 칸을 누르면 그 시간을 고릅니다. 줄은 원래대로 맨 왼쪽("지금")부터 시작합니다.
+  const shownForecastIndex = Math.max(0, selectedForecastIndex);
+  const selectForecastIndex = (index: number) => {
+    const item = bannerForecastItems[index];
+    if (!item || index === shownForecastIndex) return;
+    setSelectedForecastKey(index === 0 ? null : item.key);
+    Haptics.selectionAsync().catch(() => {});
+  };
   return (
     <View>
-      <View style={styles.homeHeroBanner}>
+      {loading ? (
+        <HomeBannerSkeleton bannerHeight={infoSlideHeight + 12} reduceMotion={reduceMotion} />
+      ) : (
+      <Animated.View style={[styles.homeHeroBanner, { opacity: bannerOpacity }]}>
         <View style={styles.homeHeroBannerImage}>
           <View style={styles.homeHeroBannerBottom}>
             <View style={[styles.homeGaugeFeature, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[weatherBackgroundKind] }]}>
-              <Image
-                resizeMode="cover"
-                source={HOME_METRIC_BACKGROUNDS[weatherBackgroundKind]}
-                style={styles.homeGaugeFeatureImage}
-              />
-              {!reduceMotion && (
-                <HomeMotionLayer key={weatherMotionKind}>
-                  {(weatherMotionKind === 'rain' || weatherMotionKind === 'snow') && (
-                    <HomeFallingWeatherOverlay kind={weatherMotionKind} />
-                  )}
-                  {weatherMotionKind === 'wind' && <HomeWindOverlay />}
-                  {weatherMotionKind === 'clear' && <HomeClearSkyOverlay />}
-                  {weatherMotionKind === 'cloudy' && <HomeCloudDriftOverlay />}
-                </HomeMotionLayer>
-              )}
+              <HomeBannerScene animate={!reduceMotion} scene={{ background: weatherBackgroundKind, motion: weatherMotionKind }} />
             <View style={[styles.homeInfoCarouselViewport, { height: infoSlideHeight }]}>
               <ScrollView
                 ref={infoCarouselRef}
@@ -816,7 +1009,14 @@ export function HomePanel({
                 }}
               >
                 {carouselSlides.map((slide, index) => (
-                  <HomeInfoGaugeSlide key={`${slide.label}-${index}`} {...slide} slideHeight={infoSlideHeight} width={infoSlideWidth} />
+                  <HomeInfoGaugeSlide
+                    key={`${slide.label}-${index}`}
+                    {...slide}
+                    animate={!reduceMotion}
+                    revealed={revealedSlides.has(slide.label)}
+                    slideHeight={infoSlideHeight}
+                    width={infoSlideWidth}
+                  />
                 ))}
               </ScrollView>
               <View pointerEvents="none" style={styles.homeInfoCarouselDots}>
@@ -835,12 +1035,18 @@ export function HomePanel({
                   contentContainerStyle={styles.homeHeroBannerForecastContent}
                   style={styles.homeHeroBannerForecastScroll}
                 >
-                  {bannerForecastItems.map((item) => (
-                    <View
+                  {bannerForecastItems.map((item, index) => {
+                    const selected = index === shownForecastIndex;
+                    return (
+                    <Pressable
                       key={item.key}
-                      style={[styles.homeHeroBannerForecastItem, item.isCurrent && styles.homeHeroBannerForecastItemCurrent]}
+                      accessibilityLabel={`${item.timeLabel} ${item.label} ${item.temperature === undefined ? '' : `${Math.round(item.temperature)}도`}`}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected }}
+                      onPress={() => selectForecastIndex(index)}
+                      style={[styles.homeHeroBannerForecastItem, selected && styles.homeHeroBannerForecastItemCurrent]}
                     >
-                      <Text style={[styles.homeHeroBannerForecastTime, item.isCurrent && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
+                      <Text style={[styles.homeHeroBannerForecastTime, selected && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
                       <WeatherIcon kind={weatherIconKind(item.label)} size={23} />
                       <Text style={styles.homeHeroBannerForecastTemp}>
                         {item.temperature === undefined ? '-' : `${Math.round(item.temperature)}°`}
@@ -848,8 +1054,9 @@ export function HomePanel({
                       <Text style={[styles.homeHeroBannerForecastRain, item.isRainy && styles.homeHeroBannerForecastRainActive]}>
                         {item.rainProbability === undefined ? '강수 -' : `강수 ${Math.round(item.rainProbability)}%`}
                       </Text>
-                    </View>
-                  ))}
+                    </Pressable>
+                    );
+                  })}
                 </ScrollView>
               ) : (
                 <View style={styles.homeHeroBannerForecastEmpty}>
@@ -881,7 +1088,8 @@ export function HomePanel({
             </View>
           </View>
         </View>
-      </View>
+      </Animated.View>
+      )}
 
       {/* 활동 가이드·옷차림·날씨 지도를 한 섹션의 탭으로 봅니다. 탭을 바꿔도 내용은 숨기기만 해서 다시 불러오지 않습니다. */}
       <View style={styles.homeSectionCard}>
