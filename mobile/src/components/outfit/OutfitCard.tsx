@@ -133,6 +133,27 @@ function WeatherAlertRow({ result }: { result: OutfitRecommendation }) {
   );
 }
 
+// AI가 문장을 만드는 동안 "고르는 중" 글자 위로 빛이 왼쪽에서 오른쪽으로 지나갑니다.
+function ThinkingText({ text }: { text: string }) {
+  const reduceMotion = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  const sweep = useSharedValue(0);
+  useEffect(() => {
+    if (reduceMotion || !OUTFIT_MOTION.enabled || width === 0) return;
+    sweep.value = withRepeat(withSequence(withTiming(1, { duration: 1100, easing: Easing.inOut(Easing.quad) }), withTiming(1, { duration: 500 })), -1);
+  }, [reduceMotion, sweep, width]);
+  const bandWidth = Math.max(24, width * 0.35);
+  const bandStyle = useAnimatedStyle(() => ({ transform: [{ translateX: -bandWidth + sweep.value * (width + bandWidth) }] }));
+  return (
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={{ flexShrink: 1, overflow: 'hidden' }}>
+      <Text numberOfLines={1} style={outfitStyles.sourceHint}>{text}</Text>
+      {width > 0 && !reduceMotion && OUTFIT_MOTION.enabled && (
+        <Animated.View pointerEvents="none" style={[outfitStyles.thinkingSweep, { width: bandWidth }, bandStyle]} />
+      )}
+    </View>
+  );
+}
+
 function OutfitSourceRow({ isEnhancing, source }: { isEnhancing: boolean; source: OutfitRecommendation['source'] }) {
   const reduceMotion = useReducedMotion();
   const pulse = useSharedValue(1);
@@ -160,7 +181,7 @@ function OutfitSourceRow({ isEnhancing, source }: { isEnhancing: boolean; source
     return (
       <View accessibilityLabel="AI가 오늘 날씨로 옷차림을 고르는 중이에요" accessible style={outfitStyles.sourceRow}>
         <Animated.View style={pulseStyle}><Ionicons color={accent} name="sparkles" size={15} /></Animated.View>
-        <Text numberOfLines={1} style={outfitStyles.sourceHint}>AI가 오늘 날씨로 옷차림을 고르는 중…</Text>
+        <ThinkingText text="AI가 오늘 날씨로 옷차림을 고르는 중…" />
       </View>
     );
   }

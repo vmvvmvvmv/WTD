@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import Reanimated, { FadeIn, LayoutAnimationConfig, LinearTransition, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
@@ -145,6 +146,8 @@ export function CalendarTimeline({
               </View>
             ))}
 
+            {/* 처음 그릴 때는 일정이 나타나는 효과를 건너뛰고, 그 뒤 일정을 추가·수정해 칸이 바뀔 때만 움직입니다. */}
+            <LayoutAnimationConfig skipEntering>
             <View style={[styles.calendarTimelineColumns, { left: GUTTER_WIDTH }]}>
               {dates.map((date) => (
                 <Pressable
@@ -157,26 +160,33 @@ export function CalendarTimeline({
                   {blocksByDate[date].map((block) => {
                     const tone = block.event.sensitive ? bauhausColors.amber : getEventTone(block.event);
                     const height = Math.max(22, ((block.endMinute - block.startMinute) / 60) * HOUR_HEIGHT - 2);
+                    // 같은 시간대 일정이 늘거나 줄면 칸 위치·폭이 바뀌는데, 기존 일정이 옆으로 미끄러지며 자리를 내줍니다.
                     return (
-                      <Pressable
-                        accessibilityLabel={`${block.event.time} ${block.event.title}`}
+                      <Reanimated.View
+                        entering={FadeIn.duration(200).reduceMotion(ReduceMotion.System)}
                         key={block.event.id}
-                        onPress={() => onSelectDate(date)}
-                        style={({ pressed }) => [
-                          styles.calendarTimelineBlock,
-                          {
-                            backgroundColor: tone,
-                            height,
-                            left: `${(block.lane / block.lanes) * 100}%`,
-                            top: (block.startMinute / 60) * HOUR_HEIGHT + 1,
-                            width: `${100 / block.lanes}%`,
-                          },
-                          pressed && styles.pressedFeedback,
-                        ]}
+                        layout={LinearTransition.duration(240).reduceMotion(ReduceMotion.System)}
+                        style={{
+                          height,
+                          left: `${(block.lane / block.lanes) * 100}%`,
+                          position: 'absolute',
+                          top: (block.startMinute / 60) * HOUR_HEIGHT + 1,
+                          width: `${100 / block.lanes}%`,
+                        }}
                       >
-                        <Text numberOfLines={height >= 40 ? 2 : 1} style={styles.calendarTimelineBlockTitle}>{block.event.title}</Text>
-                        {height >= 40 && !isWeek && <Text numberOfLines={1} style={styles.calendarTimelineBlockTime}>{block.event.time}{block.event.endTime ? ` ~ ${block.event.endTime}` : ''}</Text>}
-                      </Pressable>
+                        <Pressable
+                          accessibilityLabel={`${block.event.time} ${block.event.title}`}
+                          onPress={() => onSelectDate(date)}
+                          style={({ pressed }) => [
+                            styles.calendarTimelineBlock,
+                            { backgroundColor: tone, bottom: 0, left: 0, right: 0, top: 0 },
+                            pressed && styles.pressedFeedback,
+                          ]}
+                        >
+                          <Text numberOfLines={height >= 40 ? 2 : 1} style={styles.calendarTimelineBlockTitle}>{block.event.title}</Text>
+                          {height >= 40 && !isWeek && <Text numberOfLines={1} style={styles.calendarTimelineBlockTime}>{block.event.time}{block.event.endTime ? ` ~ ${block.event.endTime}` : ''}</Text>}
+                        </Pressable>
+                      </Reanimated.View>
                     );
                   })}
                   </View>
@@ -188,6 +198,7 @@ export function CalendarTimeline({
                 </Pressable>
               ))}
             </View>
+            </LayoutAnimationConfig>
           </View>
         </ScrollView>
       </Animated.View>

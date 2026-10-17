@@ -1,7 +1,18 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
-import Reanimated, { FadeInDown, FadeOut, LinearTransition, ReduceMotion } from 'react-native-reanimated';
+import { useEffect, useState } from 'react';
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import Reanimated, {
+  FadeInDown,
+  FadeOut,
+  LinearTransition,
+  ReduceMotion,
+  useAnimatedStyle,
+  useReducedMotion,
+  useSharedValue,
+  withDelay,
+  withTiming,
+  ZoomIn,
+} from 'react-native-reanimated';
 
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
@@ -93,6 +104,35 @@ function MetricChip({
   );
 }
 
+// 날씨 위험 칩(비·더위·강풍 등). 시트를 열거나 날짜를 바꾸면 차례로 펼쳐진 뒤 빛이 한 번 지나가서 먼저 눈에 들어오게 합니다.
+function WeatherRiskPill({ index, risk }: { index: number; risk: CalendarWeatherRiskIndicator }) {
+  const reduceMotion = useReducedMotion();
+  const [width, setWidth] = useState(0);
+  const sweep = useSharedValue(0);
+  useEffect(() => {
+    if (reduceMotion || width === 0) return;
+    sweep.value = withDelay(260 + index * 70, withTiming(1, { duration: 700 }));
+  }, [index, reduceMotion, sweep, width]);
+  const bandWidth = Math.max(18, width * 0.45);
+  const sweepStyle = useAnimatedStyle(() => ({
+    opacity: sweep.value > 0 && sweep.value < 1 ? 1 : 0,
+    transform: [{ translateX: -bandWidth + sweep.value * (width + bandWidth) }],
+  }));
+  return (
+    <Reanimated.View
+      entering={ZoomIn.delay(index * 70).springify().damping(14).stiffness(200).reduceMotion(ReduceMotion.System)}
+      onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+      style={[styles.calendarWeatherRiskPill, { backgroundColor: `${risk.tone}14`, borderColor: `${risk.tone}55`, overflow: 'hidden' }]}
+    >
+      {risk.imageKind ? <WeatherIcon kind={risk.imageKind} size={15} /> : <Ionicons color={risk.tone} name={risk.icon} size={13} />}
+      <Text style={[styles.calendarWeatherRiskText, { color: risk.tone }]}>{risk.label}</Text>
+      {width > 0 && !reduceMotion && (
+        <Reanimated.View pointerEvents="none" style={[styles.calendarWeatherRiskSweep, { width: bandWidth }, sweepStyle]} />
+      )}
+    </Reanimated.View>
+  );
+}
+
 export function CalendarDaySheet({
   events,
   isExpanded = false,
@@ -122,7 +162,7 @@ export function CalendarDaySheet({
   };
 
   return (
-    <Animated.View style={[styles.calendarDaySheet, style]}>
+    <Reanimated.View style={[styles.calendarDaySheet, style]}>
       <View style={styles.calendarDaySheetDragArea} {...dragHandlers}>
         <View style={styles.calendarSelectionHandle} />
       </View>
@@ -151,11 +191,8 @@ export function CalendarDaySheet({
       </View>
       {weatherRisks.length > 0 && (
         <View style={styles.calendarWeatherRiskRow}>
-          {weatherRisks.map((risk) => (
-            <View key={risk.key} style={[styles.calendarWeatherRiskPill, { backgroundColor: `${risk.tone}14`, borderColor: `${risk.tone}55` }]}>
-              {risk.imageKind ? <WeatherIcon kind={risk.imageKind} size={15} /> : <Ionicons color={risk.tone} name={risk.icon} size={13} />}
-              <Text style={[styles.calendarWeatherRiskText, { color: risk.tone }]}>{risk.label}</Text>
-            </View>
+          {weatherRisks.map((risk, index) => (
+            <WeatherRiskPill index={index} key={`${selectedDate}-${risk.key}`} risk={risk} />
           ))}
         </View>
       )}
@@ -255,6 +292,6 @@ export function CalendarDaySheet({
           );
         })}
       </ScrollView>
-    </Animated.View>
+    </Reanimated.View>
   );
 }
