@@ -259,6 +259,21 @@ class AirKoreaForecastTests(SimpleTestCase):
         self.assertEqual(result['predictions'], [])
         self.assertFalse(result['model']['available'])
 
+    @patch('dust.airkorea_forecast.timezone.localdate')
+    def test_forecast_request_uses_short_timeout_and_caches_failure(self, localdate):
+        import requests
+        from datetime import date
+        from django.core.cache import cache
+        from dust.airkorea_forecast import build_forecast_prediction
+        from dust.external_api import REQUEST_TIMEOUT
+        localdate.return_value = date(2026, 10, 6)
+        cache.delete('airkorea_pm10_forecast_v1_2026-10-06')
+        with patch('dust.airkorea_forecast.public_api_get', side_effect=requests.Timeout('slow')) as api_get:
+            build_forecast_prediction('key', '서울')
+            build_forecast_prediction('key', '서울')
+        self.assertEqual(api_get.call_count, 1)
+        self.assertEqual(api_get.call_args.kwargs['timeout'], REQUEST_TIMEOUT)
+
 
 @patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
 class OptionalFeatureRoutingTests(SimpleTestCase):
