@@ -3,7 +3,7 @@ import { Image, type ImageStyle, type StyleProp } from 'react-native';
 
 export type WeatherIconKind = 'clear' | 'partlyCloudy' | 'cloudy' | 'rain' | 'snow' | 'wind' | 'thunder' | 'unknown';
 
-const WEATHER_ICON_SOURCES = {
+export const WEATHER_ICON_SOURCES = {
   clear: require('../../../assets/icons/weather-clear.png'),
   partlyCloudy: require('../../../assets/icons/weather-partly-cloudy.png'),
   cloudy: require('../../../assets/icons/weather-cloudy.png'),
