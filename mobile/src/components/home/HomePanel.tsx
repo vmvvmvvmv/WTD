@@ -847,7 +847,9 @@ export function HomePanel({
   const [selectedForecastKey, setSelectedForecastKey] = useState<string | null>(null);
   const selectedForecastIndex = selectedForecastKey ? bannerForecastItems.findIndex((item) => item.key === selectedForecastKey) : -1;
   // 배너에서 고른 시간을 따라가는 값은 기온과 강수량뿐입니다. 습도·바람·미세먼지는 계속 "지금" 값입니다.
-  const peekForecast = selectedForecastIndex > 0 ? bannerForecastItems[selectedForecastIndex] : undefined;
+  // "지금" 칸이 맨 앞이 아닐 수 있습니다(직전 시각의 실측이 먼저 오는 경우). 그래서 위치가 아니라 isCurrent로 찾습니다.
+  const nowForecastIndex = Math.max(0, bannerForecastItems.findIndex((item) => item.isCurrent));
+  const peekForecast = selectedForecastIndex >= 0 && selectedForecastIndex !== nowForecastIndex ? bannerForecastItems[selectedForecastIndex] : undefined;
   const infoSlides = useMemo(() => buildHomeMetricSlides({
     currentO3,
     currentPm10,
@@ -964,12 +966,12 @@ export function HomePanel({
     time: `${String(currentHour).padStart(2, '0')}:00`,
     title: '외출',
   }], [currentHour, todayDateLabel]);
-  // 시간별 예보 줄: 칸을 누르면 그 시간을 고릅니다. 줄은 원래대로 맨 왼쪽("지금")부터 시작합니다.
-  const shownForecastIndex = Math.max(0, selectedForecastIndex);
+  // 시간별 예보 줄: 칸을 누르면 그 시간을 고릅니다. 줄은 원래대로 맨 왼쪽부터 시작합니다.
+  const shownForecastIndex = selectedForecastIndex >= 0 ? selectedForecastIndex : nowForecastIndex;
   const selectForecastIndex = (index: number) => {
     const item = bannerForecastItems[index];
     if (!item || index === shownForecastIndex) return;
-    setSelectedForecastKey(index === 0 ? null : item.key);
+    setSelectedForecastKey(index === nowForecastIndex ? null : item.key);
     Haptics.selectionAsync().catch(() => {});
   };
   return (
