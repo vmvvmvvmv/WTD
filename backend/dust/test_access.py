@@ -3,6 +3,8 @@ import os
 
 from django.http import JsonResponse
 
+from dust.api_errors import error_body
+
 
 TOKEN_HEADER = "HTTP_X_APP_TEST_TOKEN"
 TOKEN_QUERY_PARAM = "app_test_token"
@@ -22,6 +24,6 @@ class AppTestTokenMiddleware:
 
         supplied_token = request.META.get(TOKEN_HEADER) or request.GET.get(TOKEN_QUERY_PARAM)
         if not hmac.compare_digest(str(supplied_token or ""), expected_token):
-            return JsonResponse({"detail": "Forbidden"}, status=403)
+            return JsonResponse(error_body(403, "접근 권한이 없습니다."), status=403)
 
         return self.get_response(request)

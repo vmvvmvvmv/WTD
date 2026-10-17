@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.shortcuts import render
 from django.utils import timezone
+from dust.api_errors import error_response
 from dust.airkorea_forecast import build_forecast_prediction, build_hourly_forecast_items
 from dust.config import AIRKOREA_SERVICE_KEY, KMA_API_KEY, KMA_ASOS_DAILY_URL, NAVER_LOCAL_SEARCH_URL, NAVER_MAP_CLIENT_ID, NAVER_SEARCH_CLIENT_ID, NAVER_SEARCH_CLIENT_SECRET
 from dust.current_dust_service import canonical_sido_name, select_current_dust
@@ -66,7 +67,7 @@ def register_notification_device(request):
     try:
         device = upsert_notification_device(request.data)
     except ValueError as exc:
-        return Response({"error": str(exc)}, status=400)
+        return error_response(400, str(exc))
     return Response(notification_device_response(device))
 
 
@@ -74,7 +75,7 @@ def register_notification_device(request):
 def mobile_map_client_log(request):
     """Print WebView map diagnostics without storing API keys or token values."""
     if not getattr(settings, "ENABLE_MOBILE_MAP_LOG", settings.DEBUG):
-        return Response({"ok": False, "detail": "mobile map logging is disabled."}, status=404)
+        return error_response(404, "지도 로그 수집이 꺼져 있습니다.", "feature_disabled")
 
     body = request.data if isinstance(request.data, dict) else {}
     event = str(body.get("event") or "unknown")[:80].replace("\r", " ").replace("\n", " ")
@@ -106,7 +107,7 @@ def current_dust(request):
         return Response(payload, status=status_code)
     except Exception:
         logger.exception('Failed to load current dust for %s %s', city, region)
-        return Response({"error": "현재 미세먼지 데이터를 불러오지 못했습니다."}, status=500)
+        return error_response(500, "현재 미세먼지 데이터를 불러오지 못했습니다.")
 
 
 @api_view(['GET'])
@@ -199,8 +200,9 @@ def korea_station_dust(request):
         }
         cache.set(cache_key, response_data, 30)
         return station_response(response_data)
-    except Exception as e:
-        return Response({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Failed to load korea station dust")
+        return error_response(500, "전국 측정소 데이터를 불러오지 못했습니다.")
 
 
 @api_view(['GET'])
@@ -211,9 +213,9 @@ def midterm_weather(request):
     start_date = _parse_measure_date(request.GET.get("startDate")) if request.GET.get("startDate") else timezone.localdate()
     end_date = _parse_measure_date(request.GET.get("endDate")) if request.GET.get("endDate") else timezone.localdate() + timedelta(days=14)
     if lat is None or lng is None:
-        return Response({"error": "lat and lng are required."}, status=400)
+        return error_response(400, "lat과 lng 파라미터가 필요합니다.")
     if not start_date or not end_date:
-        return Response({"error": "startDate/endDate must be YYYYMMDD or YYYY-MM-DD."}, status=400)
+        return error_response(400, "startDate와 endDate는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
     today = timezone.localdate()
     if start_date < today:
         start_date = today
@@ -251,7 +253,8 @@ def naver_place_search(request):
     if len(query) < 1:
         return Response({"items": []})
     if not NAVER_SEARCH_CLIENT_ID or not NAVER_SEARCH_CLIENT_SECRET:
-        return Response({"error": "Naver Search API credentials are not configured."}, status=503)
+        logger.warning("Naver search credentials are not configured.")
+        return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
     try:
         display = max(1, min(int(request.GET.get("size") or 8), 10))
     except (TypeError, ValueError):
@@ -265,14 +268,12 @@ def naver_place_search(request):
         response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=6)
         data = response.json()
     except Exception:
-        return Response({"error": "Naver place search failed."}, status=502)
+        logger.exception("Naver place search request failed")
+        return error_response(502, "장소 검색에 실패했습니다.")
 
     if response.status_code >= 400:
-        return Response({
-            "error": "Naver place search failed.",
-            "status": response.status_code,
-            "naver": data if isinstance(data, dict) else {},
-        }, status=502)
+        logger.warning("Naver place search returned %s", response.status_code)
+        return error_response(502, "장소 검색에 실패했습니다.")
 
     items = []
     for index, item in enumerate(data.get("items") or []):
@@ -301,11 +302,12 @@ def past_weather(request):
     start_date = _parse_measure_date(request.GET.get('startDate'))
     end_date = _parse_measure_date(request.GET.get('endDate'))
     if not city or not district:
-        return Response({"error": "city and region are required."}, status=400)
+        return error_response(400, "city와 region 파라미터가 필요합니다.")
     if not start_date or not end_date:
-        return Response({"error": "startDate and endDate must be YYYYMMDD or YYYY-MM-DD."}, status=400)
+        return error_response(400, "startDate와 endDate는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
     if not KMA_API_KEY:
-        return Response({"error": "KMA_API_KEY is not configured."}, status=500)
+        logger.error("KMA_API_KEY is not configured.")
+        return error_response(500, "지난 날씨를 지금 불러올 수 없습니다.")
 
     latest_available_date = timezone.localdate() - timedelta(days=1)
     end_date = min(end_date, latest_available_date)
@@ -315,7 +317,7 @@ def past_weather(request):
     station_name = _resolve_station_name(city, district)
     station = _find_air_quality_station(city, station_name)
     if not station:
-        return Response({"error": "station not found."}, status=404)
+        return error_response(404, "가까운 측정소를 찾지 못했습니다.")
 
     asos_station = _nearest_asos_station(station.lat, station.lng)
     cache_key = f"kma_asos_daily_v1_{asos_station['id']}_{start_date:%Y%m%d}_{end_date:%Y%m%d}"
@@ -337,20 +339,17 @@ def past_weather(request):
     try:
         response = public_api_get(KMA_ASOS_DAILY_URL, params=params, timeout=20)
         if response.status_code >= 400:
-            return Response({
-                "error": f"KMA ASOS daily API {response.status_code}",
-                "message": response.text[:300],
-            }, status=502)
+            logger.warning("KMA ASOS daily API returned %s", response.status_code)
+            return error_response(502, "지난 날씨를 불러오지 못했습니다.")
         data = response.json()
-    except Exception as exc:
-        return Response({"error": f"KMA ASOS daily API failed: {exc}"}, status=502)
+    except Exception:
+        logger.exception("KMA ASOS daily API request failed")
+        return error_response(502, "지난 날씨를 불러오지 못했습니다.")
 
     header = data.get("response", {}).get("header", {})
     if response.status_code >= 400 or header.get("resultCode") not in (None, "00"):
-        return Response({
-            "error": header.get("resultMsg") or f"KMA ASOS daily API {response.status_code}",
-            "resultCode": header.get("resultCode"),
-        }, status=502)
+        logger.warning("KMA ASOS daily API result %s: %s", header.get("resultCode"), header.get("resultMsg"))
+        return error_response(502, "지난 날씨를 불러오지 못했습니다.")
 
     items = data.get("response", {}).get("body", {}).get("items", {}).get("item", [])
     if isinstance(items, dict):
@@ -373,7 +372,7 @@ def current_weather(request):
     lat = _to_float(request.GET.get("lat"))
     lng = _to_float(request.GET.get("lng"))
     if lat is None or lng is None:
-        return Response({"error": "lat과 lng 파라미터가 필요합니다."}, status=400)
+        return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 
     grid = _dfs_grid_from_lat_lng(lat, lng)
     now = timezone.now()
@@ -391,7 +390,7 @@ def current_weather(request):
             .first()
         )
     if not measurement:
-        return Response({"error": "저장된 날씨 데이터가 없습니다. collect_realtime_weather를 먼저 실행해 주세요.", "grid": grid}, status=404)
+        return error_response(404, "이 위치의 저장된 날씨 데이터가 없습니다.", grid=grid)
     return Response(_weather_measurement_to_response(measurement))
 
 
@@ -407,11 +406,11 @@ def hourly_weather(request):
         forecast_hours = 12
     forecast_hours = max(1, min(forecast_hours, 72))
     if lat is None or lng is None:
-        return Response({"error": "lat and lng are required."}, status=400)
+        return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 
     measured_date = _parse_measure_date(date_param) if date_param else timezone.localdate()
     if not measured_date:
-        return Response({"error": "date must be YYYYMMDD or YYYY-MM-DD."}, status=400)
+        return error_response(400, "date는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
 
     grid = _dfs_grid_from_lat_lng(lat, lng)
     local_tz = timezone.get_current_timezone()
@@ -483,7 +482,7 @@ def predict_dust(request):
     district = request.GET.get('region')
 
     if not city or not district:
-        return Response({"error": "city와 region 파라미터가 필요합니다."}, status=400)
+        return error_response(400, "city와 region 파라미터가 필요합니다.")
 
     try:
         # 서버 메모리를 아끼기 위해 Prophet 학습 대신 에어코리아 내일·모레 예보 등급을 쓴다.
@@ -491,7 +490,7 @@ def predict_dust(request):
         result = build_forecast_prediction(AIRKOREA_SERVICE_KEY, city)
     except Exception:
         logger.exception('Failed to build dust prediction for %s %s', city, district)
-        return Response({"error": "미세먼지 예측을 불러오지 못했습니다."}, status=500)
+        return error_response(500, "미세먼지 예측을 불러오지 못했습니다.")
     return Response({city: {district: result}})
 
 
@@ -502,11 +501,11 @@ def hourly_dust(request):
     date_param = request.GET.get('date')
 
     if not city or not district:
-        return Response({"error": "city and region are required."}, status=400)
+        return error_response(400, "city와 region 파라미터가 필요합니다.")
 
     measured_date = _parse_measure_date(date_param) if date_param else timezone.localdate()
     if not measured_date:
-        return Response({"error": "date must be YYYYMMDD or YYYY-MM-DD."}, status=400)
+        return error_response(400, "date는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
 
     station_name = _resolve_station_name(city, district)
     station = _find_air_quality_station(city, station_name)
@@ -548,7 +547,7 @@ def past_dust(request):
     end_date = request.GET.get('endDate')
 
     if not city or not district:
-        return Response({"error": "파라미터가 없습니다."}, status=400)
+        return error_response(400, "city와 region 파라미터가 필요합니다.")
 
     station_name = _resolve_station_name(city, district)
 

@@ -188,6 +188,8 @@ REST_FRAMEWORK = {
     'DEFAULT_RENDERER_CLASSES': [
         'rest_framework.renderers.JSONRenderer',
     ],
+    # 잘못된 JSON·허용 안 된 메서드·처리 안 된 예외도 {"error", "code"} 모양으로 돌려준다.
+    'EXCEPTION_HANDLER': 'dust.api_errors.api_exception_handler',
 }
 
 CORS_ALLOWED_ORIGINS = [
