@@ -32,3 +32,9 @@ test('일정 길이를 분으로 계산하고 읽기 쉽게 보여준다', () =>
   assert.equal(formatDuration(30), '30분');
   assert.equal(formatDuration(0), '');
 });
+
+test('기본 종료 시각은 자정을 넘으면 그날 23:59로 자른다', async () => {
+  const { addMinutesWithinDay } = await import('./calendarUtils.ts');
+  assert.deepEqual(addMinutesWithinDay('2026-10-10', '23:00', 60), { date: '2026-10-10', time: '23:59' });
+  assert.deepEqual(addMinutesWithinDay('2026-10-10', '14:00', 60), { date: '2026-10-10', time: '15:00' });
+});
