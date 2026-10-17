@@ -380,3 +380,28 @@ class AirKoreaHourlyForecastTests(SimpleTestCase):
         from dust.airkorea_forecast import build_hourly_forecast_items
         with patch('dust.airkorea_forecast.load_national_forecast', return_value=None):
             self.assertEqual(build_hourly_forecast_items('key', '서울'), [])
+
+
+class PastDustRequestTimeoutTests(SimpleTestCase):
+    """"최근 7일" 요청은 바깥 API가 느려도 짧게만 기다리고, 실패하면 잠깐 다시 부르지 않는다."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        for key in ('airkorea_past_station_failed_v1_테스트측정소', 'airkorea_past_station_v1_테스트측정소_20261001_20261007'):
+            cache.delete(key)
+
+    def test_failed_request_uses_short_timeout_and_is_not_retried_right_away(self):
+        from datetime import date
+
+        import requests
+
+        from dust.views import REQUEST_TIMEOUT, _fetch_past_dust_items_by_station
+
+        with patch('dust.views.public_api_get', side_effect=requests.Timeout('slow')) as api_get:
+            first = _fetch_past_dust_items_by_station('테스트측정소', date(2026, 10, 1), date(2026, 10, 7), allow_api=True)
+            second = _fetch_past_dust_items_by_station('테스트측정소', date(2026, 10, 1), date(2026, 10, 7), allow_api=True)
+
+        self.assertEqual(first[0], [])
+        self.assertEqual(second[0], [])
+        self.assertEqual(api_get.call_count, 1)
+        self.assertEqual(api_get.call_args.kwargs['timeout'], REQUEST_TIMEOUT)

@@ -1,4 +1,3 @@
-import requests
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
@@ -28,6 +27,7 @@ from .models import AirQualityStation, DustMeasurement, HourlyDustPrediction, No
 from .midterm_weather import MIDTERM_REGIONS, current_midterm_announce_candidates, midterm_region_from_lat_lng
 from .ml.hourly_pm10 import build_ml_hourly_pm10_forecast
 from .map_presentation import build_map_css_variables, build_map_ui_config
+from .external_api import PUBLIC_API_HEADERS, REQUEST_TIMEOUT, public_api_get
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -89,10 +89,8 @@ KMA_API_KEY = _public_data_service_key(_env_first(
 NAVER_MAP_CLIENT_ID = os.getenv('NAVER_MAP_CLIENT_ID') or os.getenv('REACT_APP_NAVER_MAP_CLIENT_ID') or os.getenv('EXPO_PUBLIC_NAVER_MAP_CLIENT_ID') or ''
 NAVER_SEARCH_CLIENT_ID = os.getenv('NAVER_SEARCH_CLIENT_ID') or os.getenv('NAVER_CLIENT_ID') or ''
 NAVER_SEARCH_CLIENT_SECRET = os.getenv('NAVER_SEARCH_CLIENT_SECRET') or os.getenv('NAVER_CLIENT_SECRET') or ''
-AIRKOREA_HEADERS = {
-    "Accept": "application/json, text/xml, */*",
-    "User-Agent": "Mozilla/5.0",
-}
+# 다른 모듈이 import하던 이름이라 남겨 둔다. 실제 값은 external_api에서 관리한다.
+AIRKOREA_HEADERS = PUBLIC_API_HEADERS
 
 NAVER_LOCAL_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
 AIRKOREA_REQUEST_WORKERS = max(1, _env_int('AIRKOREA_REQUEST_WORKERS', 4))
@@ -635,7 +633,7 @@ def _fetch_station_locations_for_sido(sido):
         for variant in _station_request_variants(addr):
             raw_error = None
             try:
-                response = requests.get(STATION_INFO_URL, params=variant["params"], headers=AIRKOREA_HEADERS, timeout=15)
+                response = public_api_get(STATION_INFO_URL, params=variant["params"])
                 items, result, raw_error = _parse_airkorea_response(response)
                 debug.append({
                     "sido": sido,
@@ -762,7 +760,7 @@ def _fetch_realtime_station_values_for_sido(sido):
     for label, params in request_variants:
         raw_error = None
         try:
-            response = requests.get(REALTIME_DUST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=15)
+            response = public_api_get(REALTIME_DUST_URL, params=params)
             items, result, raw_error = _parse_airkorea_response(response)
             debug.append({
                 "sido": sido,
@@ -1154,7 +1152,7 @@ def _fetch_recent_station_realtime_items(station_name):
         "ver": "1.3",
     }
     try:
-        response = requests.get(STATION_REALTIME_DUST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=15)
+        response = public_api_get(STATION_REALTIME_DUST_URL, params=params)
         items, result, raw_error = _parse_airkorea_response(response)
         api_error = None
         if response.status_code >= 400 or raw_error:
@@ -1316,6 +1314,9 @@ def korea_station_dust(request):
     except Exception as e:
         return Response({"error": str(e)}, status=500)
 
+PAST_API_FAILURE_TTL_SECONDS = 10 * 60
+
+
 def _fetch_past_dust_items_by_station(station_name, start_date, end_date, allow_api=False):
     if not allow_api:
         return [], "External API calls are disabled for request-time reads."
@@ -1324,6 +1325,10 @@ def _fetch_past_dust_items_by_station(station_name, start_date, end_date, allow_
     cached = cache.get(cache_key)
     if cached is not None:
         return cached, None
+    # 바로 전에 실패한 측정소는 잠깐 다시 부르지 않고 저장된 값으로만 응답한다(사용자가 매번 기다리지 않게).
+    failure_key = f'airkorea_past_station_failed_v1_{station_name}'
+    if cache.get(failure_key):
+        return [], "AirKorea past request failed recently; skipped."
 
     params = {
         "serviceKey": AIRKOREA_SERVICE_KEY,
@@ -1335,7 +1340,7 @@ def _fetch_past_dust_items_by_station(station_name, start_date, end_date, allow_
         "msrstnName": station_name,
     }
     try:
-        response = requests.get(API_URL, params=params, headers=AIRKOREA_HEADERS, timeout=15)
+        response = public_api_get(API_URL, params=params, timeout=REQUEST_TIMEOUT)
         items, result, raw_error = _parse_airkorea_response(response)
         api_error = None
         if response.status_code >= 400 or raw_error:
@@ -1343,6 +1348,7 @@ def _fetch_past_dust_items_by_station(station_name, start_date, end_date, allow_
         cache.set(cache_key, items, 60 * 60)
         return items, api_error
     except Exception as exc:
+        cache.set(failure_key, True, PAST_API_FAILURE_TTL_SECONDS)
         return [], str(exc)
 
 def _haversine_km(lat1, lng1, lat2, lng2):
@@ -1525,7 +1531,7 @@ def _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12):
             "ny": grid["ny"],
         }
         try:
-            response = requests.get(KMA_VILAGE_FORECAST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=15)
+            response = public_api_get(KMA_VILAGE_FORECAST_URL, params=params)
             data = response.json()
         except Exception:
             continue
@@ -1637,7 +1643,7 @@ def _fetch_midterm_api_item(url, reg_id, tm_fc):
         "regId": reg_id,
         "tmFc": tm_fc,
     }
-    response = requests.get(url, params=params, headers=AIRKOREA_HEADERS, timeout=15)
+    response = public_api_get(url, params=params)
     if response.status_code >= 400:
         return None
     data = response.json()
@@ -1800,7 +1806,7 @@ def naver_place_search(request):
         "X-Naver-Client-Secret": NAVER_SEARCH_CLIENT_SECRET,
     }
     try:
-        response = requests.get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=6)
+        response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=6)
         data = response.json()
     except Exception:
         return Response({"error": "Naver place search failed."}, status=502)
@@ -1873,7 +1879,7 @@ def past_weather(request):
         "stnIds": asos_station["id"],
     }
     try:
-        response = requests.get(KMA_ASOS_DAILY_URL, params=params, headers=AIRKOREA_HEADERS, timeout=20)
+        response = public_api_get(KMA_ASOS_DAILY_URL, params=params, timeout=20)
         if response.status_code >= 400:
             return Response({
                 "error": f"KMA ASOS daily API {response.status_code}",
@@ -2389,7 +2395,7 @@ def _fetch_kma_weather_by_station(sido, station_name):
             "ny": grid["ny"],
         }
         try:
-            response = requests.get(KMA_VILAGE_FORECAST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=15)
+            response = public_api_get(KMA_VILAGE_FORECAST_URL, params=params)
             try:
                 data = response.json()
             except ValueError:
@@ -3025,16 +3031,6 @@ def past_dust(request):
 
     station_name = _resolve_station_name(city, district)
 
-    params = {
-        "serviceKey": AIRKOREA_SERVICE_KEY,
-        "returnType": "json",
-        "numOfRows": "100",
-        "pageNo": "1",
-        "inqBginDt": start_date,
-        "inqEndDt": end_date,
-        "msrstnName": station_name,
-    }
-
     parsed_start = _parse_measure_date(start_date)
     parsed_end = _parse_measure_date(end_date)
     yesterday = timezone.localdate() - timedelta(days=1)
@@ -3074,38 +3070,4 @@ def past_dust(request):
         "realtime_daily_count": len(realtime_daily_items),
         "saved_count": saved_count,
         "source": "stored_first",
-    })
-
-    
-
-    response = requests.get(API_URL, params=params, headers=AIRKOREA_HEADERS, timeout=15)
-    try:
-        data = response.json()
-    except ValueError:
-        return Response({
-            "items": stored_items,
-            "error": "AirKorea returned a non-JSON response.",
-            "status": response.status_code,
-            "preview": response.text[:200],
-            "stored_count": len(stored_items),
-        }, status=200 if stored_items else 502)
-    items = data.get("response", {}).get("body", {}).get("items", [])
-    saved_count = _store_past_dust_items(city, district, station_name, items)
-
-    merged_by_date = {}
-    for item in stored_items:
-        key = str(item.get('msurDt', '')).split()[0]
-        if key:
-            merged_by_date[key] = item
-    for item in items:
-        key = str(item.get('msurDt', '')).split()[0]
-        if key:
-            merged_by_date[key] = item
-
-    merged_items = sorted(merged_by_date.values(), key=lambda item: str(item.get('msurDt', '')))
-    return Response({
-        "items": merged_items,
-        "api_count": len(items),
-        "stored_count": len(stored_items),
-        "saved_count": saved_count,
     })

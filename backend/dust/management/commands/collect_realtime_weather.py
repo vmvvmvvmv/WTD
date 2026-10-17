@@ -2,10 +2,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import re
 
-import requests
 from django.core.management.base import BaseCommand
 from django.db import close_old_connections
 
+from dust.external_api import public_api_get
 from dust.models import AirQualityStation
 from dust.views import (
     AIRKOREA_HEADERS,
@@ -109,7 +109,7 @@ def _collect_grid_weather(
                 "ny": grid["ny"],
             }
             try:
-                response = requests.get(KMA_ULTRA_SHORT_FORECAST_URL, params=params, headers=AIRKOREA_HEADERS, timeout=10)
+                response = public_api_get(KMA_ULTRA_SHORT_FORECAST_URL, params=params, timeout=10)
                 data = response.json()
             except Exception as exc:
                 attempts.append(f"{base_date}{base_time}: {exc.__class__.__name__}")
