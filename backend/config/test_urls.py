@@ -1,4 +1,6 @@
-from django.test import SimpleTestCase
+import importlib
+
+from django.test import SimpleTestCase, override_settings
 
 
 class ActiveRoutesTests(SimpleTestCase):
@@ -10,6 +12,17 @@ class ActiveRoutesTests(SimpleTestCase):
         for path in ('/app/', '/app/nidLogin/', '/api/login/', '/api/s/', '/api/register/', '/api/auth/google/login/'):
             self.assertEqual(self.client.get(path).status_code, 404, path)
 
-    def test_admin_login_page_still_works(self):
-        # 관리자 페이지는 app.Users 모델로 로그인하므로 그대로 남는다.
-        self.assertEqual(self.client.get('/admin/login/').status_code, 200)
+    def test_admin_is_routed_only_with_optional_features(self):
+        # 관리자 로그인 화면은 운영 서버(ENABLE_OPTIONAL_FEATURES=False)에 열지 않는다.
+        import config.urls
+
+        def routes():
+            return {str(pattern.pattern) for pattern in importlib.reload(config.urls).urlpatterns}
+
+        try:
+            with override_settings(ENABLE_OPTIONAL_FEATURES=False):
+                self.assertNotIn('admin/', routes())
+            with override_settings(ENABLE_OPTIONAL_FEATURES=True):
+                self.assertIn('admin/', routes())
+        finally:
+            importlib.reload(config.urls)
