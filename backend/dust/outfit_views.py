@@ -4,6 +4,8 @@ from django.conf import settings
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
+from dust.api_errors import error_response
+
 from .services.outfit import recommend_outfit
 from .services.outfit.daily_service import recommend_daily_outfit
 from .services.outfit.context_builder import OutfitContextError
@@ -32,9 +34,9 @@ def recommend(request):
         payload = request.data if isinstance(request.data, dict) else {}
         return Response(recommend_outfit(payload, client_key=_client_key(request)))
     except OutfitContextError as exc:
-        return Response({'error': str(exc)}, status=400)
+        return error_response(400, str(exc))
     except OutfitDataUnavailable as exc:
-        return Response({'error': str(exc)}, status=503)
+        return error_response(503, str(exc), 'data_unavailable')
 
 
 @api_view(['POST'])
@@ -43,6 +45,6 @@ def recommend_daily(request):
         payload = request.data if isinstance(request.data, dict) else {}
         return Response(recommend_daily_outfit(payload, client_key=_client_key(request)))
     except OutfitContextError as exc:
-        return Response({'error': str(exc)}, status=400)
+        return error_response(400, str(exc))
     except OutfitDataUnavailable as exc:
-        return Response({'error': str(exc)}, status=503)
+        return error_response(503, str(exc), 'data_unavailable')
