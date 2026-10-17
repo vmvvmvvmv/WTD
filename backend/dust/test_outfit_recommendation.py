@@ -8,7 +8,7 @@ from dust.services.outfit.daily_service import merge_daily_snapshots, recommend_
 from dust.services.outfit.llm_client import GeminiLLMClient, OUTPUT_SCHEMA
 from dust.services.outfit.occasion import classify_occasion
 from dust.services.outfit.response_parser import validate_llm_output
-from dust.services.outfit.rule_engine import build_rule_result
+from dust.services.outfit.rule_engine import _with_josa, build_rule_result
 from dust.services.outfit.service import recommend_outfit
 
 
@@ -57,6 +57,13 @@ class OutfitRuleEngineTests(SimpleTestCase):
         result = build_rule_result(snapshot(rain_prob_max=70, pm10_max=100), activity_type="outdoor", sensitivity="normal", occasion="casual")
         self.assertEqual(result["outfit"]["band"], "B8")
         self.assertEqual({(item["type"], item["level"]) for item in result["must_have"]}, {("umbrella", "required"), ("mask", "required"), ("scarf_gloves", "recommended")})
+
+    def test_outfit_note_picks_josa_by_final_consonant(self):
+        result = build_rule_result(snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9, rain_prob_max=70), activity_type="outdoor", sensitivity="normal", occasion="casual")
+        self.assertTrue(result["outfit_note"].startswith("니트와 청바지"), result["outfit_note"])
+        self.assertIn("재킷을 추천해요", result["outfit_note"])
+        self.assertEqual(_with_josa("바람막이", "을", "를"), "바람막이를")
+        self.assertEqual(_with_josa("패딩", "과", "와"), "패딩과")
 
     def test_warm_clear_weather_uses_b2_without_must_have(self):
         result = build_rule_result(snapshot(feels_min=25, feels_max=25, feels_avg=25), activity_type="outdoor", sensitivity="normal", occasion="unknown")
