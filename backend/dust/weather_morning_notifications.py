@@ -8,7 +8,8 @@ import requests
 from django.utils import timezone
 
 from dust.models import AirQualityStation, DustNotificationLog, NotificationDevice, WeatherHourlyMeasurement
-from dust.views import _current_station_location, _dfs_grid_from_lat_lng, _find_air_quality_station, _resolve_station_name
+from dust.services.common import _dfs_grid_from_lat_lng
+from dust.services.stations import _current_station_location, _find_air_quality_station, _resolve_station_name
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"

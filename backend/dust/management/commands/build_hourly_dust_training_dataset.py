@@ -8,7 +8,7 @@ from django.core.management.base import BaseCommand
 from django.utils import timezone
 
 from dust.models import AirQualityStation, RealtimeDustMeasurement, WeatherHourlyMeasurement
-from dust.views import _dfs_grid_from_lat_lng
+from dust.services.common import _dfs_grid_from_lat_lng
 
 
 def _hour_key(value):

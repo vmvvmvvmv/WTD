@@ -1,16 +1,10 @@
 from django.core.management.base import BaseCommand
 
 from dust.models import AirQualityStation, NotificationDevice
-from dust.views import (
-    _build_hourly_dust_forecast,
-    _current_station_location,
-    _dfs_grid_from_lat_lng,
-    _fetch_kma_hourly_weather_forecast_by_grid,
-    _find_air_quality_station,
-    _load_recent_realtime_hourly_dust,
-    _resolve_station_name,
-    _store_hourly_dust_predictions,
-)
+from dust.services.common import _dfs_grid_from_lat_lng
+from dust.services.dust_history import _build_hourly_dust_forecast, _load_recent_realtime_hourly_dust, _store_hourly_dust_predictions
+from dust.services.stations import _current_station_location, _find_air_quality_station, _resolve_station_name
+from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid
 
 
 class Command(BaseCommand):

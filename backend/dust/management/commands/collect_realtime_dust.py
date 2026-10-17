@@ -6,14 +6,8 @@ from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
-from dust.views import (
-    AIRKOREA_REQUEST_WORKERS,
-    SIDO_NAMES,
-    _fetch_realtime_station_values_for_sido,
-    _load_station_locations,
-    _sidos_with_realtime_spikes,
-    _store_realtime_values_to_db,
-)
+from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES
+from dust.services.stations import _fetch_realtime_station_values_for_sido, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
 
 
 def env_int(name, default):
