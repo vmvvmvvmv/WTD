@@ -9,7 +9,7 @@ class CurrentDustEndpointTests(SimpleTestCase):
     @patch('dust.views._resolve_station_name', return_value='대신동')
     @patch('dust.views._load_realtime_station_values', return_value=({}, {}))
     @patch('dust.views._load_latest_daily_station_values', return_value={})
-    @patch('dust.views._candidate_stations_for_region', return_value=[])
+    @patch('dust.services.stations._candidate_stations_for_region', return_value=[])
     def test_missing_data_response(self, *_mocks):
         response = self.client.get('/dust/current/?city=부산&region=대신동')
         self.assertEqual(response.status_code, 404)
@@ -85,13 +85,13 @@ class OutfitClientKeyTests(SimpleTestCase):
 
 
 class PredictionCachePolicyTests(SimpleTestCase):
-    @patch('dust.views._fetch_past_dust_items_by_station', return_value=([], None))
-    @patch('dust.views._load_stored_realtime_daily_dust', return_value=[])
-    @patch('dust.views.DustMeasurement.objects.filter')
-    @patch('dust.views._resolve_station_name', return_value='테스트측정소')
+    @patch('dust.services.prediction._fetch_past_dust_items_by_station', return_value=([], None))
+    @patch('dust.services.prediction._load_stored_realtime_daily_dust', return_value=[])
+    @patch('dust.services.prediction.DustMeasurement.objects.filter')
+    @patch('dust.services.prediction._resolve_station_name', return_value='테스트측정소')
     def test_unavailable_prediction_is_not_cached_for_predict_endpoint(self, _station, measurements, *_mocks):
         from django.core.cache import cache
-        from dust.views import _build_prediction_for_region
+        from dust.services.prediction import _build_prediction_for_region
         measurements.return_value.order_by.return_value = []
         cache.delete('dust_predict_v10_테스트시_테스트구')
 
@@ -395,9 +395,10 @@ class PastDustRequestTimeoutTests(SimpleTestCase):
 
         import requests
 
-        from dust.views import REQUEST_TIMEOUT, _fetch_past_dust_items_by_station
+        from dust.external_api import REQUEST_TIMEOUT
+        from dust.services.dust_history import _fetch_past_dust_items_by_station
 
-        with patch('dust.views.public_api_get', side_effect=requests.Timeout('slow')) as api_get:
+        with patch('dust.services.dust_history.public_api_get', side_effect=requests.Timeout('slow')) as api_get:
             first = _fetch_past_dust_items_by_station('테스트측정소', date(2026, 10, 1), date(2026, 10, 7), allow_api=True)
             second = _fetch_past_dust_items_by_station('테스트측정소', date(2026, 10, 1), date(2026, 10, 7), allow_api=True)
 

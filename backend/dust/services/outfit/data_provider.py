@@ -127,7 +127,7 @@ def load_schedule_snapshot(request: OutfitRequest) -> dict:
         air_points = [AirPoint(row.pm10_value, row.pm25_value) for row in dust_rows]
         if not air_points:
             # 아직 측정값이 없는 시간(미래 일정)은 에어코리아 그날 예보 등급의 대표 PM10 값을 쓴다.
-            from dust.views import AIRKOREA_SERVICE_KEY  # views가 이 모듈을 가져오므로 여기서 가져온다.
+            from dust.config import AIRKOREA_SERVICE_KEY  # views가 이 모듈을 가져오므로 여기서 가져온다.
 
             grade = forecast_grade_for(AIRKOREA_SERVICE_KEY, station.sido, timezone.localtime(request.start).date())
             air_points = [AirPoint(GRADE_PM10[grade], None)] if grade else []
