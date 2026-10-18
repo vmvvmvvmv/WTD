@@ -1,4 +1,4 @@
-# 서버 배포 (네이버 클라우드 · Ubuntu)
+# 서버 배포 (Google Cloud · Ubuntu 24.04)
 
 구성: nginx(HTTPS) → gunicorn(Django) → MySQL, 같은 서버 한 대. 수집 작업은 systemd 타이머로 돌린다.
 Docker는 쓰지 않는다. 서버 한 대에 서비스 하나라 systemd로 충분하다.
@@ -12,38 +12,39 @@ deploy/
 └─ nginx/weathertodo.conf     # dust.vmv-lab.com → gunicorn 소켓
 ```
 
-## 1. 네이버 클라우드 콘솔에서 (직접)
+## 1. Google Cloud 콘솔에서 (직접)
 
-무료 조건: Micro 서버는 결제 수단을 등록한 달부터 **1년 무료**(계정당 1대, 한국 리전). **서버 요금만 무료**이고 공인 IP는 따로 과금된다.
-1년이 지나면 반납하지 않는 한 **자동으로 유료 전환**되므로 끝나는 날짜를 기록해 둔다.
+무료 조건: 신규 가입 크레딧 **$300, 90일**. 서버·공인 IP·디스크·트래픽 모두 크레딧에서 빠진다.
+체험 중에는 자동 결제되지 않고, 90일이 지나면 서버가 멈춘다. **끝나는 날짜를 기록**해 두고 그 전에 유료 전환이나 이전을 정한다.
 
-1. **서버 생성** (Services → Compute → Server, VPC 환경)
-   - 서버 이미지: **Ubuntu** (24.04가 없으면 22.04도 됨. 파이썬 3.10 이상이면 Django 5.2 조건 충족)
-   - 서버 타입: **Micro** (무료 표시가 있는 것)
-   - 스토리지: 기본 디스크 **10GB**(무료 제공량). 추가 디스크는 무료가 아니다
-   - 인증키: 새로 만들고 `.pem` 파일을 안전한 곳에 보관 (관리자 비밀번호 확인에 필요)
-   - ACG(방화벽): 새로 만든다. 2번에서 규칙을 넣는다
-2. **ACG 규칙** (Server → ACG → 규칙 설정, 인바운드)
-   - TCP **22**: 접근 소스는 **내 IP만** (예: `내공인IP/32`)
-   - TCP **80**, TCP **443**: 접근 소스 `0.0.0.0/0`
-3. **공인 IP** (Server → Public IP → 공인 IP 신청 → 만든 서버에 할당)
-   - 공인 IP와 **포트 포워딩**을 같이 쓰면 22번 포트를 포트 포워딩이 먼저 가져가서 SSH가 안 된다. 포트 포워딩 설정은 지운다
-4. **관리자 비밀번호 확인**: 서버 목록에서 서버 선택 → 서버 관리 및 설정 변경 → **관리자 비밀번호 확인** → `.pem` 파일 올리기
-5. **도메인 DNS** (Cloudflare → vmv-lab.com → DNS): A 레코드 `dust` → 공인 IP.
+0. **SSH 키 만들기** (내 PC, PowerShell)
+   ```bash
+   ssh-keygen -t ed25519 -C ubuntu -f $HOME/.ssh/wtd_gcp
+   cat $HOME/.ssh/wtd_gcp.pub      # 이 한 줄을 3번에 붙여 넣는다
+   ```
+   끝의 `ubuntu`가 서버 계정 이름이 된다. systemd·nginx 설정이 `ubuntu` 기준이라 바꾸지 않는다.
+1. **프로젝트 만들기** → Compute Engine 메뉴에 들어가 API 사용 설정
+2. **VM 만들기** (Compute Engine → VM 인스턴스 → 인스턴스 만들기)
+   - 리전: **asia-northeast3 (서울)**, 영역은 아무거나
+   - 머신: **e2-small** (vCPU 2, 메모리 2GB)
+   - 부팅 디스크: **Ubuntu 24.04 LTS (x86/64)**, 균형 있는 영구 디스크 **20GB**
+   - 방화벽: **HTTP 트래픽 허용**, **HTTPS 트래픽 허용** 체크
+   - 네트워킹 → 네트워크 인터페이스 → 외부 IPv4 주소: **고정 외부 IP 주소 예약** (임시 IP는 껐다 켜면 바뀜)
+3. **SSH 키 등록**: 만들기 화면 보안 → 액세스 관리 → **항목 추가** → 0번의 `.pub` 한 줄 붙여 넣기
+4. **SSH 포트 좁히기** (VPC 네트워크 → 방화벽 → `default-allow-ssh` 수정)
+   - 소스 IPv4 범위: `0.0.0.0/0` → **`내공인IP/32`**
+   - 이렇게 하면 콘솔의 "브라우저에서 SSH" 버튼은 안 된다. 내 PC 터미널로 접속한다
+5. **예산 알림** (결제 → 예산 및 알림): 월 **$30**, 50%·90%·100%에서 메일
+6. **도메인 DNS** (Cloudflare → vmv-lab.com → DNS): A 레코드 `dust` → 2번의 고정 IP.
    **프록시(주황 구름)는 끄고 DNS only**로 둔다. 켜 두면 7단계 certbot이 인증서를 못 받는다.
-   (`nslookup dust.vmv-lab.com`으로 공인 IP가 나오면 됨)
+   (`nslookup dust.vmv-lab.com`으로 고정 IP가 나오면 됨)
 
-## 1-1. 첫 접속과 작업 계정 만들기
+## 1-1. 첫 접속
 
-네이버 클라우드는 `root` 계정과 4번의 비밀번호로 접속한다. 이 문서와 systemd·nginx 설정 파일은 `ubuntu` 계정 기준이라, 처음 한 번 `ubuntu` 계정을 만들고 이후는 그 계정으로 작업한다.
+3번에서 넣은 키로 `ubuntu` 계정이 sudo 권한과 함께 만들어진다. 이후 단계는 모두 이 계정으로 한다.
 
 ```bash
-ssh root@<공인IP>                # 비밀번호: 1단계 4번에서 확인한 값
-passwd                           # root 비밀번호를 내 것으로 바꾸기
-id ubuntu 2>/dev/null || adduser --gecos "" ubuntu
-usermod -aG sudo ubuntu
-exit
-ssh ubuntu@<공인IP>              # 이후 단계는 모두 ubuntu 계정으로
+ssh -i $HOME/.ssh/wtd_gcp ubuntu@<고정IP>
 ```
 
 ## 2. 서버 기본 패키지
@@ -54,14 +55,14 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3-venv python3-dev build-essential pkg-config default-libmysqlclient-dev mysql-server nginx certbot python3-certbot-nginx git
 ```
 
-## 3. 스왑 1GB (Micro는 메모리가 작아서 꼭)
+## 3. 스왑 1GB
 
-디스크가 10GB라 스왑은 1GB로 한다. 메모리가 모자라면 MySQL이나 pip 설치가 강제로 꺼질 수 있다.
+메모리 2GB에 MySQL·gunicorn·pip 설치가 겹치면 빠듯할 수 있어 여유분으로 둔다.
 
 ```bash
 sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
-free -h && df -h /               # 스왑 1G가 보이고 디스크 여유가 3GB 이상이면 됨
+free -h && df -h /               # 스왑 1G가 보이면 됨
 ```
 
 ## 4. MySQL
@@ -136,6 +137,22 @@ sudo certbot --nginx -d dust.vmv-lab.com
 ```
 
 nginx가 `/home/ubuntu` 아래 정적 파일을 읽을 수 있어야 한다: `chmod 755 /home/ubuntu`
+
+## 7-1. 보안 다듬기
+
+nginx 버전 숨김, IP당 요청 제한(초당 10번), IP로 직접 들어오는 스캐너 차단. certbot이 고친 사이트 설정과 따로 둔다.
+
+```bash
+sudo cp deploy/nginx/hardening.conf /etc/nginx/conf.d/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+서버 기본값 확인(모두 Ubuntu 기본값이 맞으면 손댈 것 없음):
+```bash
+sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin)'   # no, without-password 또는 no
+systemctl is-enabled unattended-upgrades                              # enabled (보안 업데이트 자동 설치)
+sudo ss -tlnp | grep -E ':3306|:33060'                                # 127.0.0.1만 보여야 함(MySQL 외부 차단)
+```
 
 ## 8. 확인
 
