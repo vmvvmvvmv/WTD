@@ -1,23 +1,50 @@
-# 서버 배포 (AWS Lightsail · Ubuntu 24.04)
+# 서버 배포 (네이버 클라우드 · Ubuntu)
 
 구성: nginx(HTTPS) → gunicorn(Django) → MySQL, 같은 서버 한 대. 수집 작업은 systemd 타이머로 돌린다.
 Docker는 쓰지 않는다. 서버 한 대에 서비스 하나라 systemd로 충분하다.
+업체에 묶인 설정은 1단계뿐이다. 다른 클라우드로 옮기면 1단계만 그 업체 방식으로 하면 된다.
 
 ```
 deploy/
 ├─ collect_hourly.sh          # 매시 5분 수집 (collect_hourly.bat과 같은 순서)
-├─ morning_notifications.sh   # 07:00 아침 알림
+├─ morning_notifications.sh   # 07:00 아침 알림 + 30일 지난 기록 삭제
 ├─ systemd/                   # gunicorn 서비스, 수집·알림 타이머
 └─ nginx/weathertodo.conf     # dust.vmv-lab.com → gunicorn 소켓
 ```
 
-## 1. Lightsail에서 (콘솔, 직접)
+## 1. 네이버 클라우드 콘솔에서 (직접)
 
-1. 인스턴스 만들기: Linux/Unix → OS only → **Ubuntu 24.04 LTS**, 서울 리전.
-   요금제는 메모리 **2GB 이상**을 권한다(MySQL + gunicorn 2개 + scikit-learn). 1GB면 아래 3번의 스왑을 꼭 만든다.
-2. 고정 IP(Static IP)를 만들어 인스턴스에 붙인다.
-3. 네트워킹 → 방화벽: **HTTP 80, HTTPS 443** 열기 (SSH 22는 기본으로 열려 있음).
-4. 도메인 DNS에 A 레코드 추가: `dust` → 고정 IP. (`dig dust.vmv-lab.com`으로 IP가 나오면 됨)
+무료 조건: Micro 서버는 결제 수단을 등록한 달부터 **1년 무료**(계정당 1대, 한국 리전). **서버 요금만 무료**이고 공인 IP는 따로 과금된다.
+1년이 지나면 반납하지 않는 한 **자동으로 유료 전환**되므로 끝나는 날짜를 기록해 둔다.
+
+1. **서버 생성** (Services → Compute → Server, VPC 환경)
+   - 서버 이미지: **Ubuntu** (24.04가 없으면 22.04도 됨. 파이썬 3.10 이상이면 Django 5.2 조건 충족)
+   - 서버 타입: **Micro** (무료 표시가 있는 것)
+   - 스토리지: 기본 디스크 **10GB**(무료 제공량). 추가 디스크는 무료가 아니다
+   - 인증키: 새로 만들고 `.pem` 파일을 안전한 곳에 보관 (관리자 비밀번호 확인에 필요)
+   - ACG(방화벽): 새로 만든다. 2번에서 규칙을 넣는다
+2. **ACG 규칙** (Server → ACG → 규칙 설정, 인바운드)
+   - TCP **22**: 접근 소스는 **내 IP만** (예: `내공인IP/32`)
+   - TCP **80**, TCP **443**: 접근 소스 `0.0.0.0/0`
+3. **공인 IP** (Server → Public IP → 공인 IP 신청 → 만든 서버에 할당)
+   - 공인 IP와 **포트 포워딩**을 같이 쓰면 22번 포트를 포트 포워딩이 먼저 가져가서 SSH가 안 된다. 포트 포워딩 설정은 지운다
+4. **관리자 비밀번호 확인**: 서버 목록에서 서버 선택 → 서버 관리 및 설정 변경 → **관리자 비밀번호 확인** → `.pem` 파일 올리기
+5. **도메인 DNS** (Cloudflare → vmv-lab.com → DNS): A 레코드 `dust` → 공인 IP.
+   **프록시(주황 구름)는 끄고 DNS only**로 둔다. 켜 두면 7단계 certbot이 인증서를 못 받는다.
+   (`nslookup dust.vmv-lab.com`으로 공인 IP가 나오면 됨)
+
+## 1-1. 첫 접속과 작업 계정 만들기
+
+네이버 클라우드는 `root` 계정과 4번의 비밀번호로 접속한다. 이 문서와 systemd·nginx 설정 파일은 `ubuntu` 계정 기준이라, 처음 한 번 `ubuntu` 계정을 만들고 이후는 그 계정으로 작업한다.
+
+```bash
+ssh root@<공인IP>                # 비밀번호: 1단계 4번에서 확인한 값
+passwd                           # root 비밀번호를 내 것으로 바꾸기
+id ubuntu 2>/dev/null || adduser --gecos "" ubuntu
+usermod -aG sudo ubuntu
+exit
+ssh ubuntu@<공인IP>              # 이후 단계는 모두 ubuntu 계정으로
+```
 
 ## 2. 서버 기본 패키지
 
@@ -27,11 +54,14 @@ sudo apt update && sudo apt upgrade -y
 sudo apt install -y python3-venv python3-dev build-essential pkg-config default-libmysqlclient-dev mysql-server nginx certbot python3-certbot-nginx git
 ```
 
-## 3. (메모리 1GB일 때만) 스왑 2GB
+## 3. 스왑 1GB (Micro는 메모리가 작아서 꼭)
+
+디스크가 10GB라 스왑은 1GB로 한다. 메모리가 모자라면 MySQL이나 pip 설치가 강제로 꺼질 수 있다.
 
 ```bash
-sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+sudo fallocate -l 1G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
 echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+free -h && df -h /               # 스왑 1G가 보이고 디스크 여유가 3GB 이상이면 됨
 ```
 
 ## 4. MySQL
