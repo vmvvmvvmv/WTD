@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 # 로컬 .env의 APP_TEST_TOKEN 설정과 무관하게 엔드포인트 동작만 검증한다.
@@ -453,3 +453,43 @@ class ErrorResponseShapeTests(SimpleTestCase):
         response = self.client.get('/dust/past/')
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()['code'], 'forbidden')
+
+
+class PurgeOldRecordsTests(TestCase):
+    def test_deletes_only_records_past_retention(self):
+        from datetime import timedelta
+
+        from django.core.management import call_command
+
+        from dust.models import DustNotificationLog, LlmDailyUsage, NotificationDevice, OutfitRecommendationCache
+
+        now = timezone.now()
+        old = now - timedelta(days=31)
+        LlmDailyUsage.objects.create(day=old.date(), client_digest='old', count=3)
+        LlmDailyUsage.objects.create(day=now.date(), client_digest='new', count=1)
+        off = NotificationDevice.objects.create(expo_push_token='ExponentPushToken[off]', city='서울', region='송파구', enabled=False)
+        on = NotificationDevice.objects.create(expo_push_token='ExponentPushToken[on]', city='서울', region='송파구', enabled=True)
+        recent_off = NotificationDevice.objects.create(expo_push_token='ExponentPushToken[recent]', city='서울', region='송파구', enabled=False)
+        # auto_now 필드는 save()가 덮어쓰므로 update()로 과거 시각을 넣는다.
+        NotificationDevice.objects.filter(pk__in=[off.pk, on.pk]).update(updated_at=old)
+        log = DustNotificationLog.objects.create(device=on, notification_type='t', city='서울', region='송파구', basis_key='k')
+        DustNotificationLog.objects.filter(pk=log.pk).update(created_at=old)
+        OutfitRecommendationCache.objects.create(cache_key='expired', response_json={}, valid_until=now - timedelta(hours=1))
+        OutfitRecommendationCache.objects.create(cache_key='valid', response_json={}, valid_until=now + timedelta(hours=1))
+
+        call_command('purge_old_records', stdout=open(__import__('os').devnull, 'w'))
+
+        self.assertEqual(list(LlmDailyUsage.objects.values_list('client_digest', flat=True)), ['new'])
+        # 꺼진 지 30일 넘은 기기만 지우고, 켜져 있는 기기와 최근에 끈 기기는 남긴다.
+        self.assertEqual(set(NotificationDevice.objects.values_list('pk', flat=True)), {on.pk, recent_off.pk})
+        self.assertFalse(DustNotificationLog.objects.exists())
+        self.assertEqual(list(OutfitRecommendationCache.objects.values_list('cache_key', flat=True)), ['valid'])
+
+
+class PrivacyPageTests(SimpleTestCase):
+    @patch.dict('os.environ', {'APP_TEST_TOKEN': 'secret-token'})
+    def test_privacy_policy_is_public(self):
+        # 스토어와 앱에서 누구나 열 수 있어야 하므로 앱 접근 토큰 없이도 열린다.
+        response = self.client.get('/privacy/')
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, '개인정보 처리방침')
