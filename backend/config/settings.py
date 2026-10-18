@@ -62,6 +62,8 @@ DEBUG = env_bool('DJANGO_DEBUG', False)
 ENABLE_MOBILE_MAP_LOG = env_bool('ENABLE_MOBILE_MAP_LOG', DEBUG)
 # 앱에서 쓰지 않는 선택 기능(챗봇 브리핑, analyze AI, 기상 상세 데이터). 코드는 남기고 운영에서는 라우팅하지 않는다.
 ENABLE_OPTIONAL_FEATURES = env_bool('ENABLE_OPTIONAL_FEATURES', DEBUG)
+# 개인정보 처리방침(/privacy/)에 보여 줄 문의처. 저장소에 개인 연락처를 남기지 않도록 서버 .env에서 받는다.
+PRIVACY_CONTACT = env_value('PRIVACY_CONTACT', '')
 
 if not SECRET_KEY and not DEBUG:
     raise RuntimeError('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG=False')

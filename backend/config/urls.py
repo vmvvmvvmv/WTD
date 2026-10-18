@@ -5,11 +5,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import TemplateView
 
 
 urlpatterns = [
     path('dust/', include('dust.urls')),
     path('outfit/', include('dust.outfit_urls')),
+    # 스토어와 앱에서 누구나 열 수 있어야 하는 공개 페이지(앱 접근 토큰 검사 대상 아님).
+    path('privacy/', TemplateView.as_view(template_name='dust/privacy.html', extra_context={'contact': settings.PRIVACY_CONTACT})),
 
 ]
 

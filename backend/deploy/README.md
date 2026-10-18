@@ -60,6 +60,7 @@ cp .env.example .env && nano .env
 - `PUBLIC_DATA_API_KEY`, `KMA_API_KEY`, `NAVER_*`, `LLM_API_KEY`: 로컬 `.env`의 값
 - `APP_TEST_TOKEN`: 앱 빌드에 넣을 값과 같게
 - `TRUSTED_PROXY_COUNT=1` (nginx 뒤라서. 0이면 AI 하루 제한을 모든 사용자가 나눠 씀)
+- `PRIVACY_CONTACT`: 개인정보 처리방침(`/privacy/`)에 보일 문의처(공개해도 되는 이메일)
 
 ```bash
 chmod 600 .env
@@ -83,6 +84,17 @@ systemctl list-timers 'weathertodo*'
 deploy/collect_hourly.sh
 ```
 
+## 6-1. 접속 기록 보관 기간 30일 (개인정보 처리방침 3번)
+
+gunicorn 접속 기록은 systemd 저널에 남는다. 30일이 지나면 지우게 한다.
+nginx 접속 기록은 Ubuntu 기본 logrotate가 14일 뒤 지운다.
+
+```bash
+sudo mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nMaxRetentionSec=30day\n' | sudo tee /etc/systemd/journald.conf.d/retention.conf
+sudo systemctl restart systemd-journald
+```
+
 ## 7. nginx와 HTTPS
 
 ```bash
@@ -101,6 +113,7 @@ nginx가 `/home/ubuntu` 아래 정적 파일을 읽을 수 있어야 한다: `ch
 curl -s -o /dev/null -w "%{http_code}\n" https://dust.vmv-lab.com/dust/current/   # APP_TEST_TOKEN을 켰으면 403이 정상
 curl -s -H "X-App-Test-Token: <토큰>" "https://dust.vmv-lab.com/dust/current/?city=서울&region=송파구" | head -c 300
 curl -s -o /dev/null -w "%{http_code}\n" https://dust.vmv-lab.com/admin/          # 404여야 함(관리자 페이지 닫힘)
+curl -s -o /dev/null -w "%{http_code}\n" https://dust.vmv-lab.com/privacy/        # 200이어야 함(개인정보 처리방침, 토큰 없이 공개)
 ```
 
 ## 9. 앱이 이 서버를 보게 하기
@@ -112,6 +125,7 @@ EAS 대시보드 → 프로젝트 → Environment variables의 `preview`·`produ
 
 그다음 `eas build -p android --profile preview`로 APK를 만든다.
 네이버 지도 콘솔의 웹 서비스 URL에 `https://dust.vmv-lab.com`을 추가해야 지도가 뜬다.
+Play Console에 올릴 때 개인정보처리방침 URL은 `https://dust.vmv-lab.com/privacy/`를 넣는다.
 
 ## 업데이트할 때
 
