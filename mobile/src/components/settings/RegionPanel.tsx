@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, Text, View } from 'react-native';
+
+import { API_URL } from '../../config/runtime';
 
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
@@ -12,6 +14,9 @@ import { isSameRegion } from '../../features/region/regionUtils';
 import { NotificationToggleRow } from '../shared/DustWidgets';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { accentTone } from '../../theme/appTheme';
+
+// 서버가 공개로 내려주는 개인정보 처리방침 페이지(스토어에 등록하는 주소와 같음).
+const PRIVACY_POLICY_URL = `${API_URL.replace(/\/$/, '')}/privacy/`;
 
 // Manages location, notification options, and favorite regions on the settings screen.
 export function RegionPanel({
@@ -283,12 +288,25 @@ export function RegionPanel({
         </View>
         <View style={styles.settingsInfoRow}>
           <Text style={styles.settingsInfoLabel}>데이터 출처</Text>
-          <Text style={styles.settingsInfoValue}>대기질: 한국환경공단 에어코리아{'\n'}날씨: 기상청 단기·중기예보{'\n'}공공데이터포털(data.go.kr) 제공 자료를 사용해요.</Text>
+          <Text style={styles.settingsInfoValue}>대기질: 한국환경공단 에어코리아{'\n'}날씨: 기상청 단기·중기예보{'\n'}제공: 공공데이터포털(data.go.kr)</Text>
         </View>
         <View style={styles.settingsInfoRow}>
           <Text style={styles.settingsInfoLabel}>개인정보</Text>
-          <Text style={styles.settingsInfoValue}>일정 제목과 메모는 이 휴대폰에만 저장돼요. 아침 날씨 알림을 켜면 일정의 날짜와 시간만 서버로 보내요.</Text>
+          <Text style={styles.settingsInfoValue}>일정 제목·메모는 이 휴대폰에만 저장{'\n'}아침 날씨 알림 사용 시 일정 날짜·시간만 서버로 전송</Text>
         </View>
+        <View style={styles.settingsInfoRow}>
+          <Text style={styles.settingsInfoLabel}>위치 권한 (선택)</Text>
+          <Text style={styles.settingsInfoValue}>가까운 측정소 찾기에만 사용{'\n'}위치는 휴대폰 안에서만 쓰고 서버로 전송 안 함{'\n'}휴대폰 설정 &gt; 애플리케이션 &gt; 권한에서 끄기 가능</Text>
+        </View>
+        <Pressable
+          accessibilityLabel="개인정보 처리방침 열기"
+          accessibilityRole="link"
+          onPress={() => { Linking.openURL(PRIVACY_POLICY_URL).catch(() => {}); }}
+          style={({ pressed }) => [styles.settingsInfoRow, pressed && styles.pressedFeedback]}
+        >
+          <Text style={styles.settingsInfoLabel}>개인정보 처리방침</Text>
+          <Text style={[styles.settingsInfoValue, { color: accentTone }]}>전문 보기 ›</Text>
+        </Pressable>
         <View style={[styles.settingsInfoRow, styles.settingsInfoRowLast]}>
           <Text style={styles.settingsInfoLabel}>버전</Text>
           <Text style={styles.settingsInfoValue}>{Constants.expoConfig?.version ?? '-'}</Text>
