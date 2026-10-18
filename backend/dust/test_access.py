@@ -23,7 +23,8 @@ class AppTestTokenMiddleware:
             return self.get_response(request)
 
         supplied_token = request.META.get(TOKEN_HEADER) or request.GET.get(TOKEN_QUERY_PARAM)
-        if not hmac.compare_digest(str(supplied_token or ""), expected_token):
+        # 바이트로 비교: str끼리 비교하면 한글 같은 비ASCII 토큰에서 TypeError가 나 403 대신 500이 된다.
+        if not hmac.compare_digest(str(supplied_token or "").encode(), expected_token.encode()):
             return JsonResponse(error_body(403, "접근 권한이 없습니다."), status=403)
 
         return self.get_response(request)

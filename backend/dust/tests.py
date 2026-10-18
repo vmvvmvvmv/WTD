@@ -493,3 +493,10 @@ class PrivacyPageTests(SimpleTestCase):
         response = self.client.get('/privacy/')
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, '개인정보 처리방침')
+
+
+class AppTestTokenTests(SimpleTestCase):
+    @patch.dict('os.environ', {'APP_TEST_TOKEN': 'secret-token'})
+    def test_non_ascii_token_is_rejected_not_crashed(self):
+        response = self.client.get('/dust/current/', {'app_test_token': '토큰'})
+        self.assertEqual(response.status_code, 403)
