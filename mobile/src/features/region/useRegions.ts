@@ -53,9 +53,9 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
   };
 
   // 현재 GPS 좌표와 가장 가까운 측정소의 지역을 찾습니다. 찾으면 GPS 지역으로 저장하고 돌려줍니다.
-  const locateNearestRegion = async ({ ensureMapStations, onCoords }: {
+  // GPS 좌표는 이 함수 안에서만 쓰고 밖으로(서버로) 내보내지 않습니다. 위치정보법상 기기 안에서만 쓰는 위치는 신고 대상이 아닙니다.
+  const locateNearestRegion = async ({ ensureMapStations }: {
     ensureMapStations: () => Promise<StationDustItem[]>;
-    onCoords?: (coords: { lat: number; lng: number }) => void;
   }): Promise<RegionState | null> => {
     setIsLocating(true);
     setLocationMessage('위치 권한을 확인하는 중입니다.');
@@ -81,7 +81,6 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
         setLocationMessage('현재 위치 좌표가 올바르지 않습니다. 에뮬레이터 Location에서 Latitude와 Longitude 입력값을 확인해 주세요.');
         return null;
       }
-      onCoords?.(gpsCoords);
 
       setLocationMessage('가까운 측정소를 찾는 중입니다.');
       const nearest = (await ensureMapStations())
