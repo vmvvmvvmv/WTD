@@ -218,11 +218,9 @@ export function AppContent() {
   };
 
   // 현재 GPS 좌표와 가장 가까운 측정소를 찾아 앱의 기준 지역으로 설정합니다.
+  // GPS 좌표는 기기 안에서 측정소를 고르는 데만 쓰고 서버로 보내지 않습니다. 날씨는 지역이 바뀌면 측정소 좌표로 불러옵니다.
   const applyNearestGpsRegion = async () => {
-    const region = await locateNearestRegion({
-      ensureMapStations,
-      onCoords: (coords) => loadWeather(coords.lat, coords.lng),
-    });
+    const region = await locateNearestRegion({ ensureMapStations });
     if (region) applyRegion(region, `${region.city} ${region.region} 기준으로 설정했습니다.`);
   };
 
