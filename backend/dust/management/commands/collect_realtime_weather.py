@@ -2,7 +2,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import re
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import close_old_connections
 
 from dust.external_api import public_api_get
@@ -206,8 +206,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not KMA_API_KEY:
-            self.stderr.write(self.style.ERROR("KMA_API_KEY is not configured."))
-            return
+            raise CommandError("KMA_API_KEY is not configured.")
 
         stations = list(AirQualityStation.objects.filter(is_active=True).only("sido", "name", "addr", "lat", "lng"))
         if DEFAULT_USE_STATION_ADDRESS_REGIONS and not options["all_station_grids"]:
@@ -277,3 +276,10 @@ class Command(BaseCommand):
             self.stdout.write(f"Weather grids skipped: {skipped}")
         for reason in skipped_reasons:
             self.stdout.write(f"Weather skipped sample: {reason}")
+
+        # 아무 값도 저장하지 못한 격자는 실패로 본다. 저장한 격자는 그대로 두고,
+        # 실패가 있으면 0이 아닌 종료 코드로 끝내서 수집 스크립트와 systemd 기록에 남긴다.
+        if not grid_values:
+            raise CommandError("No active station grids to collect weather for.")
+        if skipped:
+            raise CommandError(f"KMA weather collection failed for {skipped}/{len(grid_values)} grids.")

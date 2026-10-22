@@ -4,7 +4,7 @@ import time
 
 from django.core.cache import cache
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES
 from dust.services.stations import _fetch_realtime_station_values_for_sido, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
@@ -100,3 +100,14 @@ class Command(BaseCommand):
             self.stdout.write(f"First API debug row: {debug_rows[0]}")
 
         call_command("evaluate_hourly_dust_predictions", days=3, limit=2000)
+
+        # 받아 온 값이 하나도 없는 시도는 실패로 본다. 받은 시도는 위에서 이미 저장했고,
+        # 실패가 있으면 0이 아닌 종료 코드로 끝내서 수집 스크립트와 systemd 기록에 남긴다.
+        failed_sidos = [sido for sido in SIDO_NAMES if not any(key.startswith(f"{sido}:") for key in values)]
+        if failed_sidos:
+            for row in debug_rows:
+                if row.get("sido") in failed_sidos:
+                    self.stderr.write(f"Failed sido: {row}")
+            raise CommandError(
+                f"AirKorea realtime collection failed for {len(failed_sidos)}/{len(SIDO_NAMES)} sidos: {', '.join(failed_sidos)}"
+            )
