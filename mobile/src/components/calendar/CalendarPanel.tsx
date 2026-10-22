@@ -8,6 +8,7 @@ import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
 import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
+import { coachTarget } from '../shared/CoachMarks';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
@@ -293,6 +294,7 @@ export function CalendarPanel({
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
+          ref={coachTarget('calendarAdd')}
           style={({ pressed }) => [
             styles.calendarFloatingAddButton,
             styles.calendarFloatingAddButtonDocked,

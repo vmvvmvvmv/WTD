@@ -15,6 +15,7 @@ import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { BottomToast } from '../components/shared/BottomToast';
 import { LocationGate } from '../components/shared/LocationGate';
+import { CoachMarkOverlay } from '../components/shared/CoachMarks';
 import { ScreenTransition, WeatherBackdrop } from '../components/shared/ScreenChrome';
 import { IS_EXPO_GO } from '../config/runtime';
 import { DEFAULT_OUTFIT_SETTINGS } from '../constants/dust';
@@ -26,7 +27,7 @@ import { useRegions } from '../features/region/useRegions';
 import { useStations } from '../features/stations/useStations';
 import { AppTabBar } from '../navigation/AppTabBar';
 import { useNotificationSettings } from '../notifications/useNotificationSettings';
-import { loadStoredAppState, saveOutfitSettings } from '../storage/appStorage';
+import { loadStoredAppState, saveOutfitSettings, saveTutorialSeen } from '../storage/appStorage';
 import { styles } from '../styles/appStyles';
 import { bauhausColors } from '../theme/bauhaus';
 import type { StationDustItem } from '../types/dust';
@@ -64,6 +65,9 @@ export function AppContent() {
   }, [toast]);
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
+  // 튜토리얼 단계는 여기서 들고 있는다. 탭마다 화면 트리가 달라 튜토리얼이 다시 만들어져도 단계가 처음으로 돌아가지 않게.
+  const [tutorialStep, setTutorialStep] = useState(0);
   // 홈 화면 위젯의 + 버튼(weathertodo://calendar)으로 열리면 캘린더 탭을 보여 줍니다.
   useEffect(() => {
     const openCalendar = (url: string | null) => {
@@ -286,6 +290,7 @@ export function AppContent() {
         hydrateNotificationSettings(storedState.notificationSettings, storedState.notificationToken);
         setOutfitSettings(storedState.outfitSettings);
         setCalendarEvents(storedState.calendarEvents);
+        setShowTutorial(!storedState.tutorialSeen);
         setHasLoadedRegionStore(true);
       })
       .catch(() => {
@@ -306,6 +311,13 @@ export function AppContent() {
     setHasTriedInitialLocation(true);
     applyNearestGpsRegion();
   }, [hasLoadedRegionStore, hasTriedInitialLocation]);
+
+  // 튜토리얼은 실제 화면 위에 띄우므로, 지역이 정해져 홈이 그려진 뒤에 시작합니다.
+  const finishTutorial = () => {
+    void saveTutorialSeen();
+    setShowTutorial(false);
+    setActiveTab('home');
+  };
 
   // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
   useEffect(() => {
@@ -377,7 +389,22 @@ export function AppContent() {
     return <LocationGate isLocating={isLocating} message={locationMessage} onRetry={applyNearestGpsRegion} />;
   }
 
-  const bottomToast = <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />;
+  // 토스트와 튜토리얼(코치마크)은 어느 탭 화면에서든 맨 위에 겹쳐 그립니다.
+  const bottomToast = (
+    <>
+      <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />
+      {showTutorial && (
+        <CoachMarkOverlay
+          activeTab={activeTab}
+          stepIndex={tutorialStep}
+          onStepChange={setTutorialStep}
+          onDone={finishTutorial}
+          onNavigate={switchTab}
+          onScrollHome={(y) => mainScrollRef.current?.scrollTo({ animated: true, y })}
+        />
+      )}
+    </>
+  );
 
   if (activeTab === 'map') {
     return (
@@ -573,6 +600,10 @@ export function AppContent() {
             onSendTestNotification={sendTestNotification}
             onToggleNotificationSetting={updateNotificationSetting}
             onUpdateOutfitSetting={updateOutfitSetting}
+            onOpenTutorial={() => {
+              setTutorialStep(0);
+              setShowTutorial(true);
+            }}
             onUseCurrentLocation={applyNearestGpsRegion}
             selectedRegion={selectedRegion}
           />

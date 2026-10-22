@@ -23,6 +23,7 @@ import { getWeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
 import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRemoval';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
+import { coachTarget } from '../shared/CoachMarks';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 import { HomeBannerSkeleton } from './HomeBannerSkeleton';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
@@ -415,7 +416,7 @@ export function HomePanel({
               </View>
             </View>
             </View>
-            <View style={styles.homeHeroBannerForecastSection}>
+            <View ref={coachTarget('homeHourly')} style={styles.homeHeroBannerForecastSection}>
               {hasHourlyForecast ? (
                 <ScrollView
                   horizontal
@@ -485,7 +486,7 @@ export function HomePanel({
         layout={reduceMotion ? undefined : LinearTransition.duration(250).easing(ReanimatedEasing.out(ReanimatedEasing.cubic))}
         style={styles.homeSectionCard}
       >
-        <View accessibilityRole="tablist" onLayout={(event) => setSectionTabRowWidth(event.nativeEvent.layout.width)} style={styles.homeSectionTabRow}>
+        <View accessibilityRole="tablist" onLayout={(event) => setSectionTabRowWidth(event.nativeEvent.layout.width)} ref={coachTarget('homeSections')} style={styles.homeSectionTabRow}>
           {homeSectionTabs.map((tab, index) => {
             const selected = tab.key === activeHomeSection;
             return (
