@@ -97,7 +97,6 @@ export function AppContent() {
     isRefreshingCurrent,
     loadCurrentDust,
     loadDashboard,
-    loadWeather,
     pastItems,
     prediction,
     weather,
@@ -288,13 +287,6 @@ export function AppContent() {
   useEffect(() => {
     if (hasLoadedRegionStore) saveOutfitSettings(outfitSettings);
   }, [hasLoadedRegionStore, outfitSettings]);
-
-  // 선택 지역의 측정소 좌표로 현재 날씨를 불러옵니다.
-  useEffect(() => {
-    if (!selectedRegion || mapStations.length === 0) return;
-    const coords = normalizeLatLng(findStationForRegion(selectedRegion)?.lat, findStationForRegion(selectedRegion)?.lng);
-    if (coords) loadWeather(coords.lat, coords.lng);
-  }, [mapStations.length, selectedRegion]);
 
   // 저장값을 불러온 뒤 한 번, 현재 위치 기준 지역을 찾습니다.
   useEffect(() => {
