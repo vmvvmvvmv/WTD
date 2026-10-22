@@ -4,7 +4,8 @@ import { Animated, Keyboard, Platform, Text } from 'react-native';
 import { styles } from '../../styles/appStyles';
 
 // 알림·즐겨찾기 결과 메시지를 하단에 잠깐 보여줍니다. 키보드가 열려 있으면 그 위로 올립니다.
-export function BottomToast({ message }: { message: string }) {
+// showId가 바뀌면 같은 문구라도 다시 띄운다.
+export function BottomToast({ message, showId }: { message: string; showId: number }) {
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(16)).current;
   const keyboardHeight = useKeyboardHeight();
@@ -26,7 +27,7 @@ export function BottomToast({ message }: { message: string }) {
       ]).start();
     }, 2200);
     return () => clearTimeout(timer);
-  }, [message, opacity, translateY]);
+  }, [message, showId, opacity, translateY]);
 
   if (!message) return null;
   return (
