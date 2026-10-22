@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, BackHandler, Keyboard, Linking, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -49,7 +49,19 @@ export function AppContent() {
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
   const [homeRegionSearchText, setHomeRegionSearchText] = useState('');
   const [outfitSettings, setOutfitSettings] = useState<OutfitSettings>(DEFAULT_OUTFIT_SETTINGS);
-  const [notificationMessage, setNotificationMessage] = useState('');
+  // 토스트는 보여 준 뒤 지운다. 남겨 두면 탭을 옮길 때 다시 그려지면서 예전 문구가 또 뜬다.
+  // id는 같은 문구를 연달아 보내도(예: 테스트 알림 두 번) 다시 띄우기 위한 값이다.
+  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
+  const toastIdRef = useRef(0);
+  const setNotificationMessage = useCallback((message: string) => {
+    toastIdRef.current += 1;
+    setToast(message ? { id: toastIdRef.current, message } : null);
+  }, []);
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(timer);
+  }, [toast]);
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
   // 홈 화면 위젯의 + 버튼(weathertodo://calendar)으로 열리면 캘린더 탭을 보여 줍니다.
@@ -365,7 +377,7 @@ export function AppContent() {
     return <LocationGate isLocating={isLocating} message={locationMessage} onRetry={applyNearestGpsRegion} />;
   }
 
-  const bottomToast = <BottomToast message={notificationMessage} />;
+  const bottomToast = <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />;
 
   if (activeTab === 'map') {
     return (
@@ -449,6 +461,7 @@ export function AppContent() {
         </View>
         </ScreenTransition>
         {tabBar}
+        {bottomToast}
       </SafeAreaView>
     );
   }
