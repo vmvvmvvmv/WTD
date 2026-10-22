@@ -149,6 +149,30 @@ DATABASES = {
     }
 }
 
+# Gunicorn worker 사이에서 날씨·미세먼지 캐시를 공유한다.
+# REDIS_URL이 없으면 개발 환경에서 기존 메모리 캐시를 사용한다.
+REDIS_URL = env_value('REDIS_URL', '')
+if REDIS_URL:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': REDIS_URL,
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                'IGNORE_EXCEPTIONS': True,
+                'SOCKET_CONNECT_TIMEOUT': 2,
+                'SOCKET_TIMEOUT': 2,
+            },
+        },
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'weathertodo-local-cache',
+        },
+    }
+
 # 테스트는 MySQL 계정에 테스트 DB를 만들 권한이 없어도 돌도록 메모리 SQLite를 쓴다.
 if len(sys.argv) > 1 and sys.argv[1] == 'test':
     DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}

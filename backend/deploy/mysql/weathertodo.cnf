@@ -1,0 +1,11 @@
+# WeatherToDo 느린 쿼리 확인용 설정
+# /etc/mysql/mysql.conf.d/에 복사한 뒤 MySQL을 재시작해야 적용됨.
+[mysqld]
+slow_query_log = ON
+slow_query_log_file = /var/log/mysql/weathertodo-slow.log
+long_query_time = 0.5
+min_examined_row_limit = 100
+
+# 인덱스를 안 쓰는 쿼리 전체 기록은 로그가 너무 커질 수 있어 끔.
+# slow_query_log에서 실제로 느린 쿼리를 먼저 확인한 뒤 필요할 때만 켬.
+log_queries_not_using_indexes = OFF
