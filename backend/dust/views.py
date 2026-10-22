@@ -375,6 +375,10 @@ def current_weather(request):
         return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 
     grid = _dfs_grid_from_lat_lng(lat, lng)
+    cache_key = f"weather_current_v1_{grid['nx']}_{grid['ny']}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
     now = timezone.now()
     measurement = (
         WeatherHourlyMeasurement.objects
@@ -391,7 +395,9 @@ def current_weather(request):
         )
     if not measurement:
         return error_response(404, "이 위치의 저장된 날씨 데이터가 없습니다.", grid=grid)
-    return Response(_weather_measurement_to_response(measurement))
+    result = _weather_measurement_to_response(measurement)
+    cache.set(cache_key, result, 60)
+    return Response(result)
 
 
 @api_view(['GET'])
@@ -413,6 +419,10 @@ def hourly_weather(request):
         return error_response(400, "date는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
 
     grid = _dfs_grid_from_lat_lng(lat, lng)
+    cache_key = f"weather_hourly_v2_{grid['nx']}_{grid['ny']}_{measured_date:%Y%m%d}_{forecast_hours}_{int(stored_only)}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
     local_tz = timezone.get_current_timezone()
     day_start = timezone.make_aware(datetime.combine(measured_date, time.min), local_tz)
     day_end = day_start + timedelta(days=1)
@@ -422,8 +432,9 @@ def hourly_weather(request):
         .filter(nx=grid["nx"], ny=grid["ny"], measured_at__gte=day_start, measured_at__lt=day_end, measured_at__lte=now)
         .order_by('measured_at')
     )
+    stored_measurements = list(measurements)
     items = []
-    for measurement in measurements:
+    for measurement in stored_measurements:
         measured_at = timezone.localtime(measurement.measured_at)
         items.append({
             "measuredAt": measured_at.isoformat(),
@@ -441,7 +452,7 @@ def hourly_weather(request):
             "source": "stored_weather_hourly",
             "phase": "stored",
         })
-    current_measurement = measurements.last()
+    current_measurement = stored_measurements[-1] if stored_measurements else None
     forecast_start = current_measurement.measured_at if current_measurement else now
     forecast_measurements = (
         WeatherHourlyMeasurement.objects
@@ -468,12 +479,14 @@ def hourly_weather(request):
                 "source": "stored_weather_forecast",
                 "phase": "forecast",
             })
-    return Response({
+    result = {
         "date": measured_date.isoformat(),
         "grid": grid,
         "items": items,
         "forecastItems": forecast_items,
-    })
+    }
+    cache.set(cache_key, result, 300)
+    return Response(result)
 
 
 @api_view(['GET'])
@@ -507,6 +520,11 @@ def hourly_dust(request):
     if not measured_date:
         return error_response(400, "date는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
 
+    cache_key = f"dust_hourly_v2_{city}_{district}_{measured_date:%Y%m%d}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
+
     station_name = _resolve_station_name(city, district)
     station = _find_air_quality_station(city, station_name)
     items = _load_stored_realtime_hourly_dust(city, district, station_name, measured_date, station=station)
@@ -517,7 +535,7 @@ def hourly_dust(request):
     # 앞으로 12시간 미세먼지는 에어코리아 공식 예보(하루 단위 등급)를 쓴다.
     # 직접 만든 시간별 예측 모델은 generate_hourly_dust_predictions 명령으로 따로 돌려 비교용으로만 남긴다.
     forecast_items = build_hourly_forecast_items(AIRKOREA_SERVICE_KEY, city)
-    return Response({
+    result = {
         "city": city,
         "region": district,
         "stationName": station_name,
@@ -530,7 +548,9 @@ def hourly_dust(request):
             "source": "airkorea",
             "note": "에어코리아 미세먼지 예보 등급(오늘·내일)을 등급별 대표 PM10 값으로 바꾼 값입니다.",
         },
-    })
+    }
+    cache.set(cache_key, result, 300)
+    return Response(result)
 
 
 @api_view(['GET'])
