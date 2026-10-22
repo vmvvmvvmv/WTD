@@ -28,6 +28,7 @@ export function RegionPanel({
   notificationsUnavailable,
   notificationSettings,
   outfitSettings,
+  onOpenTutorial,
   onRemoveFavorite,
   onSendTestNotification,
   onToggleNotificationSetting,
@@ -43,6 +44,7 @@ export function RegionPanel({
   notificationsUnavailable: boolean;
   notificationSettings: NotificationSettings;
   outfitSettings: OutfitSettings;
+  onOpenTutorial: () => void;
   onRemoveFavorite: (region: RegionState) => void;
   onSendTestNotification: () => void;
   onToggleNotificationSetting: (key: keyof NotificationSettings, value: boolean | number) => void;
@@ -306,6 +308,15 @@ export function RegionPanel({
         >
           <Text style={styles.settingsInfoLabel}>개인정보 처리방침</Text>
           <Text style={[styles.settingsInfoValue, { color: accentTone }]}>전문 보기 ›</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="튜토리얼 다시 보기"
+          accessibilityRole="button"
+          onPress={onOpenTutorial}
+          style={({ pressed }) => [styles.settingsInfoRow, pressed && styles.pressedFeedback]}
+        >
+          <Text style={styles.settingsInfoLabel}>튜토리얼</Text>
+          <Text style={[styles.settingsInfoValue, { color: accentTone }]}>다시 보기 ›</Text>
         </Pressable>
         <View style={[styles.settingsInfoRow, styles.settingsInfoRowLast]}>
           <Text style={styles.settingsInfoLabel}>버전</Text>

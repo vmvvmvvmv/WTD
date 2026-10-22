@@ -13,6 +13,7 @@ import {
   NOTIFICATION_TOKEN_STORAGE_KEY,
   OUTFIT_SETTINGS_STORAGE_KEY,
   SELECTED_REGION_STORAGE_KEY,
+  TUTORIAL_SEEN_STORAGE_KEY,
 } from '../constants/dust';
 import type { CalendarEvent } from '../types/calendar';
 import type { StationDustItem } from '../types/dust';
@@ -30,6 +31,7 @@ export type StoredAppState = {
   notificationToken: string | null;
   outfitSettings: OutfitSettings;
   selectedRegion: RegionState | null;
+  tutorialSeen: boolean;
 };
 
 // 보안 저장소(SecureStore)는 토큰 같은 작은 비밀값용입니다(값 하나 2KB 제한).
@@ -100,7 +102,7 @@ function saveJson(key: string, value: unknown) {
 
 // One loader owns the storage keys and recovery rules for app startup.
 export async function loadStoredAppState(): Promise<StoredAppState> {
-  const [storedRegion, storedGpsRegion, storedFavorites, storedMapRecentSearches, storedNotificationSettings, storedCalendarEvents, notificationToken, storedOutfitSettings] = await Promise.all([
+  const [storedRegion, storedGpsRegion, storedFavorites, storedMapRecentSearches, storedNotificationSettings, storedCalendarEvents, notificationToken, storedOutfitSettings, storedTutorialSeen] = await Promise.all([
     safeGet(SELECTED_REGION_STORAGE_KEY),
     safeGet(GPS_REGION_STORAGE_KEY),
     safeGet(FAVORITE_REGIONS_STORAGE_KEY),
@@ -109,6 +111,7 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     safeGet(CALENDAR_EVENTS_STORAGE_KEY),
     safeGet(NOTIFICATION_TOKEN_STORAGE_KEY),
     safeGet(OUTFIT_SETTINGS_STORAGE_KEY),
+    safeGet(TUTORIAL_SEEN_STORAGE_KEY),
   ]);
 
   let outfitSettings = DEFAULT_OUTFIT_SETTINGS;
@@ -133,7 +136,23 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     notificationToken,
     outfitSettings,
     selectedRegion: parseStoredRegion(storedRegion),
+    tutorialSeen: await loadTutorialSeen(storedTutorialSeen, storedRegion),
   };
+}
+
+// 'true'는 다 봄, 'pending'은 새로 설치했고 아직 다 보지 않음.
+// 값이 없는데 저장된 지역이 있으면 튜토리얼이 생기기 전부터 쓰던 사람이라 본 것으로 친다.
+// 새로 설치한 사람은 첫 실행에서 바로 'pending'을 남겨서, 튜토리얼 중간에 앱을 꺼도(지역은 이미 저장됨) 다음에 다시 뜨게 한다.
+async function loadTutorialSeen(stored: string | null, storedRegion: string | null) {
+  if (stored === 'true') return true;
+  if (stored === 'pending') return false;
+  if (storedRegion !== null) return true;
+  await saveString(TUTORIAL_SEEN_STORAGE_KEY, 'pending');
+  return false;
+}
+
+export function saveTutorialSeen() {
+  return saveString(TUTORIAL_SEEN_STORAGE_KEY, 'true');
 }
 
 export function saveSelectedRegion(region: RegionState) {
