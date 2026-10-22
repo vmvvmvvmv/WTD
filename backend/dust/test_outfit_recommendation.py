@@ -1,6 +1,8 @@
 import os
 from unittest.mock import Mock, patch
 
+import requests
+
 from django.test import SimpleTestCase, TestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
@@ -181,6 +183,25 @@ class OutfitLlmValidationTests(SimpleTestCase):
 
         self.assertEqual(result["summary"], "좋아요")
         self.assertIn("gemini-3.5-flash-lite", post.call_args_list[1].args[0])
+
+    @patch("dust.services.outfit.llm_client.requests.post")
+    def test_rate_limited_model_is_not_retried(self, post):
+        post.return_value = Mock(status_code=429)
+
+        with self.assertRaises(RuntimeError):
+            GeminiLLMClient(api_key="test", model="gemini-2.5-flash", timeout=1).generate("system", {})
+
+        # 모델마다 한 번씩만: 429를 받은 모델로 다시 보내지 않는다.
+        self.assertEqual(post.call_count, 2)
+
+    @patch("dust.services.outfit.llm_client.time.monotonic", side_effect=[0, 0, 9])
+    @patch("dust.services.outfit.llm_client.requests.post", side_effect=requests.Timeout)
+    def test_retries_stop_when_total_timeout_is_used_up(self, post, _monotonic):
+        with self.assertRaises(RuntimeError):
+            GeminiLLMClient(api_key="test", model="gemini-2.5-flash", timeout=8).generate("system", {})
+
+        # 첫 요청이 8초를 다 쓰면 남은 후보·재시도는 보내지 않는다.
+        self.assertEqual(post.call_count, 1)
 
 
 class OutfitServiceTests(SimpleTestCase):

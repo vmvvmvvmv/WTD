@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 from typing import Protocol
 
 import requests
@@ -57,18 +58,24 @@ class GeminiLLMClient:
         }
         last_error = None
         model_candidates = list(dict.fromkeys((self.model, DEFAULT_GEMINI_MODEL)))
+        # 모델 후보·재시도를 다 합쳐도 timeout 안에 끝낸다. 요청 하나가 gunicorn worker를 오래 잡지 않게 하려는 것.
+        deadline = time.monotonic() + self.timeout
         for model in model_candidates:
             for _attempt in range(2):
+                remaining = deadline - time.monotonic()
+                if remaining < 0.2:
+                    raise RuntimeError("LLM generation timed out") from last_error
                 try:
                     response = requests.post(
                         GEMINI_URL.format(model=model),
                         headers={"Content-Type": "application/json", "x-goog-api-key": self.api_key},
                         json=body,
-                        timeout=self.timeout,
+                        timeout=remaining,
                     )
-                    if response.status_code == 404:
-                        last_error = requests.HTTPError(f"Gemini model unavailable: {model}", response=response)
-                        logger.warning("Gemini model %s is unavailable; trying fallback model.", model)
+                    # 404(모델 없음)·429(호출 한도 초과)는 같은 모델로 다시 보내도 같아서 바로 다음 후보로 넘어간다.
+                    if response.status_code in (404, 429):
+                        last_error = requests.HTTPError(f"Gemini model {model} returned {response.status_code}", response=response)
+                        logger.warning("Gemini model %s returned %s; trying fallback model.", model, response.status_code)
                         break
                     response.raise_for_status()
                     text = response.json()["candidates"][0]["content"]["parts"][0]["text"]
