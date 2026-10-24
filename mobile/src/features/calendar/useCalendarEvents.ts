@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 
-import { withoutFollowingOccurrences } from '../../components/calendar/calendarRepeat';
+import { withAddedEvents, withoutFollowingOccurrences } from '../../components/calendar/calendarRepeat';
 import { saveCalendarEvents } from '../../storage/appStorage';
 import type { CalendarEvent } from '../../types/calendar';
 import { refreshWidget } from '../../widget/refreshWidget';
@@ -13,14 +13,10 @@ export function useCalendarEvents(hasLoadedStore: boolean) {
   }, [events, hasLoadedStore]);
 
   const addEvent = (event: CalendarEvent) => {
-    setEvents((current) => [event, ...current]
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-      .slice(0, 80));
+    setEvents((current) => withAddedEvents(current, [event]));
   };
   const addEvents = (newEvents: CalendarEvent[]) => {
-    setEvents((current) => [...newEvents, ...current]
-      .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-      .slice(0, 420));
+    setEvents((current) => withAddedEvents(current, newEvents));
   };
   const removeEvent = (eventId: string) => {
     setEvents((current) => current.filter((event) => event.id !== eventId));

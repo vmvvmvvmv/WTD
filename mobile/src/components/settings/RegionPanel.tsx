@@ -23,14 +23,12 @@ export function RegionPanel({
   favoriteRegions,
   isLocating,
   isSavingNotificationSettings,
-  isSendingTestNotification,
   locationMessage,
   notificationsUnavailable,
   notificationSettings,
   outfitSettings,
   onOpenTutorial,
   onRemoveFavorite,
-  onSendTestNotification,
   onToggleNotificationSetting,
   onUpdateOutfitSetting,
   onUseCurrentLocation,
@@ -39,14 +37,12 @@ export function RegionPanel({
   favoriteRegions: RegionState[];
   isLocating: boolean;
   isSavingNotificationSettings: boolean;
-  isSendingTestNotification: boolean;
   locationMessage: string;
   notificationsUnavailable: boolean;
   notificationSettings: NotificationSettings;
   outfitSettings: OutfitSettings;
   onOpenTutorial: () => void;
   onRemoveFavorite: (region: RegionState) => void;
-  onSendTestNotification: () => void;
   onToggleNotificationSetting: (key: keyof NotificationSettings, value: boolean | number) => void;
   onUpdateOutfitSetting: <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => void;
   onUseCurrentLocation: () => void;
@@ -98,7 +94,7 @@ export function RegionPanel({
           </View>
         </View>
         <NotificationToggleRow
-          description="홈은 오늘 하루 날씨, 캘린더는 일정 시간 날씨로 추천해요"
+          description="오늘 날씨와 일정 시간 날씨로 추천해요"
           label="옷차림 추천 보기"
           value={outfitSettings.enabled}
           onValueChange={(value) => onUpdateOutfitSetting('enabled', value)}
@@ -153,7 +149,7 @@ export function RegionPanel({
           </View>
         </View>
         <NotificationToggleRow
-          description="천식·호흡기 질환이 있거나 어린이·노약자라면 켜 주세요. 미세먼지 '보통'부터 조심하라고 알려 드려요"
+          description="미세먼지 '보통'부터 조심하라고 알려 드려요"
           label="민감군 모드"
           value={outfitSettings.sensitiveMode}
           onValueChange={(value) => onUpdateOutfitSetting('sensitiveMode', value)}
@@ -180,44 +176,25 @@ export function RegionPanel({
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="일정마다 정한 시간 전에 그 시간대 날씨와 함께 알려 줘요"
+          description="일정 전에 그 시간 날씨와 함께 알려 줘요"
           label={'\uC77C\uC815 \uC54C\uB9BC'}
           value={notificationSettings.calendarReminders}
           onValueChange={(value) => onToggleNotificationSetting('calendarReminders', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="매일 아침 7시에 오늘 날씨를 알려 줘요. 일정 제목은 보내지 않고 날짜와 시간만 서버로 보내요"
+          description="매일 아침 7시에 오늘 날씨를 알려 줘요"
           label={'\uC544\uCE68 \uB0A0\uC528 \uC54C\uB9BC'}
           value={notificationSettings.weatherMorningAlerts}
           onValueChange={(value) => onToggleNotificationSetting('weatherMorningAlerts', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="미세먼지·초미세먼지가 나쁨이거나 오늘 예보가 나쁨이면 하루 한 번 알려 줘요"
+          description="미세먼지가 나쁜 날 한 번 알려 줘요"
           label="미세먼지 나쁨 알림"
           value={notificationSettings.dustSpikeAlerts}
           onValueChange={(value) => onToggleNotificationSetting('dustSpikeAlerts', value)}
         />
-        <Pressable
-          accessibilityLabel="3초 뒤 테스트 알림 받기"
-          disabled={isSendingTestNotification || notificationsUnavailable || !notificationSettings.enabled}
-          onPress={onSendTestNotification}
-          style={({ pressed }) => [
-            styles.notificationTestButton,
-            (isSendingTestNotification || notificationsUnavailable || !notificationSettings.enabled) && styles.notificationRowDisabled,
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          {isSendingTestNotification
-            ? <ActivityIndicator color={accentTone} size="small" />
-            : <Ionicons color={accentTone} name="notifications-outline" size={18} />}
-          <View style={styles.notificationTestTextGroup}>
-            <Text style={[styles.notificationTestTitle, { color: accentTone }]}>테스트 알림 보내기</Text>
-            <Text style={styles.notificationTestHint}>3초 뒤 알림이 오는지 확인해요</Text>
-          </View>
-          <Ionicons color={accentTone} name="chevron-forward" size={17} />
-        </Pressable>
       </View>
 
       <View style={styles.settingsSection}>
@@ -232,7 +209,6 @@ export function RegionPanel({
 
         {favoriteRegions.length === 0 ? (
           <View style={styles.emptyFavoriteBox}>
-            <AppActionIcon name="favorite" size={30} />
             <Text style={styles.mutedText}>{'\uC800\uC7A5\uB41C \uC9C0\uC5ED\uC774 \uC5C6\uC5B4\uC694.'}</Text>
           </View>
         ) : (
@@ -291,14 +267,6 @@ export function RegionPanel({
         <View style={styles.settingsInfoRow}>
           <Text style={styles.settingsInfoLabel}>데이터 출처</Text>
           <Text style={styles.settingsInfoValue}>대기질: 한국환경공단 에어코리아{'\n'}날씨: 기상청 단기·중기예보{'\n'}제공: 공공데이터포털(data.go.kr)</Text>
-        </View>
-        <View style={styles.settingsInfoRow}>
-          <Text style={styles.settingsInfoLabel}>개인정보</Text>
-          <Text style={styles.settingsInfoValue}>일정 제목·메모는 이 휴대폰에만 저장{'\n'}아침 날씨 알림 사용 시 일정 날짜·시간만 서버로 전송</Text>
-        </View>
-        <View style={styles.settingsInfoRow}>
-          <Text style={styles.settingsInfoLabel}>위치 권한 (선택)</Text>
-          <Text style={styles.settingsInfoValue}>가까운 측정소 찾기에만 사용{'\n'}위치는 휴대폰 안에서만 쓰고 서버로 전송 안 함{'\n'}휴대폰 설정 &gt; 애플리케이션 &gt; 권한에서 끄기 가능</Text>
         </View>
         <Pressable
           accessibilityLabel="개인정보 처리방침 열기"

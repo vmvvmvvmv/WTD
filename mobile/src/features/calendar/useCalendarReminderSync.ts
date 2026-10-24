@@ -7,6 +7,8 @@ import { replaceCalendarNotifications } from '../../notifications/calendarNotifi
 import { loadCalendarNotificationIds, saveCalendarNotificationIds } from '../../storage/appStorage';
 import type { CalendarEvent } from '../../types/calendar';
 
+const MAX_SCHEDULED_EVENTS = 60;
+
 export function useCalendarReminderSync(
   events: CalendarEvent[],
   hasLoadedStore: boolean,
@@ -35,7 +37,8 @@ export function useCalendarReminderSync(
       const previousIds = await loadCalendarNotificationIds();
       if (cancelled || syncVersionRef.current !== syncVersion) return;
 
-      const eventsToSchedule = remindersEnabled ? events : [];
+      // OS가 앱마다 예약 알림 수를 제한한다(iOS 64개). 가까운 일정만 예약하고, 앱을 열 때마다 다시 채운다.
+      const eventsToSchedule = remindersEnabled ? events.filter((event) => event.date >= todayDateLabel && typeof event.notificationHoursBefore === 'number').slice(0, MAX_SCHEDULED_EVENTS) : [];
       const riskByEvent = remindersEnabled ? buildCalendarRiskByEvent(eventsToSchedule, {
         currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode,
         todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems,

@@ -88,3 +88,13 @@ export function withoutFollowingOccurrences(events: CalendarEvent[], target: Cal
   if (!target.repeatGroupId) return events.filter((event) => event.id !== target.id);
   return events.filter((event) => event.repeatGroupId !== target.repeatGroupId || event.date < target.date);
 }
+
+// 저장해 두는 일정 수 상한. 매일 반복(최대 370개) 몇 개와 일반 일정이 들어갈 만큼 잡는다.
+export const MAX_STORED_EVENTS = 1000;
+
+const byStart = (a: CalendarEvent, b: CalendarEvent) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`);
+
+// 일정을 더할 때: 날짜순으로 정렬하고, 상한을 넘으면 가장 오래된 일정부터 지운다(새 일정·앞으로의 일정을 지키려고).
+export function withAddedEvents(current: CalendarEvent[], added: CalendarEvent[]) {
+  return [...added, ...current].sort(byStart).slice(-MAX_STORED_EVENTS);
+}

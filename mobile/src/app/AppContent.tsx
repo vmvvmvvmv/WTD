@@ -15,7 +15,7 @@ import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { BottomToast } from '../components/shared/BottomToast';
 import { LocationGate } from '../components/shared/LocationGate';
-import { CoachMarkOverlay } from '../components/shared/CoachMarks';
+import { CalendarTip, TutorialTour, WelcomeSheet } from '../components/shared/TutorialTour';
 import { ScreenTransition, WeatherBackdrop } from '../components/shared/ScreenChrome';
 import { IS_EXPO_GO } from '../config/runtime';
 import { DEFAULT_OUTFIT_SETTINGS } from '../constants/dust';
@@ -27,7 +27,7 @@ import { useRegions } from '../features/region/useRegions';
 import { useStations } from '../features/stations/useStations';
 import { AppTabBar } from '../navigation/AppTabBar';
 import { useNotificationSettings } from '../notifications/useNotificationSettings';
-import { loadStoredAppState, saveOutfitSettings, saveTutorialSeen } from '../storage/appStorage';
+import { loadStoredAppState, saveCalendarTipSeen, saveOutfitSettings, saveTutorialSeen } from '../storage/appStorage';
 import { styles } from '../styles/appStyles';
 import { bauhausColors } from '../theme/bauhaus';
 import type { StationDustItem } from '../types/dust';
@@ -65,9 +65,13 @@ export function AppContent() {
   }, [toast]);
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
-  // 튜토리얼 단계는 여기서 들고 있는다. 탭마다 화면 트리가 달라 튜토리얼이 다시 만들어져도 단계가 처음으로 돌아가지 않게.
-  const [tutorialStep, setTutorialStep] = useState(0);
+  const [tutorialMode, setTutorialMode] = useState<'none' | 'welcome' | 'tour'>('none');
+  const [calendarTipSeen, setCalendarTipSeen] = useState(true);
+  const [openCalendarEditor, setOpenCalendarEditor] = useState(false);
+  // 캘린더를 떠나면 끕니다. 다시 와도 일정 추가 화면이 또 열리지 않게.
+  useEffect(() => {
+    if (activeTab !== 'calendar') setOpenCalendarEditor(false);
+  }, [activeTab]);
   // 홈 화면 위젯의 + 버튼(weathertodo://calendar)으로 열리면 캘린더 탭을 보여 줍니다.
   useEffect(() => {
     const openCalendar = (url: string | null) => {
@@ -117,6 +121,7 @@ export function AppContent() {
     prediction,
     weather,
     weatherHourlyItems,
+    weatherForecastResolved,
     weatherMidTermItems,
     yesterdayWeather,
   } = useDashboardData({
@@ -138,9 +143,7 @@ export function AppContent() {
     settings: notificationSettings,
     hydrate: hydrateNotificationSettings,
     isSaving: isSavingNotificationSettings,
-    isTesting: isSendingTestNotification,
     updateSetting: updateNotificationSetting,
-    sendTest: sendTestNotification,
   } = useNotificationSettings(hasLoadedRegionStore, selectedRegion, calendarEvents, todayDateLabel, setNotificationMessage);
   useCalendarReminderSync(calendarEvents, hasLoadedRegionStore, notificationSettings.enabled && notificationSettings.calendarReminders, {
     currentPm10,
@@ -290,7 +293,8 @@ export function AppContent() {
         hydrateNotificationSettings(storedState.notificationSettings, storedState.notificationToken);
         setOutfitSettings(storedState.outfitSettings);
         setCalendarEvents(storedState.calendarEvents);
-        setShowTutorial(!storedState.tutorialSeen);
+        setTutorialMode(storedState.tutorialSeen ? 'none' : 'welcome');
+        setCalendarTipSeen(storedState.calendarTipSeen);
         setHasLoadedRegionStore(true);
       })
       .catch(() => {
@@ -312,11 +316,30 @@ export function AppContent() {
     applyNearestGpsRegion();
   }, [hasLoadedRegionStore, hasTriedInitialLocation]);
 
-  // 튜토리얼은 실제 화면 위에 띄우므로, 지역이 정해져 홈이 그려진 뒤에 시작합니다.
+  // 튜토리얼: 첫 실행이면 환영 시트를 먼저 띄우고, "둘러보기"를 고른 사람만 홈 투어를 봅니다.
   const finishTutorial = () => {
     void saveTutorialSeen();
-    setShowTutorial(false);
-    setActiveTab('home');
+    setTutorialMode('none');
+  };
+  const continueTutorialInCalendar = () => {
+    finishTutorial();
+    setCalendarTipSeen(false);
+    switchTab('calendar');
+  };
+  const skipTutorialForNow = () => {
+    finishTutorial();
+    setNotificationMessage('설정 > 앱 정보에서 언제든 볼 수 있어요.');
+  };
+  const dismissCalendarTip = () => {
+    void saveCalendarTipSeen();
+    setCalendarTipSeen(true);
+  };
+  // "첫 일정 추가하기": 캘린더 일정 추가 화면을 바로 엽니다. 추가 버튼 말풍선은 겹치니 본 것으로 둡니다.
+  const addFirstEvent = () => {
+    finishTutorial();
+    dismissCalendarTip();
+    setOpenCalendarEditor(true);
+    switchTab('calendar');
   };
 
   // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
@@ -389,20 +412,17 @@ export function AppContent() {
     return <LocationGate isLocating={isLocating} message={locationMessage} onRetry={applyNearestGpsRegion} />;
   }
 
-  // 토스트와 튜토리얼(코치마크)은 어느 탭 화면에서든 맨 위에 겹쳐 그립니다.
+  // 토스트와 튜토리얼은 어느 탭 화면에서든 맨 위에 겹쳐 그립니다. 투어는 홈에서만, 캘린더 말풍선은 캘린더를 처음 열 때만.
   const bottomToast = (
     <>
       <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />
-      {showTutorial && (
-        <CoachMarkOverlay
-          activeTab={activeTab}
-          stepIndex={tutorialStep}
-          onStepChange={setTutorialStep}
-          onDone={finishTutorial}
-          onNavigate={switchTab}
-          onScrollHome={(y) => mainScrollRef.current?.scrollTo({ animated: true, y })}
-        />
+      {activeTab === 'home' && tutorialMode === 'welcome' && (
+        <WelcomeSheet onAddEvent={addFirstEvent} onLater={skipTutorialForNow} onStart={() => setTutorialMode('tour')} />
       )}
+      {activeTab === 'home' && tutorialMode === 'tour' && (
+        <TutorialTour hasHourlyForecast={weatherHourlyItems.length > 0 ? true : weatherForecastResolved ? false : undefined}onContinueCalendar={continueTutorialInCalendar} onFinish={finishTutorial} scrollHome={(y) => mainScrollRef.current?.scrollTo({ animated: true, y })} />
+      )}
+      {activeTab === 'calendar' && tutorialMode === 'none' && !calendarTipSeen && <CalendarTip onDone={dismissCalendarTip} />}
     </>
   );
 
@@ -468,6 +488,7 @@ export function AppContent() {
               currentPm10={currentPm10}
               hourlyItems={hourlyItems}
               mapPickerUrl={calendarMapPickerUrl}
+              openEditorOnMount={openCalendarEditor}
               onAddEvent={addCalendarEvent}
               onAddEvents={addCalendarEvents}
               onRemoveEvent={removeCalendarEvent}
@@ -591,18 +612,16 @@ export function AppContent() {
             favoriteRegions={favoriteRegions}
             isLocating={isLocating}
             isSavingNotificationSettings={isSavingNotificationSettings}
-            isSendingTestNotification={isSendingTestNotification}
             locationMessage={locationMessage}
             notificationsUnavailable={IS_EXPO_GO}
             notificationSettings={notificationSettings}
             outfitSettings={outfitSettings}
             onRemoveFavorite={removeFavoriteRegion}
-            onSendTestNotification={sendTestNotification}
             onToggleNotificationSetting={updateNotificationSetting}
             onUpdateOutfitSetting={updateOutfitSetting}
             onOpenTutorial={() => {
-              setTutorialStep(0);
-              setShowTutorial(true);
+              setActiveTab('home');
+              setTutorialMode('tour');
             }}
             onUseCurrentLocation={applyNearestGpsRegion}
             selectedRegion={selectedRegion}

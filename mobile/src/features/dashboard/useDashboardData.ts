@@ -34,6 +34,7 @@ export function useDashboardData({
   const [pastItems, setPastItems] = useState<PastDustItem[]>([]);
   const [hourlyItems, setHourlyItems] = useState<HourlyDustItem[]>([]);
   const [weatherHourlyItems, setWeatherHourlyItems] = useState<WeatherHourlyItem[]>([]);
+  const [weatherForecastResolved, setWeatherForecastResolved] = useState(false);
   const [weatherMidTermItems, setWeatherMidTermItems] = useState<WeatherMidTermItem[]>([]);
   const [currentItem, setCurrentItem] = useState<CurrentDustItem | null>(null);
   const [weather, setWeather] = useState<WeatherState | null>(null);
@@ -44,6 +45,8 @@ export function useDashboardData({
   // 비동기 응답이 도착했을 때 지금 선택된 지역과 같은지 비교하기 위한 최신 값입니다.
   const selectedRegionRef = useRef(selectedRegion);
   selectedRegionRef.current = selectedRegion;
+  // 응답을 기다리는 사이 지역이 바뀌었다면 이전 지역 데이터로 화면을 덮어쓰지 않습니다.
+  const isStaleRegion = (region: NonNullable<typeof selectedRegion>) => !selectedRegionRef.current || !isSameRegion(selectedRegionRef.current, region);
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
 
@@ -56,19 +59,23 @@ export function useDashboardData({
     setWeather(null);
     setYesterdayWeather(null);
     setWeatherHourlyItems([]);
+    setWeatherForecastResolved(false);
     setWeatherMidTermItems([]);
   };
 
   // 당겨서 새로고침: 현재 미세먼지 값만 다시 받습니다.
   const loadCurrentDust = async () => {
     if (!selectedRegion) return;
+    const region = selectedRegion;
+    const isStale = () => isStaleRegion(region);
     setIsRefreshingCurrent(true);
     setError('');
     try {
-      const currentData = await getCurrentDust(selectedRegion);
+      const currentData = await getCurrentDust(region);
+      if (isStale()) return;
       setCurrentItem((currentData.item as CurrentDustItem | undefined) ?? null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '현재 데이터를 불러오지 못했습니다.');
+      if (!isStale()) setError(caught instanceof Error ? caught.message : '현재 데이터를 불러오지 못했습니다.');
     } finally {
       setIsRefreshingCurrent(false);
     }
@@ -78,8 +85,7 @@ export function useDashboardData({
   const loadDashboard = async (force = false) => {
     if (!selectedRegion) return;
     const region = selectedRegion;
-    // 응답을 기다리는 사이 지역이 바뀌었다면 이전 지역 데이터로 화면을 덮어쓰지 않습니다.
-    const isStale = () => !selectedRegionRef.current || !isSameRegion(selectedRegionRef.current, region);
+    const isStale = () => isStaleRegion(region);
     const cachedDashboard = await loadDashboardCache(region);
     if (isStale()) return;
     if (cachedDashboard) {
@@ -92,7 +98,10 @@ export function useDashboardData({
       setWeather(cachedDashboard.weather ?? null);
       setYesterdayWeather(cachedDashboard.yesterdayWeather ?? null);
       onSettledRef.current();
-      if (!force && hasCompleteDashboardCache(cachedDashboard)) return;
+      if (!force && hasCompleteDashboardCache(cachedDashboard)) {
+        setWeatherForecastResolved(true);
+        return;
+      }
     }
     setError('');
     const weatherPromise = fetchDashboardWeather(region, todayDateLabel, stationItems).then(
@@ -104,6 +113,7 @@ export function useDashboardData({
       const weatherResult = await weatherPromise;
       if (!weatherResult.ok) {
         console.warn('대시보드 날씨 데이터를 불러오지 못했습니다.', weatherResult.error);
+        if (!isStale()) setWeatherForecastResolved(true);
         return null;
       }
       if (isStale()) return null;
@@ -113,8 +123,10 @@ export function useDashboardData({
       setWeatherMidTermItems(storedWeather.midTermItems);
       setWeather(storedWeather.weather);
       setYesterdayWeather(storedWeather.yesterdayWeather);
+      setWeatherForecastResolved(true);
       return storedWeather;
     };
+    const weatherLoadPromise = applyWeather();
     try {
       const dust = await fetchDashboardDust(region, todayDateLabel, cachedDashboard);
       if (isStale()) return;
@@ -131,7 +143,7 @@ export function useDashboardData({
         pastItems: dust.pastItems,
         prediction: dust.prediction,
       };
-      const storedWeather = await applyWeather();
+      const storedWeather = await weatherLoadPromise;
       if (storedWeather) {
         void saveDashboardCache(region, {
           ...dustCache,
@@ -152,7 +164,7 @@ export function useDashboardData({
       }
     } catch (caught) {
       // 미세먼지가 실패해도 날씨가 왔으면 보여 줍니다.
-      void applyWeather();
+      void weatherLoadPromise;
       if (!cachedDashboard && !isStale()) {
         // 응답이 왔지만 실패한 경우와 서버에 닿지 못한 경우를 구분해 안내합니다.
         setError(caught instanceof ApiHttpError ? '데이터를 불러오지 못했어요.' : '서버에 연결할 수 없어요.');
@@ -192,6 +204,7 @@ export function useDashboardData({
     prediction,
     weather,
     weatherHourlyItems,
+    weatherForecastResolved,
     weatherMidTermItems,
     yesterdayWeather,
   };
