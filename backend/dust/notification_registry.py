@@ -74,6 +74,8 @@ def float_from_payload(value: Any, default: float) -> float:
 
 def upsert_notification_device(payload: Any) -> NotificationDevice:
     """Create or update one Expo push device from API payload data."""
+    if not isinstance(payload, dict):
+        raise ValueError("요청 본문은 JSON 객체여야 합니다.")
     token = str(payload.get("expoPushToken") or payload.get("token") or "").strip()
     city = str(payload.get("city") or "").strip()
     region = str(payload.get("region") or "").strip()
@@ -81,6 +83,10 @@ def upsert_notification_device(payload: Any) -> NotificationDevice:
         raise ValueError("expoPushToken이 필요합니다.")
     if not city or not region:
         raise ValueError("city와 region이 필요합니다.")
+    # DB 칸 길이를 넘으면 저장할 때 500이 나므로 먼저 막는다.
+    for field, value in (("expo_push_token", token), ("city", city), ("region", region)):
+        if len(value) > NotificationDevice._meta.get_field(field).max_length:
+            raise ValueError(f"{field} 값이 너무 깁니다.")
 
     pm10_threshold = max(1, min(float_from_payload(payload.get("pm10Threshold"), 80), 300))
     regions = clean_notification_regions(payload.get("regions"), city, region)

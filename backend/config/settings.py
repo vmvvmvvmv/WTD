@@ -150,7 +150,8 @@ DATABASES = {
 }
 
 # Gunicorn worker 사이에서 날씨·미세먼지 캐시를 공유한다.
-# REDIS_URL이 없으면 개발 환경에서 기존 메모리 캐시를 사용한다.
+# REDIS_URL이 없으면 파일 캐시를 쓴다. 수집 작업(manage.py)과 서버가 다른 프로세스라,
+# 메모리 캐시면 수집 뒤 지운 캐시가 서버에 닿지 않아 최대 10분간 이전 값이 나갔다. 테스트만 메모리 캐시.
 REDIS_URL = env_value('REDIS_URL', '')
 if REDIS_URL:
     CACHES = {
@@ -165,11 +166,19 @@ if REDIS_URL:
             },
         },
     }
-else:
+elif len(sys.argv) > 1 and sys.argv[1] == 'test':
     CACHES = {
         'default': {
             'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
             'LOCATION': 'weathertodo-local-cache',
+        },
+    }
+else:
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+            'LOCATION': BASE_DIR / '.cache' / 'django',
+            'OPTIONS': {'MAX_ENTRIES': 5000},
         },
     }
 

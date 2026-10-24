@@ -500,3 +500,272 @@ class AppTestTokenTests(SimpleTestCase):
     def test_non_ascii_token_is_rejected_not_crashed(self):
         response = self.client.get('/dust/current/', {'app_test_token': '토큰'})
         self.assertEqual(response.status_code, 403)
+
+
+class MapLatestWeatherTests(TestCase):
+    """지도 기온은 지금 시각 이전의 최신 값을 쓰고, 수집하지 않은 격자는 가장 가까운 수집 격자 값을 쓴다."""
+
+    def test_uses_current_value_and_nearest_grid_fallback(self):
+        from datetime import timedelta
+        from dust.models import WeatherHourlyMeasurement
+        from dust.services.common import _dfs_grid_from_lat_lng
+        from dust.services.weather import _latest_weather_by_grid_for_locations
+
+        seoul = {"lat": 37.5665, "lng": 126.9780}
+        nearby = {"lat": 37.4000, "lng": 127.1000}
+        seoul_grid = _dfs_grid_from_lat_lng(seoul["lat"], seoul["lng"])
+        nearby_grid = _dfs_grid_from_lat_lng(nearby["lat"], nearby["lng"])
+        self.assertNotEqual((seoul_grid["nx"], seoul_grid["ny"]), (nearby_grid["nx"], nearby_grid["ny"]))
+        now = timezone.now()
+        WeatherHourlyMeasurement.objects.create(nx=seoul_grid["nx"], ny=seoul_grid["ny"], measured_at=now - timedelta(hours=1), temperature=10)
+        WeatherHourlyMeasurement.objects.create(nx=seoul_grid["nx"], ny=seoul_grid["ny"], measured_at=now + timedelta(hours=48), temperature=30)
+
+        latest = _latest_weather_by_grid_for_locations({"a": seoul, "b": nearby})
+
+        self.assertEqual(latest[(seoul_grid["nx"], seoul_grid["ny"])]["weatherTemperature"], 10)
+        self.assertEqual(latest[(nearby_grid["nx"], nearby_grid["ny"])]["weatherTemperature"], 10)
+
+
+class NeighborSpikeTests(SimpleTestCase):
+    """주변 측정소보다 혼자 크게 튄 값은 버리고, 넓은 지역이 함께 높으면 그대로 둔다."""
+
+    def _grid(self, center_value, neighbor_value):
+        points = [(37.50, 127.00, {"pm10": center_value, "pm25": 10})]
+        for index in range(5):
+            points.append((37.50 + 0.02 * (index + 1), 127.00, {"pm10": neighbor_value, "pm25": 10}))
+        return points
+
+    def test_isolated_spike_is_dropped(self):
+        from dust.services.stations import _neighbor_spike_fields
+        self.assertEqual(_neighbor_spike_fields(self._grid(699, 27))[0], {"pm10"})
+
+    def test_regional_high_is_kept(self):
+        from dust.services.stations import _neighbor_spike_fields
+        self.assertEqual(_neighbor_spike_fields(self._grid(180, 150))[0], set())
+
+    def test_small_rise_is_kept(self):
+        from dust.services.stations import _neighbor_spike_fields
+        self.assertEqual(_neighbor_spike_fields(self._grid(40, 15))[0], set())
+
+
+class StoreNeighborSpikeTests(TestCase):
+    """저장할 때: 한 시간만 혼자 튄 값은 비우고, 직전 시각에도 높았던 측정소(실제 지역 오염)는 그대로 둔다."""
+
+    def setUp(self):
+        from dust.models import AirQualityStation
+        self.center = AirQualityStation.objects.create(sido='충남', name='중심', lat=36.40, lng=127.00)
+        for index in range(5):
+            AirQualityStation.objects.create(sido='충남', name=f'주변{index}', lat=36.40 + 0.02 * (index + 1), lng=127.00)
+
+    def _store(self, center_pm10):
+        from dust.services.stations import _store_realtime_values_to_db
+        values = {'충남:중심': {'sido': '충남', 'name': '중심', 'pm10': str(center_pm10), 'pm25': '10', 'aqi': '226', 'time': '2026-10-23 20:00'}}
+        for index in range(5):
+            values[f'충남:주변{index}'] = {'sido': '충남', 'name': f'주변{index}', 'pm10': '25', 'pm25': '10', 'time': '2026-10-23 20:00'}
+        _store_realtime_values_to_db(values)
+        from dust.models import RealtimeDustMeasurement
+        from datetime import datetime, timezone as dt_timezone
+        return RealtimeDustMeasurement.objects.get(station=self.center, measured_at=datetime(2026, 10, 23, 11, tzinfo=dt_timezone.utc)).pm10_value
+
+    def test_one_hour_spike_is_cleared(self):
+        self.assertIsNone(self._store(699))
+
+    def test_sustained_high_is_kept(self):
+        from datetime import datetime, timezone as dt_timezone
+        from dust.models import RealtimeDustMeasurement
+        RealtimeDustMeasurement.objects.create(station=self.center, measured_at=datetime(2026, 10, 23, 10, tzinfo=dt_timezone.utc), pm10_value=91)
+        self.assertEqual(self._store(95), 95)
+
+    def test_first_hour_is_restored_when_high_continues(self):
+        from datetime import datetime, timezone as dt_timezone
+        from dust.models import RealtimeDustMeasurement
+        first = RealtimeDustMeasurement.objects.create(station=self.center, measured_at=datetime(2026, 10, 23, 10, tzinfo=dt_timezone.utc), pm10_value=None, raw_data={'rawPM10': '117', 'rawAQI': '160', 'qualityNote': 'neighbor_spike_removed'})
+        self._store(105)
+        first.refresh_from_db()
+        self.assertEqual(first.pm10_value, 117)
+        self.assertEqual(first.aqi_value, 160)
+        self.assertNotIn('qualityNote', first.raw_data)
+
+    def test_cleared_spike_keeps_original_aqi(self):
+        from datetime import datetime, timezone as dt_timezone
+        from dust.models import RealtimeDustMeasurement
+        self.assertIsNone(self._store(699))
+        row = RealtimeDustMeasurement.objects.get(station=self.center, measured_at=datetime(2026, 10, 23, 11, tzinfo=dt_timezone.utc))
+        self.assertIsNone(row.aqi_value)
+        self.assertEqual(row.raw_data.get('rawAQI'), '226')
+
+    def test_second_high_hour_is_kept_even_if_first_was_cleared(self):
+        from datetime import datetime, timezone as dt_timezone
+        from dust.models import RealtimeDustMeasurement
+        RealtimeDustMeasurement.objects.create(station=self.center, measured_at=datetime(2026, 10, 23, 10, tzinfo=dt_timezone.utc), pm10_value=None, raw_data={'rawPM10': '117', 'qualityNote': 'neighbor_spike_removed'})
+        self.assertEqual(self._store(105), 105)
+
+
+class StationNamePriorityTests(TestCase):
+    """지역 이름에 시와 면이 같이 있으면 더 구체적인 면·동 측정소를 고른다."""
+
+    def test_prefers_most_specific_station(self):
+        from dust.models import AirQualityStation
+        from dust.services.stations import _resolve_station_name
+        AirQualityStation.objects.create(sido='충남', name='공주', addr='충남 공주시 신관동', lat=36.47, lng=127.12)
+        AirQualityStation.objects.create(sido='충남', name='탄천면', addr='충남 공주시 탄천면', lat=36.33, lng=127.08)
+        self.assertEqual(_resolve_station_name('충남', '공주시 탄천면'), '탄천면')
+        self.assertEqual(_resolve_station_name('충남', '탄천면'), '탄천면')
+        self.assertEqual(_resolve_station_name('충남', '공주시'), '공주')
+
+
+class DustCacheVersionTests(SimpleTestCase):
+    """수집이 끝나면 캐시 버전을 올린다. 그 전에 읽기 시작한 요청이 늦게 넣은 옛 결과는 다음 요청이 보지 않는다."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def test_result_cached_during_collection_is_not_served_after(self):
+        from dust.services import stations
+
+        def load_while_collector_finishes():
+            stations.bump_dust_cache_version()  # 요청이 DB를 읽는 사이 수집이 끝났다.
+            return {'충남:탄천면': {'pm10': 'old'}}
+
+        with patch.object(stations, '_load_latest_realtime_values_from_db', side_effect=load_while_collector_finishes):
+            stations._load_realtime_station_values()
+        with patch.object(stations, '_load_latest_realtime_values_from_db', return_value={'충남:탄천면': {'pm10': 'new'}}):
+            self.assertEqual(stations._load_realtime_station_values()['충남:탄천면']['pm10'], 'new')
+
+
+class AirKoreaMidnightTimeTests(SimpleTestCase):
+    """에어코리아는 자정을 '24:00'으로 표기한다. 다음 날 0시로 읽는다."""
+
+    def test_24_00_is_next_day_midnight(self):
+        from django.utils import timezone as dj_timezone
+        from dust.services.stations import _parse_airkorea_datetime
+        parsed = dj_timezone.localtime(_parse_airkorea_datetime('2026-10-22 24:00'))
+        self.assertEqual(parsed.strftime('%Y-%m-%d %H:%M'), '2026-10-23 00:00')
+        self.assertEqual(dj_timezone.localtime(_parse_airkorea_datetime('2026-10-31 24:00')).strftime('%Y-%m-%d %H:%M'), '2026-11-01 00:00')
+
+
+class FixMidnightTimesMigrationTests(TestCase):
+    """'24:00' 값이 1시로 잘못 저장된 행을 다음 날 0시로 옮기고, 0시 행이 이미 있으면 잘못된 쪽만 지운다."""
+
+    def test_moves_or_drops_misplaced_midnight_rows(self):
+        import importlib
+        from datetime import datetime, timezone as dt_timezone
+        from django.apps import apps
+        from dust.models import AirQualityStation, RealtimeDustMeasurement
+        migration = importlib.import_module('dust.migrations.0016_fix_airkorea_midnight_times')
+        utc = dt_timezone.utc
+        midnight = datetime(2026, 10, 22, 15, tzinfo=utc)   # 10-23 00:00 KST
+        one_am = datetime(2026, 10, 22, 16, tzinfo=utc)     # 10-23 01:00 KST
+        moved = AirQualityStation.objects.create(sido='부산', name='가', lat=35.1, lng=129.0)
+        dup = AirQualityStation.objects.create(sido='부산', name='나', lat=35.2, lng=129.0)
+        RealtimeDustMeasurement.objects.create(station=moved, measured_at=one_am, pm10_value=30, raw_data={'time': '2026-10-22 24:00'})
+        RealtimeDustMeasurement.objects.create(station=dup, measured_at=midnight, pm10_value=40, raw_data={'time': '2026-10-22 24:00'})
+        RealtimeDustMeasurement.objects.create(station=dup, measured_at=one_am, pm10_value=40, pm25_value=12, raw_data={'time': '2026-10-22 24:00'})
+        RealtimeDustMeasurement.objects.create(station=dup, measured_at=datetime(2026, 10, 22, 17, tzinfo=utc), pm10_value=50, raw_data={'time': '2026-10-23 02:00'})
+
+        migration.fix_midnight_times(apps, None)
+
+        self.assertEqual(list(RealtimeDustMeasurement.objects.filter(station=moved).values_list('measured_at', flat=True)), [midnight])
+        self.assertEqual(sorted(RealtimeDustMeasurement.objects.filter(station=dup).values_list('pm10_value', flat=True)), [40, 50])
+        self.assertEqual(RealtimeDustMeasurement.objects.get(station=dup, measured_at=midnight).pm25_value, 12)  # 빈 값은 채운다.
+
+
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
+class BadInputReturns400Tests(TestCase):
+    """이상한 입력은 500이 아니라 400으로 돌려준다(극한 입력 검사에서 나온 경우들)."""
+
+    def test_weather_rejects_impossible_coordinates(self):
+        for lat, lng in (('91', '127'), ('37.5', '181'), ('NaN', '127'), ('37.5', 'Infinity')):
+            for path in ('/dust/weather/current/', '/dust/weather/hourly/'):
+                self.assertEqual(self.client.get(path, {'lat': lat, 'lng': lng}).status_code, 400, (path, lat, lng))
+
+    def test_outfit_rejects_impossible_time(self):
+        response = self.client.post('/outfit/recommend/', {'start': '2026-10-23T25:00', 'mode': 'rule'}, content_type='application/json')
+        self.assertEqual(response.status_code, 400)
+
+    def test_notification_register_rejects_bad_body(self):
+        for body in ([], None, {'expoPushToken': 'x' * 300, 'city': '서울', 'region': '강남구'}, {'expoPushToken': 'ExponentPushToken[a]', 'city': '서울' * 30, 'region': '강남구'}):
+            response = self.client.post('/dust/notifications/register/', body, content_type='application/json')
+            self.assertEqual(response.status_code, 400, str(body)[:60])
+
+
+class ThunderLabelTests(TestCase):
+    """기상청 낙뢰(LGT)가 있으면 날씨 이름에 천둥번개를 넣는다. 비·눈과 같이 오면 둘 다 남긴다."""
+
+    def test_label_includes_thunder(self):
+        from dust.services.weather import _kma_current_weather_label
+        self.assertEqual(_kma_current_weather_label('0', '1', '2'), '천둥번개')
+        self.assertEqual(_kma_current_weather_label('1', '4', '1'), '비·천둥번개')
+        self.assertEqual(_kma_current_weather_label('3', '4', '1'), '눈·천둥번개')
+        self.assertEqual(_kma_current_weather_label('1', '4', '0'), '비')
+        self.assertEqual(_kma_current_weather_label('0', '1'), '맑음')
+
+    def test_stored_hour_uses_lightning(self):
+        from dust.services.weather import _store_weather_hourly_measurement
+        measurement = _store_weather_hourly_measurement({'nx': 60, 'ny': 127}, '202610231500', {'T1H': '20', 'PTY': '1', 'SKY': '4', 'LGT': '1'})
+        self.assertEqual(measurement.label, '비·천둥번개')
+
+
+class CollectorRobustnessTests(TestCase):
+    """바깥 API가 이상한 값을 보내도 수집이 통째로 멈추지 않는다."""
+
+    def test_to_float_drops_nan_and_infinity(self):
+        from dust.services.common import _to_float
+        for value in ('NaN', 'nan', 'Infinity', '-Infinity', float('nan'), float('inf')):
+            self.assertIsNone(_to_float(value), value)
+        self.assertEqual(_to_float('12.5'), 12.5)
+
+    def test_one_failing_midterm_region_does_not_stop_others(self):
+        from dust.midterm_weather import MIDTERM_REGIONS
+        from dust.services import weather
+
+        calls = []
+
+        def store(region, tm_fc):
+            calls.append(region['key'])
+            if region['key'] == MIDTERM_REGIONS[0]['key']:
+                raise ValueError('XML 오류 응답')
+            return 1
+
+        with patch.object(weather, '_store_midterm_forecast_for_region', side_effect=store):
+            saved = weather.collect_midterm_weather_forecasts(MIDTERM_REGIONS[:3])
+        self.assertEqual(saved, 2)
+        self.assertEqual(len(set(calls)), 3)
+
+
+
+class MixedPrecipitationOutfitTests(SimpleTestCase):
+    """기상청 강수형태가 비/눈(2)·빗방울눈날림(6)이면 우산도 챙긴다. 눈만 오면 우산은 넣지 않는다."""
+
+    def _must_have(self, precipitation_type, label):
+        from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window
+        from dust.services.outfit.rule_engine import build_rule_result
+        snapshot = aggregate_schedule_window([WeatherPoint(temperature=0, wind_speed=2, rain_mm=1, precipitation_type=precipitation_type, label=label)], [])
+        return [item['type'] for item in build_rule_result(snapshot, activity_type='outdoor', sensitivity='normal', occasion='general')['must_have']]
+
+    def test_mixed_rain_and_snow_adds_umbrella(self):
+        for code in ('2', '6'):
+            types = self._must_have(code, '비/눈')
+            self.assertIn('waterproof_shoes', types, code)
+            self.assertIn('umbrella', types, code)
+
+    def test_snow_only_has_no_umbrella(self):
+        self.assertNotIn('umbrella', self._must_have('3', '눈'))
+
+
+class MorningEventLinesTests(SimpleTestCase):
+    """아침 알림의 일정 줄은 같은 시각을 하나로 합치고 3줄까지만 보여 준다."""
+
+    def test_event_lines_are_deduplicated_and_capped(self):
+        from datetime import datetime
+        from django.utils import timezone as dj_timezone
+        from dust.models import WeatherHourlyMeasurement
+        from dust.weather_morning_notifications import build_weather_morning_message
+        tz = dj_timezone.get_current_timezone()
+        points = [WeatherHourlyMeasurement(measured_at=dj_timezone.make_aware(datetime(2026, 10, 24, hour), tz), temperature=15, rain_mm=2, rain_probability=90, label='비', precipitation_type='1') for hour in range(8, 20)]
+        events = [{'date': '2026-10-24', 'time': time} for time in ('09:00', '09:00', '09:00', '10:00', '11:00', '12:00', '13:00')]
+        _title, body = build_weather_morning_message('대신동', points, events)
+        lines = [line for line in body.splitlines() if '일정 때' in line]
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(len(set(lines)), 3)

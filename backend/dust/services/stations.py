@@ -48,7 +48,17 @@ def _candidate_stations_for_region(city, region):
     unique = {}
     for station in candidates:
         unique[station.id] = station
-    return list(unique.values())
+    # 지역 이름 안에 이름이 들어 있는 측정소 중 가장 긴(구체적인) 것을 앞에 둔다.
+    # 예: '공주시 탄천면' → '공주'보다 '탄천면'. 지정 매핑은 그대로 맨 앞에 둔다.
+    compact_region = _station_lookup_name(region)
+
+    def specificity(station):
+        if mapping_name and station.name == mapping_name:
+            return (2, 0)
+        lookup_name = _station_lookup_name(station.name)
+        return (1, len(lookup_name)) if lookup_name and lookup_name in compact_region else (0, 0)
+
+    return sorted(unique.values(), key=specificity, reverse=True)
 
 
 def _resolve_station_name(city, region):
@@ -305,8 +315,11 @@ def _fetch_realtime_station_values_for_sido(sido):
             "name": name,
             "sido": sido,
             "aqi": aqi,
-            "pm10": item.get('pm10Value'),
-            "pm25": item.get('pm25Value'),
+            # 에어코리아가 통신장애·자료이상 등 표시를 붙인 값은 쓰지 않는다.
+            "pm10": None if item.get('pm10Flag') else item.get('pm10Value'),
+            "pm25": None if item.get('pm25Flag') else item.get('pm25Value'),
+            "pm10Flag": item.get('pm10Flag'),
+            "pm25Flag": item.get('pm25Flag'),
             "no2": item.get('no2Value'),
             "o3": item.get('o3Value'),
             "temp": '-',
@@ -316,8 +329,24 @@ def _fetch_realtime_station_values_for_sido(sido):
     return values, debug
 
 
+DUST_CACHE_VERSION_KEY = 'dust_data_version'
+
+
+def dust_cache_version():
+    """측정값 캐시 버전. 함수 처음에 한 번 읽어 키에 넣으면, 읽는 사이 수집이 끝나 버전이 올라도
+    늦게 넣은 옛 결과는 옛 버전 키에 들어가 아무도 읽지 않는다(지운 뒤 다시 채워지는 경쟁을 막는다)."""
+    return cache.get_or_set(DUST_CACHE_VERSION_KEY, 1, None)
+
+
+def bump_dust_cache_version():
+    try:
+        cache.incr(DUST_CACHE_VERSION_KEY)
+    except ValueError:
+        cache.set(DUST_CACHE_VERSION_KEY, 2, None)
+
+
 def _load_realtime_station_values(with_debug=False, allow_api=False):
-    cache_key = 'airkorea_realtime_station_values_v5'
+    cache_key = f'airkorea_realtime_station_values_v5:{dust_cache_version()}'
     cached = cache.get(cache_key)
     if cached:
         if with_debug:
@@ -355,7 +384,11 @@ def _load_realtime_station_values(with_debug=False, allow_api=False):
 def _parse_airkorea_datetime(value):
     if not value:
         return None
-    text = str(value)
+    text = str(value).strip()
+    # 에어코리아는 자정을 전날 '24:00'으로 표기한다. 파이썬은 24시를 못 읽어서 다음 날 0시로 바꾼다.
+    if text.endswith(' 24:00'):
+        midnight = _parse_airkorea_datetime(f"{text[:-6]} 00:00")
+        return midnight + timedelta(days=1) if midnight else None
     try:
         parsed = datetime.fromisoformat(text)
         if timezone.is_naive(parsed):
@@ -514,12 +547,111 @@ def _find_air_quality_station(sido, station_name):
     return None
 
 
+# min_value는 '나쁨' 등급 시작값. 그보다 낮으면 조금 튀어도 사용자에게 문제 되지 않아 그대로 둔다.
+NEIGHBOR_SPIKE_RULES = {
+    "pm10": {"min_value": 81, "ratio": 2.5, "min_delta": 50},
+    "pm25": {"min_value": 36, "ratio": 2.5, "min_delta": 25},
+}
+
+
+def _neighbor_spike_fields(points, neighbor_count=5):
+    """points: [(lat, lng, {"pm10": .., "pm25": ..}), ...] -> 점마다 버릴 항목 집합.
+
+    나쁨 등급 이상이면서 가까운 측정소 5곳의 중앙값보다 2.5배 이상, 기준만큼 더 높으면 장비 이상으로 보고 버린다.
+    넓은 지역이 함께 높으면(황사 등) 주변도 높아서 걸리지 않는다.
+    """
+    # ponytail: 측정소 수백 곳끼리 전부 거리를 잰다(한 번에 1초 안쪽). 수천 곳이 되면 격자 색인으로 바꾼다.
+    drops = []
+    for index, (lat, lng, readings) in enumerate(points):
+        fields = set()
+        for field, rule in NEIGHBOR_SPIKE_RULES.items():
+            value = _to_float(readings.get(field))
+            if value is None or value < rule["min_value"] or lat is None or lng is None:
+                continue
+            others = sorted(
+                (_haversine_km(lat, lng, other_lat, other_lng), other_value)
+                for other_index, (other_lat, other_lng, other_readings) in enumerate(points)
+                if other_index != index and other_lat is not None and other_lng is not None
+                for other_value in [_to_float(other_readings.get(field))]
+                if other_value is not None
+            )[:neighbor_count]
+            baseline = _median([other_value for _, other_value in others])
+            if len(others) >= 3 and baseline is not None and value >= rule["ratio"] * max(baseline, 1) and value - baseline >= rule["min_delta"]:
+                fields.add(field)
+        drops.append(fields)
+    return drops
+
+
+def _previous_measurement(station, value):
+    """같은 측정소의 직전 기록(3시간 안)."""
+    measured_at = _parse_airkorea_datetime(value.get("time"))
+    if not measured_at:
+        return None
+    return (
+        RealtimeDustMeasurement.objects
+        .filter(station=station, measured_at__lt=measured_at, measured_at__gte=measured_at - timedelta(hours=3))
+        .order_by('-measured_at')
+        .first()
+    )
+
+
+def _previous_reading(previous, field):
+    # 직전 값이 이 필터로 비워졌다면 원래 값으로 판단한다(그러지 않으면 높은 상태가 이어져도 매시간 지워진다).
+    raw = previous.raw_data or {}
+    return _to_float(getattr(previous, f"{field}_value")) or _to_float(raw.get(f"raw{field.upper()}"))
+
+
+def _sustained_high_fields(previous):
+    """직전 시각에도 나쁨 이상이었던 항목. 한 시간만 튄 게 아니라 그 자리의 실제 오염으로 보고 건드리지 않는다."""
+    if not previous:
+        return set()
+    return {field for field, rule in NEIGHBOR_SPIKE_RULES.items() if (_previous_reading(previous, field) or 0) >= rule["min_value"]}
+
+
+def _restore_cleared_previous(previous, value):
+    """높은 상태가 이어지면, 첫 시간에 장비 이상으로 보고 비웠던 직전 값을 원래대로 되살린다."""
+    if not previous or (previous.raw_data or {}).get("qualityNote") != "neighbor_spike_removed":
+        return
+    raw = dict(previous.raw_data)
+    restored = []
+    for field, rule in NEIGHBOR_SPIKE_RULES.items():
+        current = _to_float(value.get(field))
+        original = _to_float(raw.get(f"raw{field.upper()}"))
+        if getattr(previous, f"{field}_value") is None and original is not None and current is not None and current >= rule["min_value"]:
+            setattr(previous, f"{field}_value", original)
+            raw[field] = raw.pop(f"raw{field.upper()}")
+            restored.append(f"{field}_value")
+    if restored:
+        if not any(key.startswith("raw") and key[3:].lower() in NEIGHBOR_SPIKE_RULES for key in raw):
+            # 비웠던 항목이 모두 돌아왔으면 통합대기지수도 되살린다.
+            raw.pop("qualityNote", None)
+            if previous.aqi_value is None and "rawAQI" in raw:
+                raw["aqi"] = raw.pop("rawAQI")
+                previous.aqi_value = _to_float(raw["aqi"])
+                restored.append("aqi_value")
+        previous.raw_data = raw
+        previous.save(update_fields=[*restored, "raw_data"])
+
+
 def _store_realtime_values_to_db(values):
     saved = 0
-    for key, value in values.items():
-        station = _find_station_for_realtime_value(value)
-        if not station:
-            continue
+    resolved = [(value, station) for value in values.values() for station in [_find_station_for_realtime_value(value)] if station]
+    # 같은 수집 회차의 주변 측정소보다 혼자 튄 값은 비워서 저장한다. 원래 값은 raw_data에 남는다.
+    for (value, station), fields in zip(resolved, _neighbor_spike_fields([(station.lat, station.lng, value) for value, station in resolved])):
+        is_high = any((_to_float(value.get(field)) or 0) >= rule["min_value"] for field, rule in NEIGHBOR_SPIKE_RULES.items())
+        previous = _previous_measurement(station, value) if is_high else None
+        if fields:
+            fields = fields - _sustained_high_fields(previous)
+        for field in fields:
+            value[f"raw{field.upper()}"] = value.get(field)
+            value[field] = None
+            value["qualityNote"] = "neighbor_spike_removed"
+        if fields:
+            # 통합대기지수도 튄 값으로 계산돼 있어 비우고, 복원할 수 있게 원래 값은 남긴다.
+            value["rawAQI"] = value.get("aqi")
+            value["aqi"] = None
+        _restore_cleared_previous(previous, value)
+    for value, station in resolved:
         measured_at = _parse_airkorea_datetime(value.get("time")) or timezone.now().replace(minute=0, second=0, microsecond=0)
         _, created = RealtimeDustMeasurement.objects.update_or_create(
             station=station,
@@ -539,7 +671,7 @@ def _store_realtime_values_to_db(values):
 
 
 def _load_latest_daily_station_values():
-    cache_key = 'latest_daily_station_values_v1'
+    cache_key = f'latest_daily_station_values_v1:{dust_cache_version()}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

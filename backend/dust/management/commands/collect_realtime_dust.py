@@ -2,12 +2,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import time
 
-from django.core.cache import cache
 from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES
-from dust.services.stations import _fetch_realtime_station_values_for_sido, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
+from dust.services.stations import bump_dust_cache_version, _fetch_realtime_station_values_for_sido, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
 
 
 def env_int(name, default):
@@ -83,14 +82,7 @@ class Command(BaseCommand):
             debug_rows.extend(retry_debug_rows)
 
         saved = _store_realtime_values_to_db(values)
-        cache.delete("airkorea_realtime_station_values_v2")
-        cache.delete("airkorea_realtime_station_values_v3")
-        cache.delete("airkorea_realtime_station_values_v4")
-        cache.delete("airkorea_realtime_station_values_v5")
-        cache.delete("latest_daily_station_values_v1")
-        cache.delete("korea_station_dust_response_v1")
-        cache.delete("korea_station_dust_response_v2")
-        cache.delete("korea_station_dust_response_v3")
+        bump_dust_cache_version()  # 측정값 캐시를 한 번에 무효화한다.
 
         self.stdout.write(self.style.SUCCESS(f"Realtime API rows: {len(values)}"))
         self.stdout.write(self.style.SUCCESS(f"Realtime DB rows created: {saved}"))
