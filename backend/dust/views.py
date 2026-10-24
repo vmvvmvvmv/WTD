@@ -10,7 +10,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from dust.api_errors import error_response
 from dust.airkorea_forecast import build_forecast_prediction, build_hourly_forecast_items
-from dust.config import AIRKOREA_SERVICE_KEY, KMA_API_KEY, KMA_ASOS_DAILY_URL, NAVER_LOCAL_SEARCH_URL, NAVER_MAP_CLIENT_ID, NAVER_SEARCH_CLIENT_ID, NAVER_SEARCH_CLIENT_SECRET
+from dust.config import AIRKOREA_SERVICE_KEY, KMA_API_KEY, KMA_ASOS_DAILY_URL, NAVER_MAP_CLIENT_ID
 from dust.current_dust_service import canonical_sido_name, select_current_dust
 from dust.external_api import public_api_get
 from dust.map_presentation import build_map_css_variables, build_map_ui_config
@@ -19,7 +19,7 @@ from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
 from dust.notification_registry import notification_device_response, upsert_notification_device
 from dust.services.common import _dfs_grid_from_lat_lng, _parse_measure_date, _to_float
 from dust.services.dust_history import _fetch_past_dust_items_by_station, _latest_past_item_date, _load_recent_realtime_hourly_dust, _load_stored_past_dust, _load_stored_realtime_daily_dust, _load_stored_realtime_hourly_dust, _merge_past_items, _store_past_dust_items
-from dust.services.places import _naver_coord, _strip_html
+from dust.services.places import PlaceSearchFailed, PlaceSearchUnavailable, search_naver_places
 from dust.services.stations import dust_cache_version, _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
 from dust.services.weather import _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
 from rest_framework.decorators import api_view
@@ -259,46 +259,16 @@ def naver_place_search(request):
     query = (request.GET.get("query") or "").strip()
     if len(query) < 1:
         return Response({"items": []})
-    if not NAVER_SEARCH_CLIENT_ID or not NAVER_SEARCH_CLIENT_SECRET:
-        logger.warning("Naver search credentials are not configured.")
-        return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
     try:
         display = max(1, min(int(request.GET.get("size") or 8), 10))
     except (TypeError, ValueError):
         display = 8
-
-    headers = {
-        "X-Naver-Client-Id": NAVER_SEARCH_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_SEARCH_CLIENT_SECRET,
-    }
     try:
-        response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=6)
-        data = response.json()
-    except Exception:
-        logger.exception("Naver place search request failed")
+        items = search_naver_places(query, display)
+    except PlaceSearchUnavailable:
+        return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
+    except PlaceSearchFailed:
         return error_response(502, "장소 검색에 실패했습니다.")
-
-    if response.status_code >= 400:
-        logger.warning("Naver place search returned %s", response.status_code)
-        return error_response(502, "장소 검색에 실패했습니다.")
-
-    items = []
-    for index, item in enumerate(data.get("items") or []):
-        lat = _naver_coord(item.get("mapy"))
-        lng = _naver_coord(item.get("mapx"))
-        if lat is None or lng is None:
-            continue
-        label = _strip_html(item.get("title")) or item.get("address") or query
-        items.append({
-            "id": f"naver:{item.get('mapx')}:{item.get('mapy')}:{index}",
-            "label": label,
-            "address": item.get("roadAddress") or item.get("address") or "",
-            "category": item.get("category") or "",
-            "lat": lat,
-            "lng": lng,
-            "source": "naver_local",
-        })
-
     return Response({"items": items})
 
 

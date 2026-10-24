@@ -45,9 +45,9 @@ const MAP_PREVIEW_MIN_HEIGHT = 156;
 // 지도 아래에 남겨야 하는 높이: 지도 링크 줄 44 + 섹션 아래 여백 20 + 스크롤 아래 여백 30 + 하단 탭 바 69
 const MAP_PREVIEW_BOTTOM_RESERVE = 44 + 20 + 30 + 69;
 
-const HOME_SECTION_TABS: { ai?: boolean; icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
+const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
   { icon: 'schedule', key: 'guide', label: '활동 가이드' },
-  { ai: true, icon: 'outfit', key: 'outfit', label: '추천 옷차림' },
+  { icon: 'outfit', key: 'outfit', label: '추천 옷차림' },
   { icon: 'map', key: 'map', label: '날씨 지도' },
 ];
 
@@ -491,7 +491,7 @@ export function HomePanel({
             const selected = tab.key === activeHomeSection;
             return (
               <Pressable
-                accessibilityLabel={tab.ai ? `${tab.label}, AI 추천` : tab.label}
+                accessibilityLabel={tab.label}
                 accessibilityRole="tab"
                 accessibilityState={{ selected }}
                 key={tab.key}
@@ -502,7 +502,6 @@ export function HomePanel({
                   ? <HomeTabSelectedIcon animate={sectionTabTouched && !reduceMotion} name={tab.icon} size={24} />
                   : <AppActionIcon name={tab.icon} size={24} style={styles.homeSectionTabIconMuted} />}
                 <View style={styles.homeSectionTabLabelRow}>
-                  {tab.ai && <Ionicons color={selected ? bauhausColors.blue : textColors.disabled} name="sparkles" size={11} />}
                   <Text style={[styles.homeSectionTabText, selected && styles.homeSectionTabTextSelected]}>{tab.label}</Text>
                 </View>
               </Pressable>
@@ -518,7 +517,7 @@ export function HomePanel({
 
         <Reanimated.View style={sectionPaneStyle}>
         <View style={activeHomeSection !== 'guide' && styles.homeSectionHidden}>
-          {/* 기본 가이드라는 것을 추천 옷차림의 'AI 추천' 줄과 같은 모양으로 알립니다. */}
+          {/* 일정이 없을 때는 기본 가이드라는 것을 먼저 알립니다. */}
           {activityGuideRows.length === 0 && (
             <View accessibilityLabel="기본 가이드. 오늘 등록된 일정이 없어 기본 가이드로 안내드립니다" accessible style={styles.defaultGuideSourceRow}>
               <Ionicons color={textColors.secondary} name="compass-outline" size={15} />
@@ -631,7 +630,7 @@ export function HomePanel({
             <Text numberOfLines={1} style={styles.homeSectionMeta}>
               {`지금부터 ${dayOutfitEvents[0].endTime === '23:59' ? '자정' : '밤 10시'}까지 날씨를 반영했어요`}
             </Text>
-            <OutfitCardContainer enabled={outfitEnabled} enhanceWithLlm events={dayOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
+            <OutfitCardContainer enabled={outfitEnabled} events={dayOutfitEvents} fallbackLocation={outfitFallbackLocation} figure={outfitFigure} sensitivity={outfitSensitivity} showBothFigures />
           </View>
         )}
 

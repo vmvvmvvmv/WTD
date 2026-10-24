@@ -7,6 +7,7 @@ import {
   CALENDAR_TIP_SEEN_STORAGE_KEY,
   CALENDAR_NOTIFICATION_IDS_STORAGE_KEY,
   DEFAULT_OUTFIT_SETTINGS,
+  DEVICE_ID_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
   MAP_RECENT_SEARCHES_STORAGE_KEY,
@@ -96,6 +97,19 @@ function saveString(key: string, value: string) {
     .catch((caught) => console.warn(`저장하지 못했습니다: ${key}`, caught));
   writeQueues.set(key, next);
   return next;
+}
+
+let deviceIdPromise: Promise<string> | null = null;
+
+// 메모로 일정 추가의 하루 사용 횟수를 기기별로 세는 데만 쓰는 임의 값입니다(서버에는 해시로만 남습니다).
+export function loadDeviceId() {
+  deviceIdPromise ??= safeGet(DEVICE_ID_STORAGE_KEY).then(async (stored) => {
+    if (stored && /^[0-9a-f]{32}$/.test(stored)) return stored;
+    const id = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    await saveString(DEVICE_ID_STORAGE_KEY, id);
+    return id;
+  });
+  return deviceIdPromise;
 }
 
 function saveJson(key: string, value: unknown) {

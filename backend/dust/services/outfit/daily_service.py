@@ -1,23 +1,13 @@
-import hashlib
-import json
-import logging
-from datetime import timedelta
-
 from django.utils import timezone
 
 from .aggregation import rain_condition
-from .constants import SYSTEM_PROMPT
 from .context_builder import OutfitContextError, OutfitRequest, build_outfit_request
 from .data_provider import load_schedule_snapshot
-from .llm_client import build_llm_client, llm_input_for
 from .occasion import classify_occasion
-from .repository import get_cached_recommendation, save_cached_recommendation
-from .response_parser import validate_llm_output
 from .rule_engine import build_rule_result, rain_window_label
-from .service import CACHE_TTL, OutfitDataUnavailable, _base_response, _llm_allowed
+from .service import CACHE_TTL, OutfitDataUnavailable, _base_response
 
 
-logger = logging.getLogger(__name__)
 MAX_DAILY_SCHEDULES = 12
 CONDITION_PRIORITY = {"snow": 5, "rain": 4, "strong_wind": 3, "showers": 2, "normal": 1}
 
@@ -28,7 +18,7 @@ def _requests(payload: dict) -> list[OutfitRequest]:
         raise OutfitContextError("schedules에는 하나 이상의 일정이 필요합니다.")
     if len(schedules) > MAX_DAILY_SCHEDULES:
         raise OutfitContextError(f"하루 일정은 최대 {MAX_DAILY_SCHEDULES}개까지 추천할 수 있습니다.")
-    shared = {"sensitivity": payload.get("sensitivity"), "mode": payload.get("mode")}
+    shared = {"sensitivity": payload.get("sensitivity")}
     result = []
     for schedule in schedules:
         if not isinstance(schedule, dict):
@@ -137,21 +127,7 @@ def _schedule_tip(request: OutfitRequest, rule_result: dict) -> dict | None:
     }
 
 
-def _cache_key(entries: list[tuple[OutfitRequest, dict]], rule_result: dict) -> str:
-    requests = [request for request, _result in entries]
-    value = {
-        # 제목 원문 대신 제목에서 판정한 occasion만 키에 넣는다(제목은 캐시에 저장하지 않는다).
-        "schedules": [(request.schedule_id, result["occasion"], request.start.strftime("%Y-%m-%dT%H"), request.activity_type, request.city, request.region) for request, result in entries],
-        "band": rule_result["outfit"]["band"],
-        "weather_condition": rule_result["weather_condition"],
-        "must_have": sorted((item["type"], item["level"]) for item in rule_result["must_have"]),
-        "sensitivity": requests[0].sensitivity,
-    }
-    digest = hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest()
-    return f"outfit:daily:v4:{digest}"
-
-
-def recommend_daily_outfit(payload: dict, *, client_key: str = "") -> dict:
+def recommend_daily_outfit(payload: dict) -> dict:
     requests = _requests(payload)
     entries = []
     for request in requests:
@@ -172,43 +148,8 @@ def recommend_daily_outfit(payload: dict, *, client_key: str = "") -> dict:
     schedule_tips = [tip for request, _snapshot, result in entries if (tip := _schedule_tip(request, result)) is not None]
     schedule_tips.sort(key=lambda tip: (-tip["severity"], tip["time"]))
     generated_at = timezone.now()
-    valid_until = generated_at + CACHE_TTL
-    rule_response = {
-        **_base_response(rule_result, generated_at, valid_until),
+    return {
+        **_base_response(rule_result, generated_at, generated_at + CACHE_TTL),
         "schedule_tips": schedule_tips,
         "total_schedules": len(entries),
     }
-    if requests[0].mode == "rule":
-        return rule_response
-
-    key = _cache_key([(request, result) for request, _snapshot, result in entries], rule_result)
-    cached = get_cached_recommendation(key)
-    if cached:
-        # 일정 제목이 담긴 schedule_tips는 캐시에 두지 않고, 이번 요청에서 계산한 값을 붙인다.
-        return {**cached, "schedule_tips": schedule_tips, "cached": True}
-    client = build_llm_client()
-    if client is None or not _llm_allowed(client_key):
-        return rule_response
-    activities = [
-        {
-            "time": request.start.strftime("%H:%M"),
-            "activity_type": result["activity_type"],
-            "occasion": result["occasion"],
-            "weather_condition": result["weather_condition"],
-            "must_have": [item["label"] for item in result["must_have"]],
-        }
-        for request, _snapshot, result in entries
-    ]
-    llm_input = llm_input_for(rule_result, entries[0][0], activities=activities)
-    try:
-        generated = client.generate(SYSTEM_PROMPT, llm_input)
-        validated = validate_llm_output(generated, llm_input=llm_input, must_have=rule_result["must_have"], temp_range=merged.get("temp_range"))
-        response = {**rule_response, "source": "llm", "summary": validated["summary"], "outfit_note": validated["outfit_note"], "layering_tip": validated["layering_tip"]}
-        response["must_have"] = [{**item, "reason": validated["reasons"][item["type"]]} for item in rule_result["must_have"]]
-    except Exception:
-        logger.warning("Daily outfit LLM failed validation; returning rule result.", exc_info=True)
-        response = rule_response
-    if response["source"] == "llm":
-        cacheable = {k: v for k, v in response.items() if k != "schedule_tips"}
-        save_cached_recommendation(key, cacheable, response["source"], valid_until)
-    return response

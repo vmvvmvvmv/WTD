@@ -119,6 +119,26 @@ export function searchNaverPlaces(params: { query: string; size?: number }) {
   });
 }
 
+export type MemoEventPlace = { address?: string; label: string; lat: number; lng: number; source: string };
+export type MemoEvent = {
+  activity_type: CalendarEvent['activityType'];
+  date: string;
+  end_date: string;
+  end_time: string;
+  place: MemoEventPlace | null;
+  place_text: string;
+  time: string;
+  title: string;
+};
+
+export function postMemoEvents(params: { deviceId: string; text: string }) {
+  return fetchJson<{ events?: MemoEvent[] }>('/dust/calendar/memo-events/', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Device-Id': params.deviceId },
+    body: JSON.stringify({ text: params.text }),
+  });
+}
+
 export function getHourlyWeather(params: { lat: number; lng: number; date: string; forecastHours?: number; storedOnly?: boolean }) {
   return fetchOptionalJson<{ items?: unknown[]; forecastItems?: unknown[] }>('/dust/weather/hourly/', {
     lat: params.lat,
@@ -178,7 +198,6 @@ function outfitSchedulePayload(event: CalendarEvent) {
 
 export function postOutfitRecommendation(params: {
   event: CalendarEvent;
-  mode: 'rule' | 'full';
   sensitivity: OutfitSensitivity;
   signal?: AbortSignal;
 }) {
@@ -189,14 +208,12 @@ export function postOutfitRecommendation(params: {
     body: JSON.stringify({
       ...outfitSchedulePayload(params.event),
       sensitivity: params.sensitivity,
-      mode: params.mode,
     }),
   });
 }
 
 export function postDailyOutfitRecommendation(params: {
   events: CalendarEvent[];
-  mode: 'rule' | 'full';
   sensitivity: OutfitSensitivity;
   signal?: AbortSignal;
 }) {
@@ -207,7 +224,6 @@ export function postDailyOutfitRecommendation(params: {
     body: JSON.stringify({
       schedules: params.events.map(outfitSchedulePayload),
       sensitivity: params.sensitivity,
-      mode: params.mode,
     }),
   });
 }

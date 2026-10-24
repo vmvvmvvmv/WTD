@@ -11,7 +11,7 @@ export type OutfitSettings = {
   sensitivity: OutfitSensitivity;
 };
 
-// 서버 옷차림 추천 응답(AI 또는 규칙 기반).
+// 서버 옷차림 추천 응답(단기예보 기반 규칙).
 export type OutfitRecommendation = {
   cached?: boolean;
   data_gaps: string[];
@@ -32,7 +32,7 @@ export type OutfitRecommendation = {
     top: string[];
   };
   outfit_note: string;
-  source: 'llm' | 'rule';
+  source: 'rule';
   schedule_tips?: Array<{
     items: string[];
     message: string;

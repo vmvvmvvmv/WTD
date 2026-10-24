@@ -235,25 +235,8 @@ class DustNotificationLog(models.Model):
         return f'{self.notification_type} {self.city} {self.region} {self.basis_key}'
 
 
-class OutfitRecommendationCache(models.Model):
-    cache_key = models.CharField(max_length=160, unique=True)
-    response_json = models.JSONField(default=dict)
-    source = models.CharField(max_length=12, default='rule')
-    created_at = models.DateTimeField(auto_now_add=True)
-    valid_until = models.DateTimeField()
-
-    class Meta:
-        db_table = 'outfit_recommendation_cache'
-        indexes = [
-            models.Index(fields=['valid_until'], name='outfit_cache_valid_idx'),
-        ]
-
-    def __str__(self):
-        return f'{self.source} {self.valid_until:%Y-%m-%d %H:%M}'
-
-
-# 사용자(접속 주소를 알아볼 수 없게 바꾼 값)별 하루 AI 호출 수. 서버 프로세스가 여러 개여도 같은 값을 세도록 DB에 둔다.
-# ponytail: 지난 날짜 행은 지우지 않음(하루·사용자당 1행). 쌓인 양이 문제 되면 정리 명령을 추가.
+# 메모로 일정 추가(AI)의 하루 사용 횟수. 기기 ID·접속 주소는 되돌릴 수 없게 바꾼 값(client_digest)으로만 둔다.
+# 서버 프로세스가 여러 개여도 같은 값을 세도록 DB에 두고, 30일 지난 행은 purge_old_records가 지운다.
 class LlmDailyUsage(models.Model):
     day = models.DateField()
     client_digest = models.CharField(max_length=24)

@@ -17,6 +17,7 @@ export const CALENDAR_EVENTS_STORAGE_KEY = 'dust.calendar-events';
 export const CALENDAR_NOTIFICATION_IDS_STORAGE_KEY = 'dust.calendar-notification-ids';
 export const TUTORIAL_SEEN_STORAGE_KEY = 'dust.tutorial-seen';
 export const CALENDAR_TIP_SEEN_STORAGE_KEY = 'dust.calendar-tip-seen';
+export const DEVICE_ID_STORAGE_KEY = 'dust.device-id';
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   enabled: true,
