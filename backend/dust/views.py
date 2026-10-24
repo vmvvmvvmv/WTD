@@ -387,7 +387,8 @@ def hourly_weather(request):
         forecast_hours = int(request.GET.get("forecast_hours") or 12)
     except (TypeError, ValueError):
         forecast_hours = 12
-    forecast_hours = max(1, min(forecast_hours, 72))
+    # 단기예보 끝(글피 자정)까지 줄 수 있게 96시간까지 받는다(수집기와 같은 상한).
+    forecast_hours = max(1, min(forecast_hours, 96))
     if lat is None or lng is None:
         return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 

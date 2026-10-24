@@ -40,7 +40,7 @@ export async function loadStoredWeather(lat: number, lng: number, todayDateLabel
   const yesterdayCompact = toCompactDate(addDays(new Date(), -1));
   const midTermEndCompact = toCompactDate(addDays(new Date(), 14));
   const [weatherHourlyData, yesterdayHourlyData, midTermResult] = await Promise.all([
-    getHourlyWeather({ date: todayCompact, forecastHours: 72, lat, lng }),
+    getHourlyWeather({ date: todayCompact, forecastHours: 96, lat, lng }),
     getHourlyWeather({ date: yesterdayCompact, lat, lng, storedOnly: true }).catch(() => null),
     getMidTermWeather({ endDate: midTermEndCompact, lat, lng, startDate: todayCompact })
       .then((data) => ({ data, error: null as unknown }))
