@@ -134,3 +134,44 @@ class PlaceLookupRobustnessTests(TestCase):
             memo_events._attach_places(events)
         self.assertLess(time.monotonic() - started, 1.5)
         self.assertTrue(all(event["place"] is None for event in events))
+
+
+@patch.dict(os.environ, {"APP_TEST_TOKEN": "", "LLM_PROVIDER": "gemini", "LLM_API_KEY": "test", "LLM_ENABLED": "true"})
+class MemoSharedLimitTests(TestCase):
+    URL = "/dust/calendar/memo-events/"
+
+    def _post(self, device="d1"):
+        return self.client.post(self.URL, data={"text": "내일 3시 약속"}, content_type="application/json", HTTP_X_DEVICE_ID=device)
+
+    def _device_count(self, device="d1"):
+        from django.utils import timezone
+
+        from dust.models import LlmDailyUsage
+        from dust.services.memo_events import _digest
+        row = LlmDailyUsage.objects.filter(day=timezone.localdate(), client_digest=_digest("device", device)).first()
+        return row.count if row else 0
+
+    @patch("dust.services.memo_events.requests.post")
+    def test_google_rate_limit_is_busy_and_not_charged(self, post):
+        from unittest.mock import Mock
+        post.return_value = Mock(status_code=429)
+        response = self._post()
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], "ai_busy")
+        self.assertEqual(self._device_count(), 0)
+
+    @patch("dust.services.memo_events._ask_gemini", side_effect=__import__("dust.services.memo_events", fromlist=["MemoFailed"]).MemoFailed("x"))
+    def test_ai_failure_is_not_charged(self, _ask):
+        self.assertEqual(self._post().status_code, 502)
+        self.assertEqual(self._device_count(), 0)
+
+    @patch.dict(os.environ, {"MEMO_GLOBAL_DAILY_LIMIT": "2"})
+    @patch("dust.services.memo_events._ask_gemini", return_value={"events": []})
+    def test_shared_daily_cap_stops_everyone(self, _ask):
+        self.assertEqual(self._post("a").status_code, 200)
+        self.assertEqual(self._post("b").status_code, 200)
+        response = self._post("c")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["code"], "ai_busy")
+        # 막힌 요청은 그 기기 횟수에 세지 않는다.
+        self.assertEqual(self._device_count("c"), 0)
