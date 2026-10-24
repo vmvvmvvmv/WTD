@@ -61,3 +61,16 @@ test('상한을 넘으면 가장 오래된 일정부터 지운다', async () => 
   assert.ok(!next.some((event) => event.id === 'old'));
   assert.equal(next.at(-1).id, 'new');
 });
+
+test('매년·매월 반복도 종료일을 지키고, 기본 종료일이면 30년·120개월 동안 반복한다', async () => {
+  const { nextDefaultRepeatEndDate } = await import('./calendarRepeat.ts');
+  const birthday = { ...base, date: '2026-03-15', endDate: '2026-03-15' };
+  const yearly = buildRepeatedEvents(birthday, { endDate: nextDefaultRepeatEndDate('2026-03-15', 'yearly'), mode: 'yearly', weekdays: [] });
+  assert.equal(yearly.length, 30);
+  assert.equal(yearly.at(-1).date, '2055-03-15');
+  const monthly = buildRepeatedEvents(birthday, { endDate: nextDefaultRepeatEndDate('2026-03-15', 'monthly'), mode: 'monthly', weekdays: [] });
+  assert.equal(monthly.length, 120);
+  assert.equal(buildRepeatedEvents(birthday, { endDate: '2028-12-31', mode: 'yearly', weekdays: [] }).length, 3);
+  assert.equal(buildRepeatedEvents(birthday, { endDate: '2026-06-14', mode: 'monthly', weekdays: [] }).at(-1).date, '2026-05-15');
+  assert.equal(nextDefaultRepeatEndDate('2026-03-15', 'daily'), '2026-04-14');
+});
