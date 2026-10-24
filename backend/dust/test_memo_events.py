@@ -96,7 +96,7 @@ class MemoEndpointTests(TestCase):
 
     @patch.dict(os.environ, {"LLM_API_KEY": ""})
     def test_unconfigured_ai_returns_503(self):
-        self.assertEqual(self._post("내일 3시 약속").status_code, 503)
+        self.assertEqual(self._post("내일 오전쯤 약속").status_code, 503)
 
     @patch("dust.services.memo_events._ask_gemini", return_value={"events": []})
     def test_quota_returns_429(self, _ask):
@@ -141,7 +141,7 @@ class MemoSharedLimitTests(TestCase):
     URL = "/dust/calendar/memo-events/"
 
     def _post(self, device="d1"):
-        return self.client.post(self.URL, data={"text": "내일 3시 약속"}, content_type="application/json", HTTP_X_DEVICE_ID=device)
+        return self.client.post(self.URL, data={"text": "내일 오전쯤 약속"}, content_type="application/json", HTTP_X_DEVICE_ID=device)
 
     def _device_count(self, device="d1"):
         from django.utils import timezone
@@ -175,3 +175,81 @@ class MemoSharedLimitTests(TestCase):
         self.assertEqual(response.json()["code"], "ai_busy")
         # 막힌 요청은 그 기기 횟수에 세지 않는다.
         self.assertEqual(self._device_count("c"), 0)
+
+
+class MemoPrivacyTests(TestCase):
+    def test_personal_info_is_removed_and_dates_times_survive(self):
+        from dust.services.memo_privacy import mask_memo
+        text = ("내일 3시 김민수 010-1234-5678 연락, 메일 a.b@test.co.kr, 주민 900101-1234567, 카드 1234 5678 9012 3456, "
+                "계좌 110-123-456789, 101동 1203호, 여권 M12345678, 2026-10-25 15:00 2호선")
+        masked, tokens = mask_memo(text)
+        for leaked in ("010-1234-5678", "a.b@test.co.kr", "900101-1234567", "1234 5678 9012 3456", "110-123-456789", "1203호", "M12345678"):
+            self.assertNotIn(leaked, masked)
+        for kept in ("내일 3시", "2026-10-25 15:00", "2호선"):
+            self.assertIn(kept, masked)
+        self.assertEqual(tokens, {})
+
+    def test_sensitive_words_round_trip(self):
+        from dust.services.memo_privacy import mask_memo, unmask
+        masked, tokens = mask_memo("내일 3시 강남 산부인과 진료, 금요일 정신건강의학과 상담센터")
+        self.assertNotIn("산부인과", masked)
+        self.assertNotIn("정신건강의학과", masked)
+        self.assertEqual(unmask("⟦1⟧ 진료", tokens), "산부인과 진료")
+        self.assertEqual(unmask("⟦9⟧ 진료", tokens), "진료")
+
+    @patch.dict(os.environ, {"APP_TEST_TOKEN": "", "LLM_PROVIDER": "gemini", "LLM_API_KEY": "test", "LLM_ENABLED": "true"})
+    @patch("dust.services.memo_events.search_naver_places", return_value=[])
+    @patch("dust.services.memo_events._ask_gemini")
+    def test_endpoint_sends_masked_text_and_restores_title(self, ask, _search):
+        ask.return_value = {"events": [{"title": "⟦1⟧ 진료", "date": "2099-01-01", "time": "15:00", "end_date": "", "end_time": "", "place": "강남 ⟦1⟧", "activity_type": "indoor"}]}
+        with patch("dust.services.memo_events.timezone.localtime", return_value=datetime(2098, 12, 31, 10, 0)):
+            response = self.client.post("/dust/calendar/memo-events/", data={"text": "내일 오후쯤 강남 산부인과 진료 010-1234-5678"}, content_type="application/json")
+        sent = ask.call_args.args[2]
+        self.assertNotIn("산부인과", sent)
+        self.assertNotIn("010-1234-5678", sent)
+        event = response.json()["events"][0]
+        self.assertEqual(event["title"], "산부인과 진료")
+        self.assertEqual(event["place_text"], "강남 산부인과")
+
+
+class MemoUnmaskLabelTests(TestCase):
+    def test_copied_labels_are_dropped(self):
+        from dust.services.memo_privacy import unmask
+        self.assertEqual(unmask("상세주소 앞", {}), "")
+        self.assertEqual(unmask("[전화번호]로 연락", {}), "로 연락")
+        self.assertEqual(unmask("번호표 받기", {}), "번호표 받기")
+
+
+class MemoQuickParseTests(TestCase):
+    NOW = datetime(2026, 10, 25, 13, 0)  # 일요일 오후 1시
+
+    def _parse(self, text):
+        from dust.services.memo_quick import quick_parse
+        result = quick_parse(text, self.NOW)
+        return None if result is None else [(e["date"], e["time"], e["end_time"], e["title"], e["place"], e["activity_type"]) for e in result["events"]]
+
+    def test_clear_memos_are_parsed_without_ai(self):
+        self.assertEqual(self._parse("내일 3시에 강남역 친구 약속"), [("2026-10-26", "15:00", "", "친구 약속", "강남역", "indoor")])
+        self.assertEqual(self._parse("토요일 오전 7시 한강공원 러닝"), [("2026-10-31", "07:00", "", "러닝", "한강공원", "outdoor")])
+        self.assertEqual(self._parse("다음 주 월요일 2시~4시 회의"), [("2026-10-26", "14:00", "16:00", "회의", "", "indoor")])
+        self.assertEqual(self._parse("28일 저녁 8시 회식"), [("2026-10-28", "20:00", "", "회식", "", "indoor")])
+        self.assertEqual(self._parse("10/30 오후 2시 출장"), [("2026-10-30", "14:00", "", "출장", "", "transit")])
+        self.assertEqual(self._parse("모레 12시 점심, 2시 카페 공부"), [("2026-10-27", "12:00", "", "점심", "", "indoor"), ("2026-10-27", "14:00", "", "공부", "카페", "indoor")])
+        # 오늘(일요일) 이미 지난 시각의 '일요일'은 다음 주
+        self.assertEqual(self._parse("일요일 오전 10시 교회")[0][0], "2026-11-01")
+
+    def test_ambiguous_memos_go_to_ai(self):
+        for text in ("토요일 7시 러닝", "내일 회의", "강남역에서 친구 만나기", "2월 30일 3시 회의", "내일 3시", "내일 오후쯤 약속"):
+            self.assertIsNone(self._parse(text), text)
+
+    @patch.dict(os.environ, {"APP_TEST_TOKEN": "", "LLM_PROVIDER": "", "LLM_API_KEY": ""})
+    @patch("dust.services.memo_events.search_naver_places", return_value=[])
+    @patch("dust.services.memo_events._ask_gemini")
+    def test_quick_path_needs_no_ai_and_no_quota(self, ask, _search):
+        from dust.models import LlmDailyUsage
+        with patch("dust.services.memo_events.timezone.localtime", return_value=self.NOW):
+            response = self.client.post("/dust/calendar/memo-events/", data={"text": "내일 3시 친구 약속"}, content_type="application/json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["events"][0]["title"], "친구 약속")
+        ask.assert_not_called()
+        self.assertFalse(LlmDailyUsage.objects.exists())

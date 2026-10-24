@@ -215,7 +215,7 @@ export const calendarStyles = StyleSheet.create({
   calendarAddDial: { alignItems: 'flex-end', gap: 10, paddingBottom: 58 + 12, position: 'absolute', right: 18, zIndex: 7 },
   calendarAddDialBackdrop: { backgroundColor: 'rgba(255, 255, 255, 0.72)', bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 5 },
   calendarAddDialOption: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, height: 46, paddingHorizontal: 18, ...bauhausMediumShadow },
-  calendarAddDialText: { fontSize: 15, fontWeight: '800' },
+  calendarAddDialText: { fontSize: 14, fontWeight: '800' },
   calendarFloatingAddButtonDocked: { bottom: 0, position: 'relative', right: 0 },
   calendarEditorSaveFab: { alignItems: 'center', borderRadius: 999, bottom: 24, elevation: 7, height: 56, justifyContent: 'center', position: 'absolute', right: 20, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, width: 56, zIndex: 8 },
   calendarEventRow: { alignItems: 'center', borderTopColor: '#eef1f5', borderTopWidth: 1, flexDirection: 'row', gap: 10, minHeight: 66, paddingVertical: 9 },

@@ -1,13 +1,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ApiHttpError, postMemoEvents } from '../../api/dustEndpoints';
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
 import { useCalendarLocationForecasts } from '../../features/calendar/useCalendarLocationForecasts';
-import { loadDeviceId } from '../../storage/appStorage';
+import { loadDeviceId, loadMemoHistory, saveMemoHistory } from '../../storage/appStorage';
 import { styles as appStyles } from '../../styles/appStyles';
 import { accentTone } from '../../theme/appTheme';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
@@ -17,13 +17,17 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import { useKeyboardHeight } from '../shared/BottomToast';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import type { CalendarLocationForecast } from './calendarForecast';
-import { memoEventToCalendarEvent, memoSuggestions } from './calendarMemo';
+import { memoEventToCalendarEvent, memoSuggestions, withMemoHistory } from './calendarMemo';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import { dayLabel } from './calendarUtils';
 
 const MAX_LENGTH = 500;
-// 아직 일정이 없을 때 보여 줄 예시입니다. 일정이 쌓이면 자주·최근에 쓴 일정으로 바뀝니다.
-const EXAMPLES = ['내일 오후 3시 친구 약속', '토요일 오전 7시 러닝', '다음 주 월요일 오후 2시 회의'];
+const CAUTIONS = [
+  '연락처·주소 같은 개인정보와 병원 같은 민감한 단어는 가려서 보내지만, 모두 가려지지는 않아요.',
+  'AI가 날짜나 시간을 잘못 읽을 수 있어요. 추가 전에 꼭 확인하세요.',
+];
+// 주의사항 첫 줄은 연한 빨간색으로 강조합니다(경고 빨강 #E05263보다 연하게).
+const CAUTION_TONE = '#EE8C97';
 const ACTIVITY_ICON = { indoor: 'activityIndoor', outdoor: 'activityOutdoor', transit: 'activityTransit' } as const;
 const ACTIVITY_LABEL = { indoor: '실내', outdoor: '실외', transit: '이동' } as const;
 
@@ -31,7 +35,7 @@ function errorMessage(error: unknown) {
   if (error instanceof ApiHttpError) {
     if (error.status === 429) return '오늘은 다 썼어요. 내일 다시 써 주세요.';
     // 503: AI 설정이 없거나, 앱 전체가 함께 쓰는 AI 한도가 찬 경우.
-    if (error.status === 503) return '지금 AI 사용량이 많아요. 잠시 뒤 다시 하거나 직접 입력을 써 주세요.';
+    if (error.status === 503) return '지금 AI 사용량이 많아요. 잠시 뒤 다시 하거나 직접 일정 등록을 써 주세요.';
   }
   return '일정으로 바꾸지 못했어요. 잠시 뒤 다시 해 주세요.';
 }
@@ -116,6 +120,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   todayDateLabel: string;
 }) {
   const insets = useSafeAreaInsets();
+  const window = useWindowDimensions();
   const inputRef = useRef<TextInput>(null);
   // 안드로이드의 투명 모달은 키보드가 떠도 창이 줄지 않아서, 키보드 높이만큼 시트를 직접 올립니다.
   // 이때 알려 주는 키보드 높이에는 아래 내비게이션 영역이 빠져 있어 insets.bottom을 더합니다.
@@ -125,6 +130,17 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [showCautions, setShowCautions] = useState(false);
+  // 전에 적은 메모(이 휴대폰에만 저장). 입력칸 아래 칩으로 보여 주고, 누르면 다시 쓸 수 있습니다.
+  const [memoHistory, setMemoHistory] = useState<string[]>([]);
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    loadMemoHistory().then((history) => {
+      if (!cancelled) setMemoHistory(history);
+    });
+    return () => { cancelled = true; };
+  }, [isOpen]);
   // 요청마다 번호를 매겨, 닫았거나 새로 보낸 뒤에 도착한 예전 응답은 버립니다(다시 열었을 때 옛 미리보기가 뜨지 않게).
   const requestIdRef = useRef(0);
   const isConvertingRef = useRef(false);
@@ -165,6 +181,9 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
         return;
       }
       isAddedRef.current = false;
+      const history = withMemoHistory(memoHistory, text);
+      setMemoHistory(history);
+      void saveMemoHistory(history);
       setEvents(next);
       setSelectedIds(new Set(next.map((event) => event.id)));
     } catch (error) {
@@ -204,12 +223,19 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
     close();
   };
 
+  const removeHistory = (memo: string) => {
+    const next = memoHistory.filter((item) => item !== memo);
+    setMemoHistory(next);
+    void saveMemoHistory(next);
+  };
+
   const appendExample = (example: string) => {
     setText((current) => (current.trim() ? `${current.trimEnd()}\n${example}` : example).slice(0, MAX_LENGTH));
     inputRef.current?.focus();
   };
 
   const suggestions = useMemo(() => memoSuggestions(calendarEvents), [calendarEvents]);
+  const chipItems = memoHistory.length ? memoHistory : suggestions;
   const selectedCount = events ? events.filter((event) => selectedIds.has(event.id)).length : 0;
   const canConvert = !!text.trim() && !isLoading;
 
@@ -225,18 +251,22 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
       visible={isOpen}
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[local.root, Platform.OS === 'android' && keyboardHeight > 0 && { paddingBottom: keyboardHeight + insets.bottom }]}>
-        <Pressable accessibilityLabel="AI로 입력 닫기" onPress={close} style={local.backdrop} />
-        <View style={[local.sheet, { paddingBottom: keyboardHeight > 0 ? 16 : Math.max(16, insets.bottom + 10) }]}>
+        <Pressable accessibilityLabel="AI 일정 등록 닫기" onPress={close} style={local.backdrop} />
+        <View
+          style={[local.sheet, {
+            // 키보드가 올라와도 제목·닫기 버튼이 상태 표시줄 밑으로 밀려 올라가지 않게 높이를 화면 안으로 묶고, 가운데 내용은 스크롤합니다.
+            maxHeight: window.height - insets.top - 8 - (Platform.OS === 'android' && keyboardHeight > 0 ? keyboardHeight + insets.bottom : 0),
+            paddingBottom: keyboardHeight > 0 ? 16 : Math.max(16, insets.bottom + 10),
+          }]}
+        >
           <View style={local.handle} />
           <View style={local.header}>
-            <Text style={local.title}>{events ? '이렇게 추가할까요?' : 'AI로 입력'}</Text>
+            <Text style={local.title}>{events ? '이렇게 추가할까요?' : 'AI 일정 등록'}</Text>
             <Pressable accessibilityLabel="닫기" hitSlop={10} onPress={close} style={({ pressed }) => pressed && appStyles.pressedFeedback}>
               <Ionicons color={textColors.secondary} name="close" size={26} />
             </Pressable>
           </View>
-          <Text style={local.subtitle}>
-            {events ? '카드를 누르면 고칠 수 있어요.' : '날짜·시간·장소를 편하게 적으면 AI가 일정으로 바꿔 드려요.'}
-          </Text>
+          {!!events && <Text style={local.subtitle}>AI가 틀릴 수 있어요. 확인하고 카드를 눌러 고치세요.</Text>}
 
           {events ? (
             <ScrollView contentContainerStyle={local.list} style={local.listScroll}>
@@ -252,35 +282,66 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
               ))}
             </ScrollView>
           ) : (
-            <>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={local.inputScroll}>
               <View style={local.inputBox}>
                 <TextInput
                   editable={!isLoading}
                   maxLength={MAX_LENGTH}
                   multiline
                   onChangeText={setText}
-                  placeholder="예) 내일 3시 강남역 친구 만남"
+                  placeholder="날짜·시간·장소를 적어 주세요
+예) 내일 3시 강남역 친구 만남"
                   placeholderTextColor={textColors.disabled}
                   ref={inputRef}
                   style={local.input}
                   textAlignVertical="top"
                   value={text}
                 />
-                <Text style={local.counter}>{`${text.length}/${MAX_LENGTH}`}</Text>
+                {text.length > MAX_LENGTH - 100 && <Text style={local.counter}>{`${text.length}/${MAX_LENGTH}`}</Text>}
               </View>
-              <Text style={local.chipsLabel}>{suggestions.length ? '자주·최근에 쓴 일정' : '이렇게 적어 보세요'}</Text>
+              {chipItems.length > 0 && (
               <ScrollView contentContainerStyle={local.chips} horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
-                {(suggestions.length ? suggestions : EXAMPLES).map((example) => (
-                  <Pressable disabled={isLoading} key={example} onPress={() => appendExample(example)} style={({ pressed }) => [local.chip, pressed && appStyles.pressedFeedback]}>
-                    <Text style={local.chipText}>{example}</Text>
-                  </Pressable>
+                {/* 전에 적은 메모가 먼저, 없으면 자주 쓴 일정. 둘 다 없으면 칩 줄을 보이지 않습니다(기본 예시는 두지 않음). */}
+                {chipItems.map((example) => (
+                  <View key={example} style={local.chipWrap}>
+                    <Pressable disabled={isLoading} onPress={() => appendExample(example)} style={({ pressed }) => [local.chip, memoHistory.length > 0 && local.chipWithRemove, pressed && appStyles.pressedFeedback]}>
+                      <Text numberOfLines={1} style={local.chipText}>{example.replace(/\s*\n\s*/g, ' · ')}</Text>
+                    </Pressable>
+                    {/* 전에 적은 메모만 지울 수 있습니다(자주 쓴 일정·예시는 저장된 기록이 아님). */}
+                    {memoHistory.length > 0 && (
+                      <Pressable
+                        accessibilityLabel={`${example} 기록 지우기`}
+                        hitSlop={8}
+                        onPress={() => removeHistory(example)}
+                        style={({ pressed }) => [local.chipRemove, pressed && appStyles.pressedFeedback]}
+                      >
+                        <Ionicons color={accentTone} name="close" size={14} />
+                      </Pressable>
+                    )}
+                  </View>
                 ))}
               </ScrollView>
-              <View style={local.notice}>
-                <Ionicons color={textColors.muted} name="lock-closed-outline" size={13} />
-                <Text style={local.noticeText}>Google AI로 보내 정리해요 · 메모는 저장하지 않아요</Text>
-              </View>
-            </>
+              )}
+              {/* AI로 보내기 전 주의사항은 한 줄로 두고, 누르면 펼쳐 봅니다. 서버도 개인정보와 민감한 단어를 가려서 보냅니다. */}
+              <Pressable
+                accessibilityHint="눌러서 주의사항 보기"
+                accessibilityRole="button"
+                accessibilityState={{ expanded: showCautions }}
+                hitSlop={6}
+                onPress={() => setShowCautions((current) => !current)}
+                style={local.notice}
+              >
+                <Ionicons color={CAUTION_TONE} name="lock-closed-outline" size={13} />
+                <Text style={[local.noticeText, local.noticeStrong]}>Google AI로 정리합니다. 민감한 개인정보는 적지 마세요.</Text>
+                <Ionicons color={CAUTION_TONE} name={showCautions ? 'chevron-up' : 'chevron-down'} size={14} />
+              </Pressable>
+              {showCautions && CAUTIONS.map((caution) => (
+                <View key={caution} style={local.cautionRow}>
+                  <Text style={local.noticeBullet}>·</Text>
+                  <Text style={local.cautionText}>{caution}</Text>
+                </View>
+              ))}
+            </ScrollView>
           )}
 
           {!!message && <Text style={local.message}>{message}</Text>}
@@ -333,21 +394,29 @@ const local = StyleSheet.create({
   cardWeather: { color: textColors.primary, flexShrink: 1, fontSize: 13, fontWeight: '700' },
   check: { alignItems: 'center', borderColor: bauhausColors.border, borderRadius: 999, borderWidth: 2, height: 26, justifyContent: 'center', width: 26 },
   checkOn: { backgroundColor: accentTone, borderColor: accentTone },
-  chip: { backgroundColor: bauhausColors.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
+  chip: { backgroundColor: bauhausColors.blueSoft, borderRadius: 999, maxWidth: 240, paddingHorizontal: 12, paddingVertical: 6 },
+  // 기록 칩: 글자 부분과 × 부분을 한 알약 모양으로 붙입니다.
+  chipRemove: { alignItems: 'center', backgroundColor: bauhausColors.blueSoft, borderBottomRightRadius: 999, borderTopRightRadius: 999, justifyContent: 'center', paddingLeft: 2, paddingRight: 10 },
+  chipWithRemove: { borderBottomRightRadius: 0, borderTopRightRadius: 0, paddingRight: 6 },
+  chipWrap: { flexDirection: 'row' },
   chipText: { color: accentTone, fontSize: 13, fontWeight: '700' },
-  chips: { gap: 8, paddingBottom: 10, paddingTop: 6 },
-  chipsLabel: { color: textColors.muted, fontSize: 12, fontWeight: '700', marginTop: 12 },
+  chips: { gap: 8, paddingVertical: 12 },
   counter: { alignSelf: 'flex-end', color: textColors.muted, fontSize: 12, fontWeight: '600' },
   disabled: { opacity: 0.4 },
   handle: { alignSelf: 'center', backgroundColor: bauhausColors.border, borderRadius: 3, height: 5, marginBottom: 14, width: 38 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
-  input: { color: textColors.primary, fontSize: 16, fontWeight: '600', lineHeight: 24, maxHeight: 200, minHeight: 96, padding: 0 },
+  inputScroll: { flexShrink: 1 },
+  input: { color: textColors.primary, fontSize: 16, fontWeight: '600', lineHeight: 24, maxHeight: 200, minHeight: 80, padding: 0 },
   inputBox: { backgroundColor: '#f5f7fa', borderRadius: 16, marginTop: 14, paddingHorizontal: 14, paddingBottom: 8, paddingTop: 12 },
   list: { gap: 10, paddingVertical: 14 },
-  listScroll: { maxHeight: 420 },
+  listScroll: { flexShrink: 1, maxHeight: 420 },
   message: { color: semanticColors.weather.caution.tone, fontSize: 13, fontWeight: '700', marginTop: 8 },
+  cautionRow: { flexDirection: 'row', gap: 5, marginTop: 4, paddingLeft: 18 },
+  cautionText: { color: textColors.muted, flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
   notice: { alignItems: 'center', flexDirection: 'row', gap: 5 },
-  noticeText: { color: textColors.muted, fontSize: 12, fontWeight: '600' },
+  noticeBullet: { color: textColors.muted, fontSize: 12, fontWeight: '800', lineHeight: 17 },
+  noticeStrong: { color: CAUTION_TONE, fontWeight: '600' },
+  noticeText: { color: textColors.muted, flexShrink: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
   primary: { alignItems: 'center', backgroundColor: accentTone, borderRadius: 999, justifyContent: 'center', minHeight: 52, paddingHorizontal: 18 },
   primaryFlex: { flex: 1 },
   primaryText: { color: '#ffffff', fontSize: 16, fontWeight: '700' },
@@ -356,5 +425,5 @@ const local = StyleSheet.create({
   secondaryText: { color: textColors.secondary, fontSize: 15, fontWeight: '700' },
   sheet: { backgroundColor: bauhausColors.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 20, paddingTop: 10 },
   subtitle: { color: textColors.secondary, fontSize: 14, fontWeight: '600', marginTop: 4 },
-  title: { color: textColors.heading, fontSize: 21, fontWeight: '900' },
+  title: { color: textColors.heading, fontSize: 18, fontWeight: '900' },
 });
