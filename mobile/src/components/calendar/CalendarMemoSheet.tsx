@@ -204,11 +204,11 @@ export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByE
       visible={isOpen}
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[local.root, Platform.OS === 'android' && keyboardHeight > 0 && { paddingBottom: keyboardHeight + insets.bottom }]}>
-        <Pressable accessibilityLabel="메모로 추가 닫기" onPress={close} style={local.backdrop} />
+        <Pressable accessibilityLabel="AI로 정리 닫기" onPress={close} style={local.backdrop} />
         <View style={[local.sheet, { paddingBottom: keyboardHeight > 0 ? 16 : Math.max(16, insets.bottom + 10) }]}>
           <View style={local.handle} />
           <View style={local.header}>
-            <Text style={local.title}>{events ? '이렇게 추가할까요?' : '메모로 추가'}</Text>
+            <Text style={local.title}>{events ? '이렇게 추가할까요?' : 'AI로 정리'}</Text>
             <Pressable accessibilityLabel="닫기" hitSlop={10} onPress={close} style={({ pressed }) => pressed && appStyles.pressedFeedback}>
               <Ionicons color={textColors.secondary} name="close" size={26} />
             </Pressable>

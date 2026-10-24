@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
@@ -13,6 +12,7 @@ import { BottomToast } from '../shared/BottomToast';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
+import { CalendarAddMenu } from './CalendarAddMenu';
 import { CalendarEventEditor } from './CalendarEventEditor';
 import { CalendarMemoSheet } from './CalendarMemoSheet';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
@@ -81,6 +81,7 @@ export function CalendarPanel({
   const draft = useCalendarEventDraft(todayDateLabel, defaultLocation);
   const sheet = useCalendarDaySheet(windowSize.height);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
+  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [toast, setToast] = useState({ id: 0, message: '' });
   // 메모 미리보기에서 고치려고 연 일정이 저장되면, 미리보기에서 그 일정을 빼려고 부릅니다.
   const memoEditSavedRef = useRef<(() => void) | null>(null);
@@ -337,22 +338,9 @@ export function CalendarPanel({
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
       <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
-        {/* 일정 추가(+) 옆에 두어 '일정을 넣는 두 가지 방법'으로 함께 보이게 합니다. 날짜와 상관없이 메모의 날짜로 들어갑니다.
-            날짜 시트가 열리면 버튼이 마지막 주 날짜 칸을 가려서 숨깁니다. */}
-        {!sheet.isOpen && (
-          <Pressable
-            accessibilityLabel="메모로 일정 추가"
-            accessibilityRole="button"
-            onPress={() => setIsMemoOpen(true)}
-            style={({ pressed }) => [styles.calendarFloatingMemoButton, { backgroundColor: accentTone, shadowColor: accentTone }, pressed && styles.pressedFeedback]}
-          >
-            <Ionicons color="#ffffff" name="sparkles" size={16} />
-            <Text style={styles.calendarFloatingMemoText}>메모로 추가</Text>
-          </Pressable>
-        )}
         <Pressable
           accessibilityLabel="일정 추가"
-          onPress={() => draft.openEditor(selectedDate)}
+          onPress={() => setIsAddMenuOpen(true)}
           ref={tutorialTarget('calendarAdd')}
           style={({ pressed }) => [
             styles.calendarFloatingAddButton,
@@ -365,6 +353,18 @@ export function CalendarPanel({
         </Pressable>
       </Reanimated.View>
 
+      <CalendarAddMenu
+        isOpen={isAddMenuOpen}
+        onClose={() => setIsAddMenuOpen(false)}
+        onDirect={() => {
+          setIsAddMenuOpen(false);
+          draft.openEditor(selectedDate);
+        }}
+        onMemo={() => {
+          setIsAddMenuOpen(false);
+          setIsMemoOpen(true);
+        }}
+      />
       <CalendarMemoSheet
         isOpen={isMemoOpen}
         onAdd={addMemoEvents}
