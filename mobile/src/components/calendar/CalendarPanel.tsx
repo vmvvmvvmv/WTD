@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, BackHandler, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
@@ -81,6 +81,17 @@ export function CalendarPanel({
   const sheet = useCalendarDaySheet(windowSize.height);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
+  // Android 뒤로가기: 펼친 일정 추가 버튼 → 날짜 시트 순서로 닫고, 둘 다 닫혀 있으면 앱 쪽 처리(홈으로)로 넘깁니다.
+  useEffect(() => {
+    if (!isAddMenuOpen && !sheet.isOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (isAddMenuOpen) setIsAddMenuOpen(false);
+      else sheet.setIsOpen(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isAddMenuOpen, sheet.isOpen, sheet.setIsOpen]);
+
   // AI 일정 등록으로 추가한 뒤 잠깐 띄우는 알림. '되돌리기'를 누르면 방금 넣은 일정을 모두 뺍니다.
   const [addedNotice, setAddedNotice] = useState<{ ids: string[]; key: number } | null>(null);
   useEffect(() => {
