@@ -9,8 +9,9 @@ export type CalendarRepeatRule = {
   weekdays: number[];
 };
 
-const MAX_YEARLY_OCCURRENCES = 5;
-const MAX_MONTHLY_OCCURRENCES = 24;
+// 생일·기념일처럼 오래 가는 반복을 위해 넉넉히 둔다. 종료일이 먼저 오면 거기서 멈춘다.
+const MAX_YEARLY_OCCURRENCES = 30;
+const MAX_MONTHLY_OCCURRENCES = 120;
 const MAX_DAILY_OCCURRENCES = 370;
 const MAX_WEEKLY_OCCURRENCES = 160;
 const MAX_REPEAT_SCAN_DAYS = 3660;
@@ -53,7 +54,9 @@ export function buildRepeatedEvents(base: CalendarEvent, rule: CalendarRepeatRul
   if (rule.mode === 'yearly') {
     for (let index = 0; index < MAX_YEARLY_OCCURRENCES; index += 1) {
       const year = parts.year + index;
-      events.push(createOccurrence(repeatBase, formatDate(year, parts.month, clampDay(year, parts.month, parts.day))));
+      const date = formatDate(year, parts.month, clampDay(year, parts.month, parts.day));
+      if (index > 0 && date > rule.endDate) break;
+      events.push(createOccurrence(repeatBase, date));
     }
     return events;
   }
@@ -63,7 +66,9 @@ export function buildRepeatedEvents(base: CalendarEvent, rule: CalendarRepeatRul
       const monthDate = new Date(parts.year, parts.month + index, 1);
       const year = monthDate.getFullYear();
       const month = monthDate.getMonth();
-      events.push(createOccurrence(repeatBase, formatDate(year, month, clampDay(year, month, parts.day))));
+      const date = formatDate(year, month, clampDay(year, month, parts.day));
+      if (index > 0 && date > rule.endDate) break;
+      events.push(createOccurrence(repeatBase, date));
     }
     return events;
   }
@@ -79,7 +84,17 @@ export function buildRepeatedEvents(base: CalendarEvent, rule: CalendarRepeatRul
   return events.length > 0 ? events : [repeatBase];
 }
 
-export function nextDefaultRepeatEndDate(startDate: string) {
+// 반복 방식별 기본 종료일: 매년은 30번째 해, 매월은 120번째 달(상한과 같음), 매일·매주는 30일 뒤.
+export function nextDefaultRepeatEndDate(startDate: string, mode: CalendarRepeatMode = 'daily') {
+  const parts = parseDateParts(startDate);
+  if (mode === 'yearly') {
+    const year = parts.year + MAX_YEARLY_OCCURRENCES - 1;
+    return formatDate(year, parts.month, clampDay(year, parts.month, parts.day));
+  }
+  if (mode === 'monthly') {
+    const monthDate = new Date(parts.year, parts.month + MAX_MONTHLY_OCCURRENCES - 1, 1);
+    return formatDate(monthDate.getFullYear(), monthDate.getMonth(), clampDay(monthDate.getFullYear(), monthDate.getMonth(), parts.day));
+  }
   return addMinutesToDateTime(startDate, '00:00', 30 * 24 * 60).date;
 }
 

@@ -223,7 +223,11 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     setMemo,
     setNotificationHoursBefore,
     setRepeatEndDate,
-    setRepeatMode,
+    // 반복 방식을 바꾸면 그 방식의 기본 종료일로 맞춘다(매년 30년, 매월 120개월).
+    setRepeatMode: (mode: CalendarRepeatMode) => {
+      setRepeatMode(mode);
+      setRepeatEndDate(nextDefaultRepeatEndDate(startDate, mode));
+    },
     setRepeatWeekdays,
     setSensitive,
     setStartDate,
