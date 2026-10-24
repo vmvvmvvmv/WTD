@@ -44,6 +44,9 @@ import { accentTone } from '../theme/appTheme';
 // 탭 이동, 화면 사이 연결(지역 전환·검색 패널·토스트), 저장된 설정 복원을 맡는 최상위 화면입니다.
 // 데이터와 상태는 기능별 훅이 관리합니다: 지역(useRegions), 측정소(useStations), 홈 데이터(useDashboardData),
 // 일정(useCalendarEvents), 알림(useNotificationSettings), 지도 검색(useMapSearch).
+// 홈에서 뒤로가기를 두 번 누를 때 '한 번 더'로 볼 시간.
+const EXIT_BACK_INTERVAL_MS = 2000;
+
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
@@ -378,6 +381,27 @@ export function AppContent() {
       }),
     ]).start();
   }, [activeTab, homePanelOpacity, homePanelTranslateY, showFavoritePicker, showHomeRegionSearch]);
+
+  // Android 뒤로가기의 마지막 단계: 다른 탭이면 홈으로, 홈이면 한 번은 토스트로 알리고 2초 안에 한 번 더 누르면 나갑니다.
+  // 한 번만 등록합니다. 뒤로가기 처리는 나중에 등록한 것부터 불리므로, 패널·시트·지도처럼 그때그때 등록되는 처리가 먼저 받습니다.
+  const activeTabRef = useRef(activeTab);
+  activeTabRef.current = activeTab;
+  const lastHomeBackAtRef = useRef(0);
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (activeTabRef.current !== 'home') {
+        Keyboard.dismiss();
+        setActiveTab('home');
+        return true;
+      }
+      const now = Date.now();
+      if (now - lastHomeBackAtRef.current < EXIT_BACK_INTERVAL_MS) return false;
+      lastHomeBackAtRef.current = now;
+      setNotificationMessage('한 번 더 누르면 앱이 종료돼요');
+      return true;
+    });
+    return () => subscription.remove();
+  }, [setNotificationMessage]);
 
   // Android 뒤로가기: 홈 검색/즐겨찾기 패널이 열려 있으면 패널만 닫습니다.
   useEffect(() => {
