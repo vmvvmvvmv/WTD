@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from django.core.cache import cache
 from django.utils import timezone
-from dust.config import ASOS_STATIONS, KMA_API_KEY, KMA_MID_TERM_LAND_URL, KMA_MID_TERM_TEMPERATURE_URL, KMA_VILAGE_FORECAST_URL
+from dust.config import ASOS_STATIONS, KMA_API_KEY, KMA_MID_TERM_LAND_URL, KMA_MID_TERM_TEMPERATURE_URL, KMA_ULTRA_SHORT_NCST_URL, KMA_VILAGE_FORECAST_URL
 from dust.external_api import public_api_get
 from dust.midterm_weather import current_midterm_announce_candidates, MIDTERM_REGIONS
 from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
@@ -144,6 +144,33 @@ def _store_weather_hourly_measurement(grid, selected_key, selected):
         },
     )
     return measurement
+
+
+def _store_current_observation(grid, now=None):
+    """지금 시각 한 행을 기상청 초단기실황(실측)으로 덮는다. 예보 값은 실측과 평균 1° 가까이 달랐다(2026-10-23 대조).
+
+    실황은 정시 값이 약 40분에 나온다. 실황에 없는 하늘 상태·낙뢰·강수확률은 그 시각 예보 행에 있던 값을 그대로 둔다.
+    """
+    now = timezone.localtime(now or timezone.now())
+    latest = now if now.minute >= 40 else now - timedelta(hours=1)
+    for base in (latest, latest - timedelta(hours=1)):
+        params = {
+            "serviceKey": KMA_API_KEY, "pageNo": "1", "numOfRows": "20", "dataType": "JSON",
+            "base_date": base.strftime("%Y%m%d"), "base_time": base.strftime("%H00"), "nx": grid["nx"], "ny": grid["ny"],
+        }
+        try:
+            response = public_api_get(KMA_ULTRA_SHORT_NCST_URL, params=params, timeout=10)
+            items = _normalize_kma_items(response.json()) if response.status_code < 400 else []
+        except Exception:
+            continue
+        observed = {str(item.get("category")): item.get("obsrValue") for item in items if isinstance(item, dict)}
+        if _to_float(observed.get("T1H")) is None:
+            continue
+        key = base.strftime("%Y%m%d%H00")
+        existing = WeatherHourlyMeasurement.objects.filter(nx=grid["nx"], ny=grid["ny"], measured_at=_weather_measured_at_from_key(key)).first()
+        selected = {**((existing.raw_data if existing and isinstance(existing.raw_data, dict) else {})), **observed, "source": "kma_ultra_short_ncst"}
+        return _store_weather_hourly_measurement(grid, key, selected)
+    return None
 
 
 def _forecast_item_time_key(item):
