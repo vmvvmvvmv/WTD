@@ -7,6 +7,8 @@ type QueryValue = string | number | boolean | null | undefined;
 
 const baseUrl = API_URL.replace(/\/$/, '');
 const FETCH_TIMEOUT_MS = 15000;
+// AI 일정 등록은 Gemini가 10초 넘게 걸릴 때가 있어 따로 넉넉히 둡니다(서버 쪽 상한은 약 19초).
+const MEMO_FETCH_TIMEOUT_MS = 25000;
 
 export class ApiHttpError extends Error {
   readonly status: number;
@@ -34,11 +36,11 @@ function withTestTokenHeaders(init?: RequestInit): RequestInit {
   return { ...init, headers };
 }
 
-async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, init?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, init?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
   const abortFromParent = () => controller.abort();
   init?.signal?.addEventListener('abort', abortFromParent);
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(buildUrl(path, params), {
       ...withTestTokenHeaders(init),
@@ -136,7 +138,7 @@ export function postMemoEvents(params: { deviceId: string; text: string }) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Device-Id': params.deviceId },
     body: JSON.stringify({ text: params.text }),
-  });
+  }, MEMO_FETCH_TIMEOUT_MS);
 }
 
 export function getHourlyWeather(params: { lat: number; lng: number; date: string; forecastHours?: number; storedOnly?: boolean }) {

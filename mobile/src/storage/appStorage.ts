@@ -8,6 +8,7 @@ import {
   CALENDAR_NOTIFICATION_IDS_STORAGE_KEY,
   DEFAULT_OUTFIT_SETTINGS,
   DEVICE_ID_STORAGE_KEY,
+  MEMO_HISTORY_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
   MAP_RECENT_SEARCHES_STORAGE_KEY,
@@ -110,6 +111,20 @@ export function loadDeviceId() {
     return id;
   });
   return deviceIdPromise;
+}
+
+// AI 일정 등록에 전에 적은 메모들(최근 것부터). 이 휴대폰에만 저장합니다.
+export async function loadMemoHistory(): Promise<string[]> {
+  try {
+    const parsed = JSON.parse((await safeGet(MEMO_HISTORY_STORAGE_KEY)) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && !!item.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveMemoHistory(history: string[]) {
+  return saveString(MEMO_HISTORY_STORAGE_KEY, JSON.stringify(history));
 }
 
 function saveJson(key: string, value: unknown) {

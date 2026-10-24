@@ -58,3 +58,10 @@ export function memoSuggestions(events: CalendarEvent[], limit = 4): string[] {
     .slice(0, limit)
     .map(([text]) => text);
 }
+
+// 전에 적은 메모 목록에 새 메모를 맨 앞에 넣습니다. 같은 메모는 하나만 두고, 최근 limit개만 남깁니다.
+export function withMemoHistory(history: string[], text: string, limit = 5): string[] {
+  const memo = text.trim();
+  if (!memo) return history.slice(0, limit);
+  return [memo, ...history.filter((item) => item.trim() !== memo)].slice(0, limit);
+}

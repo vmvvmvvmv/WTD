@@ -13,7 +13,7 @@ registerHooks({
   },
 });
 
-const { memoEventToCalendarEvent, memoSuggestions } = await import('./calendarMemo.ts');
+const { memoEventToCalendarEvent, memoSuggestions, withMemoHistory } = await import('./calendarMemo.ts');
 const base = { activity_type: 'indoor', date: '2026-10-25', end_date: '2026-10-25', end_time: '16:00', place: null, place_text: '', time: '15:00', title: '친구 만남' };
 
 test('메모 일정은 찾은 장소의 좌표를 붙이고, 못 찾으면 이름만 남긴다', () => {
@@ -44,4 +44,11 @@ test('자주·최근에 쓴 일정: 여러 번 쓴 것 먼저, 같으면 최근 
   assert.deepEqual(memoSuggestions(events), ['러닝 오전 7시 한강공원', '요가 오후 7시', '치과 오전 10시 서울치과', '회의 오후 2시 30분']);
   assert.deepEqual(memoSuggestions(events, 2), ['러닝 오전 7시 한강공원', '요가 오후 7시']);
   assert.deepEqual(memoSuggestions([event('1-x', '점심', '12:00', ''), event('2-y', '야식', '00:00', '')]), ['야식 오전 12시', '점심 오후 12시']);
+});
+
+test('전에 적은 메모: 최근 것이 앞, 같은 메모는 하나, 최대 5개', () => {
+  let history = [];
+  for (const memo of ['a', 'b', 'c', ' a ', 'd', 'e', 'f']) history = withMemoHistory(history, memo);
+  assert.deepEqual(history, ['f', 'e', 'd', 'a', 'c']);
+  assert.deepEqual(withMemoHistory(history, '   '), history);
 });
