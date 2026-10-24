@@ -211,6 +211,11 @@ export const calendarStyles = StyleSheet.create({
   calendarSelectionEmptyTitle: { color: textColors.secondary, fontSize: 15, fontWeight: '700' },
   calendarFloatingAddButton: { alignItems: 'center', borderRadius: 999, borderWidth: 1, bottom: 20, height: 58, justifyContent: 'center', position: 'absolute', right: 18, ...bauhausMediumShadow, width: 58, zIndex: 6 },
   calendarFloatingAddDock: { height: 58, position: 'absolute', right: 18, width: 58, zIndex: 6 },
+  // 펼친 두 버튼은 + 버튼(58) 위로 쌓입니다. bottom은 + 버튼과 같은 값(시트를 따라 움직임)을 받습니다.
+  calendarAddDial: { alignItems: 'flex-end', gap: 10, paddingBottom: 58 + 12, position: 'absolute', right: 18, zIndex: 7 },
+  calendarAddDialBackdrop: { backgroundColor: 'rgba(255, 255, 255, 0.72)', bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 5 },
+  calendarAddDialOption: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, height: 46, paddingHorizontal: 18, ...bauhausMediumShadow },
+  calendarAddDialText: { fontSize: 15, fontWeight: '800' },
   calendarFloatingAddButtonDocked: { bottom: 0, position: 'relative', right: 0 },
   calendarEditorSaveFab: { alignItems: 'center', borderRadius: 999, bottom: 24, elevation: 7, height: 56, justifyContent: 'center', position: 'absolute', right: 20, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.18, shadowRadius: 14, width: 56, zIndex: 8 },
   calendarEventRow: { alignItems: 'center', borderTopColor: '#eef1f5', borderTopWidth: 1, flexDirection: 'row', gap: 10, minHeight: 66, paddingVertical: 9 },

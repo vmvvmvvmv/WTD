@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
-import Reanimated from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/calendar';
@@ -12,7 +13,6 @@ import { BottomToast } from '../shared/BottomToast';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
-import { CalendarAddMenu } from './CalendarAddMenu';
 import { CalendarEventEditor } from './CalendarEventEditor';
 import { CalendarMemoSheet } from './CalendarMemoSheet';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
@@ -337,10 +337,49 @@ export function CalendarPanel({
       )}
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
+      {/* +를 누르면 버튼 위로 두 갈래(직접 입력 · AI로 정리)가 펼쳐집니다. 바깥을 누르면 접힙니다. */}
+      {isAddMenuOpen && (
+        <Reanimated.View entering={FadeIn.duration(140).reduceMotion(ReduceMotion.System)} exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)} style={styles.calendarAddDialBackdrop}>
+          <Pressable accessibilityLabel="일정 추가 접기" onPress={() => setIsAddMenuOpen(false)} style={{ flex: 1 }} />
+        </Reanimated.View>
+      )}
+      {isAddMenuOpen && (
+        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.addDockStyle]}>
+          {[
+            { icon: 'create-outline' as const, label: '직접 입력', onPress: () => draft.openEditor(selectedDate), primary: false },
+            { icon: 'sparkles' as const, label: 'AI로 정리', onPress: () => setIsMemoOpen(true), primary: true },
+          ].map((option, index) => (
+            <Reanimated.View
+              entering={FadeInDown.delay((1 - index) * 40).duration(180).reduceMotion(ReduceMotion.System)}
+              exiting={FadeOutDown.duration(120).reduceMotion(ReduceMotion.System)}
+              key={option.label}
+            >
+              <Pressable
+                accessibilityLabel={option.label}
+                accessibilityRole="button"
+                onPress={() => {
+                  setIsAddMenuOpen(false);
+                  option.onPress();
+                }}
+                style={({ pressed }) => [
+                  styles.calendarAddDialOption,
+                  option.primary ? { backgroundColor: accentTone, borderColor: accentTone } : { borderColor: accentTone },
+                  { shadowColor: accentTone },
+                  pressed && styles.pressedFeedback,
+                ]}
+              >
+                <Ionicons color={option.primary ? '#ffffff' : accentTone} name={option.icon} size={18} />
+                <Text style={[styles.calendarAddDialText, { color: option.primary ? '#ffffff' : accentTone }]}>{option.label}</Text>
+              </Pressable>
+            </Reanimated.View>
+          ))}
+        </Reanimated.View>
+      )}
       <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
         <Pressable
-          accessibilityLabel="일정 추가"
-          onPress={() => setIsAddMenuOpen(true)}
+          accessibilityLabel={isAddMenuOpen ? '일정 추가 접기' : '일정 추가'}
+          accessibilityState={{ expanded: isAddMenuOpen }}
+          onPress={() => setIsAddMenuOpen((current) => !current)}
           ref={tutorialTarget('calendarAdd')}
           style={({ pressed }) => [
             styles.calendarFloatingAddButton,
@@ -349,22 +388,9 @@ export function CalendarPanel({
             pressed && styles.pressedFeedback,
           ]}
         >
-          <AppActionIcon name="schedule" size={38} />
+          {isAddMenuOpen ? <Ionicons color={accentTone} name="close" size={30} /> : <AppActionIcon name="schedule" size={38} />}
         </Pressable>
       </Reanimated.View>
-
-      <CalendarAddMenu
-        isOpen={isAddMenuOpen}
-        onClose={() => setIsAddMenuOpen(false)}
-        onDirect={() => {
-          setIsAddMenuOpen(false);
-          draft.openEditor(selectedDate);
-        }}
-        onMemo={() => {
-          setIsAddMenuOpen(false);
-          setIsMemoOpen(true);
-        }}
-      />
       <CalendarMemoSheet
         isOpen={isMemoOpen}
         onAdd={addMemoEvents}
