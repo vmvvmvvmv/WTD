@@ -337,7 +337,7 @@ export function CalendarPanel({
       )}
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
-      {/* +를 누르면 버튼 위로 두 갈래(직접 입력 · AI로 정리)가 펼쳐집니다. 바깥을 누르면 접힙니다. */}
+      {/* +를 누르면 버튼 위로 두 갈래(직접 입력 · 메모로 입력)가 펼쳐집니다. 바깥을 누르면 접힙니다. */}
       {isAddMenuOpen && (
         <Reanimated.View entering={FadeIn.duration(140).reduceMotion(ReduceMotion.System)} exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)} style={styles.calendarAddDialBackdrop}>
           <Pressable accessibilityLabel="일정 추가 접기" onPress={() => setIsAddMenuOpen(false)} style={{ flex: 1 }} />
@@ -347,7 +347,7 @@ export function CalendarPanel({
         <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.addDockStyle]}>
           {[
             { icon: 'create-outline' as const, label: '직접 입력', onPress: () => draft.openEditor(selectedDate), primary: false },
-            { icon: 'sparkles' as const, label: 'AI로 정리', onPress: () => setIsMemoOpen(true), primary: true },
+            { icon: 'document-text-outline' as const, label: '메모로 입력', onPress: () => setIsMemoOpen(true), primary: true },
           ].map((option, index) => (
             <Reanimated.View
               entering={FadeInDown.delay((1 - index) * 40).duration(180).reduceMotion(ReduceMotion.System)}
@@ -392,6 +392,7 @@ export function CalendarPanel({
         </Pressable>
       </Reanimated.View>
       <CalendarMemoSheet
+        calendarEvents={events}
         isOpen={isMemoOpen}
         onAdd={addMemoEvents}
         onClose={() => setIsMemoOpen(false)}

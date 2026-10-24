@@ -17,12 +17,13 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import { useKeyboardHeight } from '../shared/BottomToast';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import type { CalendarLocationForecast } from './calendarForecast';
-import { memoEventToCalendarEvent } from './calendarMemo';
+import { memoEventToCalendarEvent, memoSuggestions } from './calendarMemo';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import { dayLabel } from './calendarUtils';
 
 const MAX_LENGTH = 500;
-const EXAMPLES = ['내일 3시 친구 약속', '토요일 아침 7시 러닝', '다음 주 월요일 2시 회의'];
+// 아직 일정이 없을 때 보여 줄 예시입니다. 일정이 쌓이면 자주·최근에 쓴 일정으로 바뀝니다.
+const EXAMPLES = ['내일 오후 3시 친구 약속', '토요일 오전 7시 러닝', '다음 주 월요일 오후 2시 회의'];
 const ACTIVITY_ICON = { indoor: 'activityIndoor', outdoor: 'activityOutdoor', transit: 'activityTransit' } as const;
 const ACTIVITY_LABEL = { indoor: '실내', outdoor: '실외', transit: '이동' } as const;
 
@@ -40,7 +41,7 @@ function timeRange(event: CalendarEvent) {
   return `${dayLabel(event.date)} · ${event.time}~${event.endTime ?? ''}`;
 }
 
-// AI가 일하는 동안 문구가 천천히 깜박입니다.
+// 일정을 찾는 동안 문구가 천천히 깜박입니다.
 function ThinkingLabel() {
   const reduceMotion = useReducedMotion();
   const opacity = useRef(new Animated.Value(1)).current;
@@ -55,7 +56,6 @@ function ThinkingLabel() {
   }, [opacity, reduceMotion]);
   return (
     <Animated.View style={[local.buttonRow, { opacity }]}>
-      <Ionicons color="#ffffff" name="sparkles" size={16} />
       <Text style={local.primaryText}>일정 찾는 중…</Text>
     </Animated.View>
   );
@@ -103,8 +103,9 @@ function PreviewCard({ event, isSelected, onEdit, onToggle, risk }: {
   );
 }
 
-// 메모를 AI로 일정 목록으로 바꾸고, 미리보기에서 고르고 고친 것만 추가합니다.
-export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByEvent, todayDateLabel }: {
+// 메모를 일정 목록으로 바꾸고(서버의 AI), 미리보기에서 고르고 고친 것만 추가합니다.
+export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEditEvent, riskByEvent, todayDateLabel }: {
+  calendarEvents: CalendarEvent[];
   isOpen: boolean;
   onAdd: (events: CalendarEvent[]) => void;
   onClose: () => void;
@@ -189,6 +190,7 @@ export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByE
     inputRef.current?.focus();
   };
 
+  const suggestions = useMemo(() => memoSuggestions(calendarEvents), [calendarEvents]);
   const selectedCount = events ? events.filter((event) => selectedIds.has(event.id)).length : 0;
   const canConvert = !!text.trim() && !isLoading;
 
@@ -204,17 +206,17 @@ export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByE
       visible={isOpen}
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[local.root, Platform.OS === 'android' && keyboardHeight > 0 && { paddingBottom: keyboardHeight + insets.bottom }]}>
-        <Pressable accessibilityLabel="AI로 정리 닫기" onPress={close} style={local.backdrop} />
+        <Pressable accessibilityLabel="메모로 입력 닫기" onPress={close} style={local.backdrop} />
         <View style={[local.sheet, { paddingBottom: keyboardHeight > 0 ? 16 : Math.max(16, insets.bottom + 10) }]}>
           <View style={local.handle} />
           <View style={local.header}>
-            <Text style={local.title}>{events ? '이렇게 추가할까요?' : 'AI로 정리'}</Text>
+            <Text style={local.title}>{events ? '이렇게 추가할까요?' : '메모로 입력'}</Text>
             <Pressable accessibilityLabel="닫기" hitSlop={10} onPress={close} style={({ pressed }) => pressed && appStyles.pressedFeedback}>
               <Ionicons color={textColors.secondary} name="close" size={26} />
             </Pressable>
           </View>
           <Text style={local.subtitle}>
-            {events ? '카드를 누르면 고칠 수 있어요.' : '날짜·시간·장소를 대충 적으면 AI가 일정으로 정리해요.'}
+            {events ? '카드를 누르면 고칠 수 있어요.' : '날짜·시간·장소를 편하게 적으면 일정으로 바꿔 드려요.'}
           </Text>
 
           {events ? (
@@ -247,8 +249,9 @@ export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByE
                 />
                 <Text style={local.counter}>{`${text.length}/${MAX_LENGTH}`}</Text>
               </View>
+              <Text style={local.chipsLabel}>{suggestions.length ? '자주·최근에 쓴 일정' : '이렇게 적어 보세요'}</Text>
               <ScrollView contentContainerStyle={local.chips} horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
-                {EXAMPLES.map((example) => (
+                {(suggestions.length ? suggestions : EXAMPLES).map((example) => (
                   <Pressable disabled={isLoading} key={example} onPress={() => appendExample(example)} style={({ pressed }) => [local.chip, pressed && appStyles.pressedFeedback]}>
                     <Text style={local.chipText}>{example}</Text>
                   </Pressable>
@@ -256,7 +259,7 @@ export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByE
               </ScrollView>
               <View style={local.notice}>
                 <Ionicons color={textColors.muted} name="lock-closed-outline" size={13} />
-                <Text style={local.noticeText}>Google AI로 보내 정리해요 · 메모는 저장하지 않아요</Text>
+                <Text style={local.noticeText}>메모는 일정으로 바꾸는 데만 쓰고 저장하지 않아요</Text>
               </View>
             </>
           )}
@@ -284,10 +287,7 @@ export function CalendarMemoSheet({ isOpen, onAdd, onClose, onEditEvent, riskByE
                 style={({ pressed }) => [local.primary, local.primaryFlex, !text.trim() && local.disabled, pressed && appStyles.pressedFeedback]}
               >
                 {isLoading ? <ThinkingLabel /> : (
-                  <View style={local.buttonRow}>
-                    <Ionicons color="#ffffff" name="sparkles" size={16} />
-                    <Text style={local.primaryText}>일정 만들기</Text>
-                  </View>
+                  <Text style={local.primaryText}>일정 만들기</Text>
                 )}
               </Pressable>
             )}
@@ -313,7 +313,8 @@ const local = StyleSheet.create({
   checkOn: { backgroundColor: accentTone, borderColor: accentTone },
   chip: { backgroundColor: bauhausColors.blueSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8 },
   chipText: { color: accentTone, fontSize: 13, fontWeight: '700' },
-  chips: { gap: 8, paddingVertical: 10 },
+  chips: { gap: 8, paddingBottom: 10, paddingTop: 6 },
+  chipsLabel: { color: textColors.muted, fontSize: 12, fontWeight: '700', marginTop: 12 },
   counter: { alignSelf: 'flex-end', color: textColors.muted, fontSize: 12, fontWeight: '600' },
   disabled: { opacity: 0.4 },
   handle: { alignSelf: 'center', backgroundColor: bauhausColors.border, borderRadius: 3, height: 5, marginBottom: 14, width: 38 },
