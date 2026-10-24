@@ -22,7 +22,7 @@ async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel
     : null;
 
   const [weatherHourlyData, midTermData, hourlyDustData, predictionData, currentDustData] = await Promise.all([
-    getHourlyWeather({ date: todayCompact, forecastHours: 72, lat: event.locationLat, lng: event.locationLng }),
+    getHourlyWeather({ date: todayCompact, forecastHours: 96, lat: event.locationLat, lng: event.locationLng }),
     getMidTermWeather({ endDate: midTermEndCompact, lat: event.locationLat, lng: event.locationLng, startDate: todayCompact }),
     region ? getHourlyDust({ date: todayCompact, region }) : Promise.resolve(null),
     region ? getPrediction(region).catch(() => null) : Promise.resolve(null),

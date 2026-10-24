@@ -114,3 +114,27 @@ test('여러 날 일정에서 비가 다른 날에 오면 시간대에 날짜를
   const result = evaluateCalendarEventRisk(trip, { now: new Date('2026-10-24T10:00:00'), todayDateLabel: '2026-10-24', weatherItems });
   assert.equal(result.rainTimeRange, '10-26 14:00~16:00');
 });
+
+test('여러 날 일정은 시간별 예보가 없는 뒷날의 중기예보 비도 반영한다', () => {
+  const event = { activityType: 'outdoor', date: '2026-10-26', endDate: '2026-10-30', endTime: '18:00', id: 'trip', sensitive: false, time: '09:00', title: '여행' };
+  const weatherItems = Array.from({ length: 24 }, (_, h) => ({ date: '2026-10-26', hour: `${String(h).padStart(2, '0')}:00`, label: '맑음', rain_mm: 0, rain_probability: 0, temperature: 20, wind_speed: 2 }));
+  const weatherMidTermItems = [
+    { date: '2026-10-26', rainProbabilityAm: 10, rainProbabilityPm: 10, weatherAm: '맑음', weatherPm: '맑음', minTemperature: 12, maxTemperature: 22 },
+    { date: '2026-10-29', rainProbabilityAm: 80, rainProbabilityPm: 80, weatherAm: '흐리고 비', weatherPm: '흐리고 비', minTemperature: 12, maxTemperature: 18 },
+  ];
+  const result = evaluateCalendarEventRisk(event, { now: new Date('2026-10-25T10:00:00'), todayDateLabel: '2026-10-25', weatherItems, weatherMidTermItems });
+  assert.equal(result.rainProbability, 80);
+  assert.equal(result.weatherLabel, '흐리고 비');
+  assert.equal(result.level, 'bad');
+});
+
+test('중기예보 기온은 일정 시각에 맞춘다(이른 아침은 최저, 한낮은 최고)', () => {
+  const day = { date: '2026-11-02', rainProbabilityAm: 10, rainProbabilityPm: 10, weatherAm: '맑음', weatherPm: '맑음', minTemperature: 2, maxTemperature: 16 };
+  const at = (time) => evaluateCalendarEventRisk(
+    { activityType: 'outdoor', date: '2026-11-02', endDate: '2026-11-02', endTime: time, id: time, sensitive: false, time, title: '산책' },
+    { now: new Date('2026-10-25T10:00:00'), todayDateLabel: '2026-10-25', weatherItems: [], weatherMidTermItems: [day] },
+  ).temperature;
+  assert.equal(at('07:00'), 2);
+  assert.equal(at('14:00'), 16);
+  assert.equal(at('10:00'), 9);
+});

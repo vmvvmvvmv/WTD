@@ -254,13 +254,19 @@ function aggregateWeather(points: WeatherPoint[]) {
   };
 }
 
+// 중기예보는 하루 최저·최고만 있다. 하루 평균을 쓰면 이른 아침 일정이 실제보다 따뜻하게 나와서,
+// 일정 시작 시각에 맞춰 이른 아침은 최저, 한낮은 최고, 그 사이·저녁은 평균에 가깝게 고른다.
+function midTermTemperatureAt(minTemperature: number | undefined, maxTemperature: number | undefined, startHour: number) {
+  if (typeof minTemperature !== 'number' || typeof maxTemperature !== 'number') return maxTemperature ?? minTemperature;
+  if (!Number.isFinite(startHour)) return (minTemperature + maxTemperature) / 2;
+  if (startHour < 9) return minTemperature;
+  if (startHour >= 12 && startHour < 18) return maxTemperature;
+  return (minTemperature + maxTemperature) / 2;
+}
+
 function midTermPointForItem(item: WeatherMidTermItem, startHour: number): MidTermPoint {
   const usePm = Number.isFinite(startHour) && startHour >= 12;
-  const minTemperature = toNumber(item.minTemperature);
-  const maxTemperature = toNumber(item.maxTemperature);
-  const temperature = typeof minTemperature === 'number' && typeof maxTemperature === 'number'
-    ? (minTemperature + maxTemperature) / 2
-    : maxTemperature ?? minTemperature;
+  const temperature = midTermTemperatureAt(toNumber(item.minTemperature), toNumber(item.maxTemperature), startHour);
   return {
     rainProbability: toNumber(usePm ? item.rainProbabilityPm ?? item.rainProbabilityAm : item.rainProbabilityAm ?? item.rainProbabilityPm),
     temperature,
@@ -275,7 +281,9 @@ function midTermSeverity(point: MidTermPoint) {
   return rain + heatCold + labelRisk;
 }
 
-function midTermWeatherForEvent(event: CalendarEvent, items?: WeatherMidTermItem[]): MidTermPoint | null {
+// coveredDates: 일정 시간대에 시간별 예보가 있는 날. 그날은 더 정확한 시간별 예보를 쓰고 중기예보는 보지 않는다.
+// 여러 날 일정이면 시간별 예보가 없는 뒷날만 중기예보로 본다.
+function midTermWeatherForEvent(event: CalendarEvent, items: WeatherMidTermItem[] | undefined, coveredDates: Set<string>): MidTermPoint | null {
   const start = dateMs(event.date);
   const end = dateMs(event.endDate ?? event.date);
   if (typeof start !== 'number' || typeof end !== 'number') return null;
@@ -283,7 +291,7 @@ function midTermWeatherForEvent(event: CalendarEvent, items?: WeatherMidTermItem
   const candidates = (items ?? [])
     .filter((forecast) => {
       const day = dateMs(forecast.date);
-      return typeof day === 'number' && day >= start && day <= end;
+      return typeof day === 'number' && day >= start && day <= end && !coveredDates.has(forecast.date ?? '');
     })
     .map((item) => midTermPointForItem(item, startHour));
   if (candidates.length === 0) return null;
@@ -375,6 +383,19 @@ function rainSummaryForEvent(event: CalendarEvent, points: WeatherPoint[], midTe
   return null;
 }
 
+function weatherLabelSeverity(label?: string) {
+  if (isThunderLabel(label)) return 3;
+  if (isSnowyLabel(label)) return 2;
+  if (isRainyLabel(label)) return 1;
+  return 0;
+}
+
+// 두 날씨 이름 중 더 나쁜 쪽(천둥번개 > 눈 > 비 > 그 밖). 같으면 앞쪽(시간별 예보)을 쓴다.
+function worseWeatherLabel(primary?: string, secondary?: string) {
+  if (!primary) return secondary;
+  return weatherLabelSeverity(secondary) > weatherLabelSeverity(primary) ? secondary : primary;
+}
+
 function isSameDateOrRangeIncludes(date: string, event: CalendarEvent) {
   const target = dateMs(date);
   const start = dateMs(event.date);
@@ -430,7 +451,8 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
   const weatherPoints = normalizeWeatherPoints(context.weatherItems);
   const weatherResult = selectWeatherPoints(event, weatherPoints);
   const weatherAggregate = aggregateWeather(weatherResult.points);
-  const midTermWeather = midTermWeatherForEvent(event, context.weatherMidTermItems);
+  const coveredDates = new Set(weatherPoints.filter((point) => isPointInEventRange(point.date, point.label, event)).map((point) => point.date));
+  const midTermWeather = midTermWeatherForEvent(event, context.weatherMidTermItems, coveredDates);
   const isTodayEvent = isSameDateOrRangeIncludes(context.todayDateLabel, event);
   // 현재 날씨는 지금 진행 중이거나 곧(3시간 안) 시작하는 일정에만 대신 쓴다.
   const eventStart = dateTimeMs(event.date, event.time);
@@ -439,13 +461,14 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
   const dailyPredictedPm10 = dailyPredictionForEvent(event, context.prediction);
   const pm10 = dustResult.point?.pm10 ?? (isTodayEvent ? context.currentPm10 : undefined) ?? dailyPredictedPm10;
   const temperature = weatherAggregate.temperature ?? (useCurrentWeather ? context.weather?.temperature : undefined) ?? midTermWeather?.temperature;
-  const temperatureMin = weatherAggregate.temperatureMin ?? temperature;
-  const temperatureMax = weatherAggregate.temperatureMax ?? temperature;
+  // 여러 날 일정은 시간별 예보(앞날)와 중기예보(뒷날)를 함께 본다.
+  const temperatureMin = minValue([weatherAggregate.temperatureMin ?? temperature, midTermWeather?.temperature]);
+  const temperatureMax = maxValue([weatherAggregate.temperatureMax ?? temperature, midTermWeather?.temperature]);
   const rainMm = weatherAggregate.rainMm ?? (useCurrentWeather ? context.weather?.rainMm : undefined);
   const rainSummary = rainSummaryForEvent(event, weatherPoints, midTermWeather);
-  const rainProbability = weatherAggregate.rainProbability ?? rainSummary?.probability ?? midTermWeather?.rainProbability;
+  const rainProbability = maxValue([weatherAggregate.rainProbability ?? rainSummary?.probability, midTermWeather?.rainProbability]);
   const windSpeed = weatherAggregate.windSpeed ?? (useCurrentWeather ? context.weather?.windSpeed : undefined);
-  const weatherLabel = weatherAggregate.weatherLabel ?? (useCurrentWeather ? context.weather?.label : undefined) ?? midTermWeather?.weatherLabel;
+  const weatherLabel = worseWeatherLabel(weatherAggregate.weatherLabel ?? (useCurrentWeather ? context.weather?.label : undefined), midTermWeather?.weatherLabel);
   const rawBasis = weatherResult.basis || dustResult.basis || (typeof dailyPredictedPm10 === 'number' ? '3일 미세먼지 예측 기준' : '') || (midTermWeather ? TEXT.midTermBasis : (useCurrentWeather ? TEXT.currentBasis : TEXT.forecastNeeded));
   const basis = context.locationBasis ? context.locationBasis + ' · ' + rawBasis : rawBasis;
 

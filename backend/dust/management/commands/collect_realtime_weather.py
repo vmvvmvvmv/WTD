@@ -20,7 +20,9 @@ def env_int(name, default):
 
 
 # 앱은 72시간을 요청한다(홈·캘린더). 단기예보가 대략 3일 뒤까지라 그보다 길게 잡을 이유는 없다.
-DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 72)
+# 단기예보는 글피 자정까지(발표 시각에 따라 최대 약 80시간) 온다. 72시간에서 자르면 사흘 뒤 하루가 비고,
+# 중기예보는 그다음 날부터라 그날 일정이 '확인 중'이 된다. 그래서 96시간 아래로는 줄이지 않는다.
+DEFAULT_FORECAST_HOURS = max(env_int("KMA_FORECAST_HOURS", 96), 96)
 DEFAULT_WORKERS = env_int("KMA_REQUEST_WORKERS", 2)
 DEFAULT_USE_STATION_ADDRESS_REGIONS = os.getenv("KMA_USE_STATION_ADDRESS_REGIONS", "true").strip().lower() not in ("0", "false", "no", "off")
 DEFAULT_ULTRA_SHORT_CANDIDATES = env_int("KMA_ULTRA_SHORT_CANDIDATES", 1)
