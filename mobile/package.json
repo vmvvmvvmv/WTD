@@ -16,6 +16,7 @@
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "expo": "~54.0.37",
+    "expo-background-task": "~1.0.10",
     "expo-constants": "~18.0.14",
     "expo-dev-client": "~6.0.21",
     "expo-file-system": "~19.0.24",
@@ -26,6 +27,7 @@
     "expo-secure-store": "~15.0.8",
     "expo-sharing": "~14.0.8",
     "expo-status-bar": "~3.0.9",
+    "expo-task-manager": "~14.0.9",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

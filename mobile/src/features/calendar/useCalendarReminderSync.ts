@@ -1,13 +1,10 @@
 import { useEffect, useRef } from 'react';
 
-import { buildCalendarRiskByEvent } from '../../components/calendar/calendarForecast';
 import type { CalendarForecastContext } from '../../components/calendar/calendarForecast';
-import { cancelCalendarEventNotifications, configureDustNotifications, scheduleCalendarEventNotifications } from '../../notifications/expoPush';
-import { replaceCalendarNotifications } from '../../notifications/calendarNotificationSync';
-import { loadCalendarNotificationIds, saveCalendarNotificationIds } from '../../storage/appStorage';
+import { configureDustNotifications } from '../../notifications/expoPush';
 import type { CalendarEvent } from '../../types/calendar';
-
-const MAX_SCHEDULED_EVENTS = 60;
+import { setCalendarReminderBackgroundTask } from './calendarReminderBackground';
+import { syncCalendarReminders } from './calendarReminderSchedule';
 
 export function useCalendarReminderSync(
   events: CalendarEvent[],
@@ -26,28 +23,26 @@ export function useCalendarReminderSync(
     void configureDustNotifications().catch(() => {});
   }, []);
 
+  // 앱이 꺼져 있어도 휴대폰이 가끔 앱을 깨워 일정 알림을 최신 예보로 다시 씁니다(일정 알림을 켠 동안만).
+  useEffect(() => {
+    if (!hasLoadedStore) return;
+    void setCalendarReminderBackgroundTask(remindersEnabled).catch((error) => console.warn('백그라운드 갱신을 설정하지 못했습니다.', error));
+  }, [hasLoadedStore, remindersEnabled]);
+
   useEffect(() => {
     if (!hasLoadedStore) return;
     let cancelled = false;
     const syncVersion = ++syncVersionRef.current;
+    const isCurrent = () => !cancelled && syncVersionRef.current === syncVersion;
 
     const sync = async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      if (cancelled || syncVersionRef.current !== syncVersion) return;
-      const previousIds = await loadCalendarNotificationIds();
-      if (cancelled || syncVersionRef.current !== syncVersion) return;
-
-      // OS가 앱마다 예약 알림 수를 제한한다(iOS 64개). 가까운 일정만 예약하고, 앱을 열 때마다 다시 채운다.
-      const eventsToSchedule = remindersEnabled ? events.filter((event) => event.date >= todayDateLabel && typeof event.notificationHoursBefore === 'number').slice(0, MAX_SCHEDULED_EVENTS) : [];
-      const riskByEvent = remindersEnabled ? buildCalendarRiskByEvent(eventsToSchedule, {
-        currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode,
-        todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems,
-      }) : null;
-      await replaceCalendarNotifications(previousIds, eventsToSchedule, {
-        cancel: cancelCalendarEventNotifications,
-        isCurrent: () => !cancelled && syncVersionRef.current === syncVersion,
-        save: saveCalendarNotificationIds,
-        schedule: (event) => scheduleCalendarEventNotifications(event, riskByEvent?.[event.id]),
+      if (!isCurrent()) return;
+      await syncCalendarReminders({
+        events,
+        forecast: { currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems },
+        isCurrent,
+        remindersEnabled,
       });
     };
 
