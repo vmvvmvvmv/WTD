@@ -46,7 +46,8 @@ export function memoSuggestions(events: CalendarEvent[], limit = 4): string[] {
     }
     const title = event.title.trim();
     if (!title) return;
-    const text = [title, hourLabel(event.time), (event.location ?? '').trim()].filter(Boolean).join(' ');
+    const location = typeof event.location === 'string' ? event.location.trim() : '';
+    const text = [title, hourLabel(event.time), location].filter(Boolean).join(' ');
     // id 앞부분은 만든 시각(Date.now())입니다.
     const createdAt = Number.parseInt(event.id, 10) || 0;
     const group = groups.get(text) ?? { count: 0, latest: 0 };

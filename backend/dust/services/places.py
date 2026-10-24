@@ -28,7 +28,7 @@ def _naver_coord(value):
     return number / 10000000 if abs(number) > 1000 else number
 
 
-def search_naver_places(query, display=8):
+def search_naver_places(query, display=8, timeout=6):
     if not NAVER_SEARCH_CLIENT_ID or not NAVER_SEARCH_CLIENT_SECRET:
         logger.warning("Naver search credentials are not configured.")
         raise PlaceSearchUnavailable()
@@ -37,7 +37,7 @@ def search_naver_places(query, display=8):
         "X-Naver-Client-Secret": NAVER_SEARCH_CLIENT_SECRET,
     }
     try:
-        response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=6)
+        response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=timeout)
         data = response.json()
     except Exception as exc:
         logger.exception("Naver place search request failed")
@@ -46,8 +46,14 @@ def search_naver_places(query, display=8):
         logger.warning("Naver place search returned %s", response.status_code)
         raise PlaceSearchFailed()
 
+    # 바깥 API가 모양이 다른 응답(목록, 문자열, null 항목)을 줘도 예외로 터지지 않게 걸러 낸다.
+    raw_items = data.get("items") if isinstance(data, dict) else None
+    if not isinstance(raw_items, list):
+        raw_items = []
     items = []
-    for index, item in enumerate(data.get("items") or []):
+    for index, item in enumerate(raw_items):
+        if not isinstance(item, dict):
+            continue
         lat = _naver_coord(item.get("mapy"))
         lng = _naver_coord(item.get("mapx"))
         if lat is None or lng is None:
