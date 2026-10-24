@@ -13,7 +13,7 @@ registerHooks({
   },
 });
 
-const { memoEventToCalendarEvent, memoSuggestions, withMemoHistory } = await import('./calendarMemo.ts');
+const { isRepeatMemo, memoEventToCalendarEvent, memoSuggestions, withMemoHistory } = await import('./calendarMemo.ts');
 const base = { activity_type: 'indoor', date: '2026-10-25', end_date: '2026-10-25', end_time: '16:00', place: null, place_text: '', time: '15:00', title: '친구 만남' };
 
 test('메모 일정은 찾은 장소의 좌표를 붙이고, 못 찾으면 이름만 남긴다', () => {
@@ -51,4 +51,13 @@ test('전에 적은 메모: 최근 것이 앞, 같은 메모는 하나, 최대 5
   for (const memo of ['a', 'b', 'c', ' a ', 'd', 'e', 'f']) history = withMemoHistory(history, memo);
   assert.deepEqual(history, ['f', 'e', 'd', 'a', 'c']);
   assert.deepEqual(withMemoHistory(history, '   '), history);
+});
+
+test('반복 일정 메모는 알아보고, 한 번짜리는 그대로 둔다', () => {
+  for (const text of ['매주 월요일 9시 회의', '매일 아침 7시 러닝', '매달 1일 월세', '격주 토요일 축구', '월요일마다 요가', '주 3회 헬스', '매 주 수요일 수업']) {
+    assert.equal(isRepeatMemo(text), true, text);
+  }
+  for (const text of ['내일 3시 친구 약속', '다음 주 월요일 2시 회의', '매운탕 먹기 토요일 6시', '이번 달 25일 3시 미용실']) {
+    assert.equal(isRepeatMemo(text), false, text);
+  }
 });

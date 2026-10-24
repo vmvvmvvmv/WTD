@@ -253,3 +253,11 @@ class MemoQuickParseTests(TestCase):
         self.assertEqual(response.json()["events"][0]["title"], "친구 약속")
         ask.assert_not_called()
         self.assertFalse(LlmDailyUsage.objects.exists())
+
+
+class MemoRepeatGuardTests(TestCase):
+    def test_repeat_memo_is_rejected_before_ai(self):
+        from dust.services.memo_events import MemoInputError, events_from_memo
+        for text in ("매주 월요일 9시 회의", "월요일마다 요가", "주 3회 헬스"):
+            with self.assertRaises(MemoInputError):
+                events_from_memo(text)

@@ -9,7 +9,6 @@ import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
 import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
-import { BottomToast } from '../shared/BottomToast';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
@@ -82,7 +81,13 @@ export function CalendarPanel({
   const sheet = useCalendarDaySheet(windowSize.height);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const [toast, setToast] = useState({ id: 0, message: '' });
+  // AI 일정 등록으로 추가한 뒤 잠깐 띄우는 알림. '되돌리기'를 누르면 방금 넣은 일정을 모두 뺍니다.
+  const [addedNotice, setAddedNotice] = useState<{ ids: string[]; key: number } | null>(null);
+  useEffect(() => {
+    if (!addedNotice) return;
+    const timer = setTimeout(() => setAddedNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [addedNotice]);
   // 메모 미리보기에서 고치려고 연 일정이 저장되면, 미리보기에서 그 일정을 빼려고 부릅니다.
   const memoEditSavedRef = useRef<(() => void) | null>(null);
   const {
@@ -215,7 +220,7 @@ export function CalendarPanel({
     if (onAddEvents) onAddEvents(added);
     else added.forEach(onAddEvent);
     selectDate(added.map((event) => event.date).sort()[0]);
-    setToast((current) => ({ id: current.id + 1, message: `${added.length}개 추가했어요` }));
+    setAddedNotice({ ids: added.map((event) => event.id), key: Date.now() });
   };
 
   const editMemoEvent = (event: CalendarEvent, onSaved: () => void) => {
@@ -400,7 +405,27 @@ export function CalendarPanel({
         riskByEvent={memoRiskByEvent}
         todayDateLabel={todayDateLabel}
       />
-      <BottomToast message={toast.message} showId={toast.id} />
+      {addedNotice && (
+        <Reanimated.View
+          entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOut.duration(150).reduceMotion(ReduceMotion.System)}
+          key={addedNotice.key}
+          style={styles.calendarUndoToast}
+        >
+          <Text style={styles.calendarUndoText}>{`${addedNotice.ids.length}개 추가했어요`}</Text>
+          <Pressable
+            accessibilityLabel="방금 추가한 일정 되돌리기"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => {
+              addedNotice.ids.forEach(onRemoveEvent);
+              setAddedNotice(null);
+            }}
+          >
+            <Text style={styles.calendarUndoAction}>되돌리기</Text>
+          </Pressable>
+        </Reanimated.View>
+      )}
 
       <CalendarEventEditor
         activityInput={draft.activityInput}

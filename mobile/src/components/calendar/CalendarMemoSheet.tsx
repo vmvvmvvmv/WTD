@@ -17,7 +17,7 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import { useKeyboardHeight } from '../shared/BottomToast';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import type { CalendarLocationForecast } from './calendarForecast';
-import { memoEventToCalendarEvent, memoSuggestions, withMemoHistory } from './calendarMemo';
+import { isRepeatMemo, memoEventToCalendarEvent, memoSuggestions, withMemoHistory } from './calendarMemo';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import { dayLabel } from './calendarUtils';
 
@@ -168,6 +168,11 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   const convert = async () => {
     // 상태(isLoading)는 다음 화면에서야 바뀌므로, 빠른 연속 누름은 ref로 막습니다(사용 횟수를 두 번 쓰지 않게).
     if (!text.trim() || isConvertingRef.current) return;
+    // 반복 일정은 한 번짜리로 잘못 만들어지므로 보내지 않고 직접 등록으로 안내합니다.
+    if (isRepeatMemo(text)) {
+      setMessage('반복 일정은 직접 일정 등록에서 반복을 골라 만들어 주세요.');
+      return;
+    }
     isConvertingRef.current = true;
     const requestId = ++requestIdRef.current;
     setIsLoading(true);
@@ -266,7 +271,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
               <Ionicons color={textColors.secondary} name="close" size={26} />
             </Pressable>
           </View>
-          {!!events && <Text style={local.subtitle}>AI가 틀릴 수 있어요. 확인하고 카드를 눌러 고치세요.</Text>}
+          {!!events && <Text style={local.subtitle}>확인하고, 다르면 카드를 눌러 고치세요.</Text>}
 
           {events ? (
             <ScrollView contentContainerStyle={local.list} style={local.listScroll}>
