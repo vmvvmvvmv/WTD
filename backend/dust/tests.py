@@ -60,8 +60,8 @@ class NotificationCalendarPrivacyTests(SimpleTestCase):
 class OutfitClientKeyTests(SimpleTestCase):
     def _key(self, **meta):
         from django.test import RequestFactory
-        from dust.outfit_views import _client_key
-        return _client_key(RequestFactory().post('/outfit/recommend/', **meta))
+        from dust.memo_views import _client_key
+        return _client_key(RequestFactory().post('/dust/calendar/memo-events/', **meta))
 
     def test_device_id_header_cannot_reset_llm_limit(self):
         base = self._key(REMOTE_ADDR='10.0.0.1')
@@ -99,64 +99,6 @@ class PredictionCachePolicyTests(SimpleTestCase):
 
         self.assertEqual(result['predictions'], [])
         self.assertIsNone(cache.get('dust_predict_v10_테스트시_테스트구'))
-
-
-class DailyOutfitCacheTests(SimpleTestCase):
-    """하루 단위 옷차림 캐시에는 일정 제목을 저장하지 않는다."""
-
-    def _key(self, occasion, schedule_id='event-1'):
-        from dust.services.outfit.context_builder import build_outfit_request
-        from dust.services.outfit.daily_service import _cache_key
-        request = build_outfit_request({
-            'schedule_id': schedule_id, 'title': '아무 제목', 'start': '2026-10-09T09:00:00',
-            'city': '서울', 'region': '송파구',
-        })
-        rule_result = {'outfit': {'band': 'mild'}, 'weather_condition': 'normal', 'must_have': []}
-        return _cache_key([(request, {'occasion': occasion})], rule_result)
-
-    def test_key_follows_occasion_not_title(self):
-        self.assertEqual(self._key('casual'), self._key('casual'))
-        self.assertNotEqual(self._key('casual'), self._key('sport'))
-
-    def _payload(self, title):
-        from dust.test_outfit_recommendation import request_payload
-        return {'schedules': [{**request_payload('full'), 'title': title}], 'sensitivity': 'normal', 'mode': 'full'}
-
-    @patch('dust.services.outfit.daily_service.save_cached_recommendation')
-    @patch('dust.services.outfit.daily_service.get_cached_recommendation', return_value=None)
-    @patch('dust.services.outfit.daily_service._llm_allowed', return_value=True)
-    @patch('dust.services.outfit.daily_service.build_llm_client')
-    @patch('dust.services.outfit.daily_service.load_schedule_snapshot')
-    def test_saved_cache_has_no_schedule_titles(self, load_snapshot, build_client, _allowed, _get, save):
-        import json
-        from unittest.mock import Mock
-        from dust.services.outfit.daily_service import recommend_daily_outfit
-        from dust.test_outfit_recommendation import snapshot
-        load_snapshot.return_value = snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9, rain_prob_max=70, has_rain=True, weather_condition='rain')
-        client = Mock()
-        client.generate.return_value = {'summary': '우산을 챙기세요.', 'outfit_note': '니트와 청바지를 입어요.', 'layering_tip': '쉽게 벗고 입도록 준비하세요.', 'reasons': {'umbrella': '비에 대비해요'}}
-        build_client.return_value = client
-
-        result = recommend_daily_outfit(self._payload('산부인과 진료'), client_key='device')
-
-        self.assertEqual(result['source'], 'llm')
-        self.assertEqual(result['schedule_tips'][0]['title'], '산부인과 진료')
-        saved = save.call_args.args[1]
-        self.assertNotIn('schedule_tips', saved)
-        self.assertNotIn('산부인과 진료', json.dumps(saved, ensure_ascii=False))
-
-    @patch('dust.services.outfit.daily_service.get_cached_recommendation', return_value={'source': 'llm', 'summary': 'cached'})
-    @patch('dust.services.outfit.daily_service.load_schedule_snapshot')
-    def test_cache_hit_uses_current_titles(self, load_snapshot, _get):
-        from dust.services.outfit.daily_service import recommend_daily_outfit
-        from dust.test_outfit_recommendation import snapshot
-        load_snapshot.return_value = snapshot(rain_prob_max=70, has_rain=True, weather_condition='rain')
-
-        result = recommend_daily_outfit(self._payload('바뀐 제목'), client_key='device')
-
-        self.assertTrue(result['cached'])
-        self.assertEqual(result['summary'], 'cached')
-        self.assertEqual(result['schedule_tips'][0]['title'], '바뀐 제목')
 
 
 class ExpoDeviceNotRegisteredTests(SimpleTestCase):
@@ -438,9 +380,9 @@ class ErrorResponseShapeTests(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(set(response.json()), {'error', 'code'})
 
-    @patch('dust.views.NAVER_SEARCH_CLIENT_ID', 'id')
-    @patch('dust.views.NAVER_SEARCH_CLIENT_SECRET', 'secret')
-    @patch('dust.views.public_api_get')
+    @patch('dust.services.places.NAVER_SEARCH_CLIENT_ID', 'id')
+    @patch('dust.services.places.NAVER_SEARCH_CLIENT_SECRET', 'secret')
+    @patch('dust.services.places.public_api_get')
     def test_upstream_error_body_is_not_exposed(self, api_get):
         api_get.return_value.status_code = 401
         api_get.return_value.json.return_value = {'errorMessage': 'private upstream detail'}
@@ -461,7 +403,7 @@ class PurgeOldRecordsTests(TestCase):
 
         from django.core.management import call_command
 
-        from dust.models import DustNotificationLog, LlmDailyUsage, NotificationDevice, OutfitRecommendationCache
+        from dust.models import DustNotificationLog, LlmDailyUsage, NotificationDevice
 
         now = timezone.now()
         old = now - timedelta(days=31)
@@ -474,8 +416,6 @@ class PurgeOldRecordsTests(TestCase):
         NotificationDevice.objects.filter(pk__in=[off.pk, on.pk]).update(updated_at=old)
         log = DustNotificationLog.objects.create(device=on, notification_type='t', city='서울', region='송파구', basis_key='k')
         DustNotificationLog.objects.filter(pk=log.pk).update(created_at=old)
-        OutfitRecommendationCache.objects.create(cache_key='expired', response_json={}, valid_until=now - timedelta(hours=1))
-        OutfitRecommendationCache.objects.create(cache_key='valid', response_json={}, valid_until=now + timedelta(hours=1))
 
         call_command('purge_old_records', stdout=open(__import__('os').devnull, 'w'))
 
@@ -483,7 +423,6 @@ class PurgeOldRecordsTests(TestCase):
         # 꺼진 지 30일 넘은 기기만 지우고, 켜져 있는 기기와 최근에 끈 기기는 남긴다.
         self.assertEqual(set(NotificationDevice.objects.values_list('pk', flat=True)), {on.pk, recent_off.pk})
         self.assertFalse(DustNotificationLog.objects.exists())
-        self.assertEqual(list(OutfitRecommendationCache.objects.values_list('cache_key', flat=True)), ['valid'])
 
 
 class PrivacyPageTests(SimpleTestCase):

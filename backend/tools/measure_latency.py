@@ -61,7 +61,7 @@ def environment():
 
 
 def measure_outfit(sensitivity):
-    # 같은 일정을 규칙만(rule) → AI 설명까지(full) → 한 번 더(full, 저장된 결과) 순서로 요청한다.
+    # 옷차림은 규칙으로만 만든다. 같은 일정 여러 시간대를 한 번씩 요청한다.
     base = {"schedule_id": "bench", "title": "친구와 카페", "activity_type": "outdoor", "lat": 35.10, "lng": 129.03, "city": "부산", "region": "대신동", "sensitivity": sensitivity}
     slots = [(1, 9), (1, 11), (1, 19), (2, 9), (2, 12), (2, 15), (2, 18), (3, 10), (3, 14), (3, 18)]  # (며칠 뒤, 시작 시)
     rows = []
@@ -69,22 +69,10 @@ def measure_outfit(sensitivity):
         day = datetime.now() + timedelta(days=days)
         start = f"{day:%Y-%m-%d}T{hour:02d}:00:00+09:00"
         end = f"{day:%Y-%m-%d}T{hour + 2:02d}:00:00+09:00"
-        body = {**base, "start": start, "end": end}
-        c1, rule_ms, _ = call("/outfit/recommend/", body={**body, "mode": "rule"})
-        c2, full_ms, p2 = call("/outfit/recommend/", body={**body, "mode": "full"})
-        c3, again_ms, p3 = call("/outfit/recommend/", body={**body, "mode": "full"})
-        first, second = json.loads(p2) if c2 == 200 else {}, json.loads(p3) if c3 == 200 else {}
-        rows.append({"start": start, "status": [c1, c2, c3], "rule_ms": rule_ms, "full_first_ms": full_ms, "full_first_source": first.get("source"), "full_first_cached": bool(first.get("cached")), "full_again_ms": again_ms, "full_again_cached": bool(second.get("cached"))})
-    # AI가 실제로 쓰였고(처음엔 저장값이 아님) 두 번째는 저장값인 경우만 센다.
-    valid = [r for r in rows if r["status"] == [200, 200, 200] and r["full_first_source"] == "llm" and not r["full_first_cached"] and r["full_again_cached"]]
-    return {
-        "condition": f"같은 일정 {len(rows)}개, 민감도 {sensitivity}. 처음 full 요청이 AI(llm)이고 저장값이 아닌 경우만 셈",
-        "valid_samples": len(valid),
-        "rule": summary([r["rule_ms"] for r in valid]),
-        "full_first": summary([r["full_first_ms"] for r in valid]),
-        "full_again": summary([r["full_again_ms"] for r in valid]),
-        "raw": rows,
-    }
+        status, ms, _ = call("/outfit/recommend/", body={**base, "start": start, "end": end})
+        rows.append({"start": start, "status": status, "ms": ms})
+    valid = [r for r in rows if r["status"] == 200]
+    return {"condition": f"같은 일정 {len(rows)}개, 민감도 {sensitivity}. 200 응답만 셈", "valid_samples": len(valid), "rule": summary([r["ms"] for r in valid]), "raw": rows}
 
 
 def dashboard_calls(city, region, today):
@@ -140,7 +128,7 @@ if __name__ == "__main__":
     if mode == "outfit":
         result["outfit"] = measure_outfit(sys.argv[2] if len(sys.argv) > 2 else "cold")
         o = result["outfit"]
-        print(f"[옷차림] 유효 {o['valid_samples']}개 | 규칙 {o['rule']['median_ms']}ms | AI 처음 {o['full_first']['median_ms']}ms | AI 두번째 {o['full_again']['median_ms']}ms")
+        print(f"[옷차림] 유효 {o['valid_samples']}개 | 규칙 {o['rule']['median_ms']}ms")
     else:
         result["home"] = measure_home(seeds=[11, 22, 33], per_group=12)
         h = result["home"]

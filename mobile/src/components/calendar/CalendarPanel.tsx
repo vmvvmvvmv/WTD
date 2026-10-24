@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 
@@ -12,6 +13,7 @@ import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
+import { CalendarMemoSheet } from './CalendarMemoSheet';
 import { CalendarMonthGrid } from './CalendarMonthGrid';
 import { CalendarTimeline } from './CalendarTimeline';
 import { CalendarViewTabs } from './CalendarViewTabs';
@@ -77,6 +79,7 @@ export function CalendarPanel({
   const windowSize = useWindowDimensions();
   const draft = useCalendarEventDraft(todayDateLabel, defaultLocation);
   const sheet = useCalendarDaySheet(windowSize.height);
+  const [isMemoOpen, setIsMemoOpen] = useState(false);
   const {
     changeViewMode,
     goToday,
@@ -200,6 +203,13 @@ export function CalendarPanel({
     });
   };
 
+  const addMemoEvents = (added: CalendarEvent[]) => {
+    if (added.length === 0) return;
+    if (onAddEvents) onAddEvents(added);
+    else added.forEach(onAddEvent);
+    selectDate(added.map((event) => event.date).sort()[0]);
+  };
+
   const removeEvent = (event: CalendarEvent) => {
     confirmCalendarEventRemoval(event, {
       removeFollowing: () => onRemoveFollowingEvents(event),
@@ -299,6 +309,17 @@ export function CalendarPanel({
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
       <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
         <Pressable
+          accessibilityLabel="메모로 일정 추가"
+          onPress={() => setIsMemoOpen(true)}
+          style={({ pressed }) => [
+            styles.calendarFloatingMemoButton,
+            { borderColor: accentTone, shadowColor: accentTone },
+            pressed && styles.pressedFeedback,
+          ]}
+        >
+          <Ionicons color={accentTone} name="create-outline" size={24} />
+        </Pressable>
+        <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
           ref={tutorialTarget('calendarAdd')}
@@ -312,6 +333,8 @@ export function CalendarPanel({
           <AppActionIcon name="schedule" size={38} />
         </Pressable>
       </Reanimated.View>
+
+      <CalendarMemoSheet isOpen={isMemoOpen} onAdd={addMemoEvents} onClose={() => setIsMemoOpen(false)} />
 
       <CalendarEventEditor
         activityInput={draft.activityInput}

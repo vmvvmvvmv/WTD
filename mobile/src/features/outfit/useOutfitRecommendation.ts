@@ -13,9 +13,8 @@ function isRetryableOutfitError(error: unknown) {
   return !(error instanceof ApiHttpError) || error.status === 503 || error.status >= 500;
 }
 
-export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, events, sensitivity }: {
+export function useOutfitRecommendation({ enabled, events, sensitivity }: {
   enabled: boolean;
-  enhanceWithLlm?: boolean;
   events: CalendarEvent[];
   sensitivity: OutfitSensitivity;
 }) {
@@ -23,8 +22,6 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
   const [result, setResult] = useState<OutfitRecommendation | null>(() => getCachedOutfit(key));
   const [status, setStatus] = useState<OutfitLoadStatus>(enabled ? 'loading' : 'idle');
   const [retryVersion, setRetryVersion] = useState(0);
-  // 기본(규칙) 추천을 보여 준 뒤 AI(LLM) 추천을 기다리는 중인지. 화면에 'AI가 고르는 중'을 띄우는 데 씁니다.
-  const [isEnhancing, setIsEnhancing] = useState(false);
   const autoRetryAttemptRef = useRef(0);
 
   useEffect(() => {
@@ -40,36 +37,23 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
     if (cached) {
       setResult(cached);
       setStatus('ready');
-      if (!enhanceWithLlm || cached.source === 'llm') return;
+      return;
     }
     const controller = new AbortController();
     let mounted = true;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     setStatus('loading');
-    const request = (mode: 'rule' | 'full') => events.length > 1
-      ? postDailyOutfitRecommendation({ events, mode, sensitivity, signal: controller.signal })
-      : postOutfitRecommendation({ event: events[0], mode, sensitivity, signal: controller.signal });
     const load = async () => {
       try {
-        if (!cached) {
-          const rule = await request('rule');
-          if (!mounted) return;
-          setResult(rule);
-          setCachedOutfit(key, rule);
-          setStatus('ready');
-          autoRetryAttemptRef.current = 0;
-        }
-        if (!enhanceWithLlm) return;
-        setIsEnhancing(true);
-        const full = await request('full');
+        const next = events.length > 1
+          ? await postDailyOutfitRecommendation({ events, sensitivity, signal: controller.signal })
+          : await postOutfitRecommendation({ event: events[0], sensitivity, signal: controller.signal });
         if (!mounted) return;
-        setResult(full);
-        setCachedOutfit(key, full);
-        setIsEnhancing(false);
+        setResult(next);
+        setCachedOutfit(key, next);
         setStatus('ready');
         autoRetryAttemptRef.current = 0;
       } catch (error) {
-        if (mounted) setIsEnhancing(false);
         if (!mounted || controller.signal.aborted) return;
         const last = getLastOutfit(key);
         if (last) {
@@ -92,16 +76,15 @@ export function useOutfitRecommendation({ enabled, enhanceWithLlm = false, event
     void load();
     return () => {
       mounted = false;
-      setIsEnhancing(false);
       controller.abort();
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [enabled, enhanceWithLlm, events, key, retryVersion, sensitivity]);
+  }, [enabled, events, key, retryVersion, sensitivity]);
 
   const retry = useCallback(() => {
     autoRetryAttemptRef.current = 0;
     clearCachedOutfit(key);
     setRetryVersion((value) => value + 1);
   }, [key]);
-  return { isEnhancing, result, retry, status };
+  return { result, retry, status };
 }

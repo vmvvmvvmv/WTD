@@ -8,7 +8,6 @@ from django.utils.dateparse import parse_datetime
 
 ACTIVITY_TYPES = {"indoor", "outdoor", "transit", "auto"}
 SENSITIVITIES = {"cold", "normal", "hot"}
-MODES = {"rule", "full"}
 
 
 class OutfitContextError(ValueError):
@@ -27,7 +26,6 @@ class OutfitRequest:
     city: str
     region: str
     sensitivity: str
-    mode: str
 
 
 def _coordinate(value: Any, minimum: float, maximum: float) -> float | None:
@@ -61,13 +59,10 @@ def build_outfit_request(payload: dict[str, Any]) -> OutfitRequest:
         raise OutfitContextError("일정 종료 시각은 시작 이후 24시간 이내여야 합니다.")
     activity_type = str(payload.get("activity_type") or "outdoor").strip().lower()
     sensitivity = str(payload.get("sensitivity") or "normal").strip().lower()
-    mode = str(payload.get("mode") or "rule").strip().lower()
     if activity_type not in ACTIVITY_TYPES:
         raise OutfitContextError("지원하지 않는 활동 유형입니다.")
     if sensitivity not in SENSITIVITIES:
         raise OutfitContextError("지원하지 않는 체감 성향입니다.")
-    if mode not in MODES:
-        raise OutfitContextError("mode는 rule 또는 full이어야 합니다.")
     return OutfitRequest(
         schedule_id=str(payload.get("schedule_id") or "")[:120],
         title=str(payload.get("title") or "")[:120],
@@ -79,5 +74,4 @@ def build_outfit_request(payload: dict[str, Any]) -> OutfitRequest:
         city=str(payload.get("city") or "")[:40],
         region=str(payload.get("region") or "")[:80],
         sensitivity=sensitivity,
-        mode=mode,
     )

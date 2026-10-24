@@ -1,15 +1,11 @@
 import os
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-import requests
-
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
 from dust.services.outfit.daily_service import merge_daily_snapshots, recommend_daily_outfit
-from dust.services.outfit.llm_client import GeminiLLMClient, OUTPUT_SCHEMA
 from dust.services.outfit.occasion import classify_occasion
-from dust.services.outfit.response_parser import validate_llm_output
 from dust.services.outfit.rule_engine import _with_josa, build_rule_result
 from dust.services.outfit.service import recommend_outfit
 
@@ -20,8 +16,8 @@ def snapshot(**overrides):
     return value
 
 
-def request_payload(mode="rule"):
-    return {"schedule_id": "event-1", "title": "친구와 카페", "start": "2026-10-04T14:00:00+09:00", "end": "2026-10-04T18:00:00+09:00", "activity_type": "outdoor", "lat": 35.1, "lng": 129.0, "city": "부산광역시", "region": "중구", "sensitivity": "normal", "mode": mode}
+def request_payload():
+    return {"schedule_id": "event-1", "title": "친구와 카페", "start": "2026-10-04T14:00:00+09:00", "end": "2026-10-04T18:00:00+09:00", "activity_type": "outdoor", "lat": 35.1, "lng": 129.0, "city": "부산광역시", "region": "중구", "sensitivity": "normal"}
 
 
 class OutfitAggregationTests(SimpleTestCase):
@@ -127,119 +123,31 @@ class DailyOutfitServiceTests(SimpleTestCase):
         self.assertEqual(result["temp_range"], 22)
         self.assertEqual(result["weather_condition"], "snow")
 
-    @patch("dust.services.outfit.daily_service.get_cached_recommendation", return_value=None)
-    @patch("dust.services.outfit.daily_service.build_llm_client", return_value=None)
     @patch("dust.services.outfit.daily_service.load_schedule_snapshot")
-    def test_multiple_schedules_return_one_base_outfit_with_prioritized_tips(self, load_snapshot, _client, _cache):
+    def test_multiple_schedules_return_one_base_outfit_with_prioritized_tips(self, load_snapshot):
         load_snapshot.side_effect = [
             snapshot(feels_min=18, feels_max=22, feels_avg=20, weather_condition="normal"),
             snapshot(feels_min=12, feels_max=15, feels_avg=13, rain_prob_max=80, has_rain=True, weather_condition="rain"),
         ]
-        first = request_payload("full")
-        second = {**request_payload("full"), "schedule_id": "event-2", "title": "저녁 운동", "start": "2026-10-04T19:00:00+09:00", "end": "2026-10-04T20:00:00+09:00"}
-        payload = {"schedules": [first, second], "sensitivity": "normal", "mode": "full"}
+        first = request_payload()
+        second = {**request_payload(), "schedule_id": "event-2", "title": "저녁 운동", "start": "2026-10-04T19:00:00+09:00", "end": "2026-10-04T20:00:00+09:00"}
+        payload = {"schedules": [first, second], "sensitivity": "normal"}
 
-        result = recommend_daily_outfit(payload, client_key="device")
+        result = recommend_daily_outfit(payload)
 
         self.assertEqual(result["total_schedules"], 2)
         self.assertEqual(result["weather_condition"], "rain")
         self.assertEqual(result["schedule_tips"][0]["schedule_id"], "event-2")
         self.assertIn("우산", result["schedule_tips"][0]["items"])
-
-
-class OutfitLlmValidationTests(SimpleTestCase):
-    def setUp(self):
-        self.input = {"weather": {"temp_range": 9}, "must_have": [{"type": "umbrella"}]}
-        self.must_have = [{"type": "umbrella", "label": "우산", "level": "required", "reason": ""}]
-
-    def test_valid_output(self):
-        result = validate_llm_output({"summary": "우산을 챙기세요.", "outfit_note": "얇게 겹쳐 입어요.", "layering_tip": "쉽게 벗을 수 있게 입어요.", "reasons": {"umbrella": "비에 대비해요"}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
-        self.assertEqual(result["summary"], "우산을 챙기세요.")
-
-    def test_missing_reason_is_rejected(self):
-        with self.assertRaises(ValueError):
-            validate_llm_output({"summary": "준비하세요.", "outfit_note": "겹쳐 입어요.", "layering_tip": "", "reasons": {}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
-
-    def test_new_number_is_rejected(self):
-        with self.assertRaises(ValueError):
-            validate_llm_output({"summary": "20도로 예상돼요.", "outfit_note": "겹쳐 입어요.", "layering_tip": "", "reasons": {"umbrella": "비에 대비해요"}}, llm_input=self.input, must_have=self.must_have, temp_range=9)
-
-    def test_gemini_schema_uses_explicit_reason_properties(self):
-        reasons_schema = OUTPUT_SCHEMA["properties"]["reasons"]
-        self.assertNotIn("additionalProperties", reasons_schema)
-        self.assertIn("umbrella", reasons_schema["properties"])
-
-    @patch("dust.services.outfit.llm_client.requests.post")
-    def test_missing_configured_model_uses_current_fallback(self, post):
-        missing = Mock(status_code=404)
-        success = Mock(status_code=200)
-        success.raise_for_status.return_value = None
-        success.json.return_value = {
-            "candidates": [{"content": {"parts": [{"text": '{"summary":"좋아요","outfit_note":"가볍게 입어요","layering_tip":"","reasons":{}}'}]}}]
-        }
-        post.side_effect = [missing, success]
-
-        result = GeminiLLMClient(api_key="test", model="gemini-2.5-flash", timeout=1).generate("system", {})
-
-        self.assertEqual(result["summary"], "좋아요")
-        self.assertIn("gemini-3.5-flash-lite", post.call_args_list[1].args[0])
-
-    @patch("dust.services.outfit.llm_client.requests.post")
-    def test_rate_limited_model_is_not_retried(self, post):
-        post.return_value = Mock(status_code=429)
-
-        with self.assertRaises(RuntimeError):
-            GeminiLLMClient(api_key="test", model="gemini-2.5-flash", timeout=1).generate("system", {})
-
-        # 모델마다 한 번씩만: 429를 받은 모델로 다시 보내지 않는다.
-        self.assertEqual(post.call_count, 2)
-
-    @patch("dust.services.outfit.llm_client.time.monotonic", side_effect=[0, 0, 9])
-    @patch("dust.services.outfit.llm_client.requests.post", side_effect=requests.Timeout)
-    def test_retries_stop_when_total_timeout_is_used_up(self, post, _monotonic):
-        with self.assertRaises(RuntimeError):
-            GeminiLLMClient(api_key="test", model="gemini-2.5-flash", timeout=8).generate("system", {})
-
-        # 첫 요청이 8초를 다 쓰면 남은 후보·재시도는 보내지 않는다.
-        self.assertEqual(post.call_count, 1)
+        self.assertEqual(result["source"], "rule")
 
 
 class OutfitServiceTests(SimpleTestCase):
-    @patch("dust.services.outfit.service.save_cached_recommendation")
-    @patch("dust.services.outfit.service.get_cached_recommendation", return_value=None)
     @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot(feels_min=10, feels_max=19, feels_avg=15, temp_range=9, rain_prob_max=70))
-    @patch("dust.services.outfit.service._llm_allowed", return_value=True)
-    @patch("dust.services.outfit.service.build_llm_client")
-    def test_valid_llm_replaces_copy_only(self, build_client, *_mocks):
-        client = Mock()
-        client.generate.return_value = {"summary": "우산과 자켓을 챙기세요.", "outfit_note": "니트와 청바지를 입어요.", "layering_tip": "쉽게 벗고 입도록 준비하세요.", "reasons": {"umbrella": "비에 대비해요"}}
-        build_client.return_value = client
-        result = recommend_outfit(request_payload("full"), client_key="device")
-        self.assertEqual(result["source"], "llm")
-        self.assertEqual(result["outfit"]["band"], "B5")
-
-    @patch("dust.services.outfit.service.get_cached_recommendation", return_value={"source": "llm", "summary": "cached"})
-    @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot())
-    @patch("dust.services.outfit.service.build_llm_client")
-    def test_cached_result_skips_llm(self, build_client, *_mocks):
-        result = recommend_outfit(request_payload("full"), client_key="device")
-        self.assertTrue(result["cached"])
-        build_client.assert_not_called()
-
-    @patch("dust.services.outfit.service.save_cached_recommendation")
-    @patch("dust.services.outfit.service.get_cached_recommendation", return_value=None)
-    @patch("dust.services.outfit.service.load_schedule_snapshot", return_value=snapshot())
-    @patch("dust.services.outfit.service._llm_allowed", return_value=True)
-    @patch("dust.services.outfit.service.build_llm_client")
-    def test_failed_llm_rule_fallback_is_not_cached(self, build_client, _allowed, _snapshot, _cached, save_cached):
-        client = Mock()
-        client.generate.side_effect = RuntimeError("temporary failure")
-        build_client.return_value = client
-
-        result = recommend_outfit(request_payload("full"), client_key="device")
-
+    def test_returns_rule_result_even_if_old_app_asks_for_full(self, _snapshot):
+        result = recommend_outfit({**request_payload(), "mode": "full"})
         self.assertEqual(result["source"], "rule")
-        save_cached.assert_not_called()
+        self.assertEqual(result["outfit"]["band"], "B5")
 
 
 class OutfitEndpointTests(SimpleTestCase):
@@ -305,13 +213,3 @@ class ShowerVsRainTests(SimpleTestCase):
         result = build_rule_result(merged, activity_type="outdoor", sensitivity="normal", occasion="casual")
         self.assertNotIn("방수", " ".join(result["outfit"]["outer"]))
         self.assertEqual(next(item for item in result["must_have"] if item["type"] == "umbrella")["level"], "required")
-
-
-class LlmDailyLimitTests(TestCase):
-    def test_counts_per_client_in_db_and_stops_after_limit(self):
-        from dust.services.outfit.service import DAILY_LLM_LIMIT, _llm_allowed
-
-        results = [_llm_allowed("1.2.3.4") for _ in range(DAILY_LLM_LIMIT + 1)]
-        self.assertTrue(all(results[:DAILY_LLM_LIMIT]))
-        self.assertFalse(results[-1])
-        self.assertTrue(_llm_allowed("5.6.7.8"))
