@@ -79,7 +79,7 @@ class MemoEndpointTests(TestCase):
         self.assertEqual(response.status_code, 200)
         event = response.json()["events"][0]
         self.assertEqual(event["place"]["lat"], 37.49)
-        search.assert_called_once_with("강남역", 1)
+        search.assert_called_once_with("강남역", 1, timeout=4)
 
     @patch("dust.services.memo_events.search_naver_places", return_value=[{"label": "올림픽공원", "address": "서울 송파구", "lat": 37.52, "lng": 127.12, "source": "naver_local"}])
     @patch("dust.services.memo_events._ask_gemini")
@@ -105,3 +105,32 @@ class MemoEndpointTests(TestCase):
         response = self._post("내일 약속", HTTP_X_DEVICE_ID="d")
         self.assertEqual(response.status_code, 429)
         self.assertEqual(response.json()["code"], "quota_exceeded")
+
+
+class PlaceLookupRobustnessTests(TestCase):
+    @patch("dust.services.places.NAVER_SEARCH_CLIENT_SECRET", "s")
+    @patch("dust.services.places.NAVER_SEARCH_CLIENT_ID", "id")
+    def test_odd_naver_bodies_do_not_raise(self):
+        from unittest.mock import Mock
+
+        from dust.services import places
+        for body in ([], "str", None, {"items": "x"}, {"items": [None, 1, {"mapx": "1270000000", "mapy": "375000000", "title": "<b>강남</b>"}]}):
+            with patch.object(places, "public_api_get", return_value=Mock(status_code=200, json=Mock(return_value=body))):
+                items = places.search_naver_places("강남", 1)
+            self.assertTrue(all(item["label"] == "강남" for item in items))
+
+    def test_place_lookups_run_together_within_deadline(self):
+        import time
+
+        from dust.services import memo_events
+
+        def slow(query, display=8, timeout=6):
+            time.sleep(timeout)
+            return []
+
+        events = [{"place_text": f"장소{i}"} for i in range(10)]
+        with patch.object(memo_events, "search_naver_places", side_effect=slow), patch.object(memo_events, "PLACE_LOOKUP_SECONDS", 0.3):
+            started = time.monotonic()
+            memo_events._attach_places(events)
+        self.assertLess(time.monotonic() - started, 1.5)
+        self.assertTrue(all(event["place"] is None for event in events))

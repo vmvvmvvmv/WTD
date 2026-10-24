@@ -8,9 +8,11 @@ import logging
 import os
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import date, datetime, timedelta
 
 import requests
+from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
 
@@ -29,6 +31,8 @@ DAILY_DEVICE_LIMIT = 20
 # 같은 와이파이·통신사 NAT 뒤에 여러 사람이 있을 수 있어 기기 상한보다 넉넉히 둔다.
 DAILY_IP_LIMIT = 60
 DEFAULT_START_TIME = "09:00"
+# 장소 검색 전체에 쓰는 시간. Gemini(최대 8초)와 합쳐 앱 요청 제한(15초) 안에 끝나게 한다.
+PLACE_LOOKUP_SECONDS = 4
 ACTIVITY_TYPES = {"outdoor", "indoor", "transit"}
 WEEKDAYS = "월화수목금토일"
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -134,17 +138,20 @@ def _digest(kind: str, value: str) -> str:
 
 def _take_quota(device_id: str, ip_key: str) -> None:
     # 기기 ID는 앱이 만든 값이라 바꿔 보낼 수 있어서, IP 상한을 함께 건다.
-    # 횟수는 DB UPDATE(count + 1) 한 번으로 올려 서버 프로세스가 여러 개여도 빠짐없이 센다.
+    # 행은 트랜잭션 밖에서 먼저 만들고(동시에 만들어도 get_or_create가 처리), 트랜잭션 안에서 UPDATE(count + 1)로 행을 잠근 채
+    # 올린 값을 읽는다. 그래서 요청이 동시에 와도 상한만큼 정확히 통과한다. 잠그는 순서(IP → 기기)가 늘 같아 교착도 없다.
     today = timezone.localdate()
     checks = [(_digest("ip", ip_key), DAILY_IP_LIMIT)]
     if device_id:
         checks.append((_digest("device", device_id), DAILY_DEVICE_LIMIT))
+    for digest, _limit in checks:
+        LlmDailyUsage.objects.get_or_create(day=today, client_digest=digest)
     exceeded = False
-    for digest, limit in checks:
-        usage, _ = LlmDailyUsage.objects.get_or_create(day=today, client_digest=digest)
-        LlmDailyUsage.objects.filter(pk=usage.pk).update(count=F("count") + 1)
-        usage.refresh_from_db(fields=["count"])
-        exceeded = exceeded or usage.count > limit
+    with transaction.atomic():
+        for digest, limit in checks:
+            rows = LlmDailyUsage.objects.filter(day=today, client_digest=digest)
+            rows.update(count=F("count") + 1)
+            exceeded = rows.values_list("count", flat=True).get() > limit or exceeded
     if exceeded:
         raise MemoQuotaExceeded()
 
@@ -204,23 +211,29 @@ def _compact(value: str) -> str:
     return re.sub(r"\s+", "", value).lower()
 
 
+def _find_place(query: str) -> dict | None:
+    try:
+        results = search_naver_places(query, 1, timeout=PLACE_LOOKUP_SECONDS)
+    except (PlaceSearchUnavailable, PlaceSearchFailed):
+        return None
+    # 첫 결과가 엉뚱한 곳(예: 한강공원 → 올림픽공원)일 수 있어, 이름에 메모의 장소가 들어 있을 때만 쓴다.
+    first = results[0] if results else None
+    return first if first and _compact(query) in _compact(first["label"]) else None
+
+
 def _attach_places(events: list[dict]) -> None:
     # 장소 이름은 네이버 지역 검색 첫 결과로 좌표를 붙인다. 못 찾으면 이름만 남겨 앱에서 고칠 수 있게 한다.
+    # 장소마다 차례로 기다리면 최악 10곳 × 6초가 되어 앱(15초)·gunicorn(30초) 제한을 넘으므로, 한꺼번에 묻고 전체를 몇 초로 자른다.
+    queries = list(dict.fromkeys(event["place_text"] for event in events if event["place_text"]))
     found = {}
+    if queries:
+        pool = ThreadPoolExecutor(max_workers=min(5, len(queries)))
+        futures = {query: pool.submit(_find_place, query) for query in queries}
+        wait(futures.values(), timeout=PLACE_LOOKUP_SECONDS + 0.5)
+        pool.shutdown(wait=False, cancel_futures=True)
+        found = {query: future.result() if future.done() and not future.exception() else None for query, future in futures.items()}
     for event in events:
-        query = event["place_text"]
-        event["place"] = None
-        if not query:
-            continue
-        if query not in found:
-            try:
-                results = search_naver_places(query, 1)
-            except (PlaceSearchUnavailable, PlaceSearchFailed):
-                results = []
-            # 첫 결과가 엉뚱한 곳(예: 한강공원 → 올림픽공원)일 수 있어, 이름에 메모의 장소가 들어 있을 때만 쓴다.
-            first = results[0] if results else None
-            found[query] = first if first and _compact(query) in _compact(first["label"]) else None
-        event["place"] = found[query]
+        event["place"] = found.get(event["place_text"])
 
 
 def events_from_memo(text, *, device_id: str = "", ip_key: str = "") -> list[dict]:

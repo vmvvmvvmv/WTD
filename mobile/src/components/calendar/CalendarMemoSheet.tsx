@@ -123,11 +123,19 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
+  // 요청마다 번호를 매겨, 닫았거나 새로 보낸 뒤에 도착한 예전 응답은 버립니다(다시 열었을 때 옛 미리보기가 뜨지 않게).
+  const requestIdRef = useRef(0);
+  const isConvertingRef = useRef(false);
+  // 같은 미리보기를 두 번 추가하지 않게 합니다(빠르게 두 번 누르면 화면이 바뀌기 전에 두 번 불림).
+  const isAddedRef = useRef(false);
   // 미리보기 일정의 장소별 예보를 받아 날씨를 함께 보여 줍니다.
   const previewForecasts = useCalendarLocationForecasts(events ?? [], isOpen && !!events, todayDateLabel);
   const risks = useMemo(() => (events ? riskByEvent(events, previewForecasts) : {}), [events, previewForecasts, riskByEvent]);
 
   const close = () => {
+    requestIdRef.current += 1;
+    isConvertingRef.current = false;
+    setIsLoading(false);
     setEvents(null);
     setMessage('');
     onClose();
@@ -140,22 +148,30 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   };
 
   const convert = async () => {
-    if (!text.trim() || isLoading) return;
+    // 상태(isLoading)는 다음 화면에서야 바뀌므로, 빠른 연속 누름은 ref로 막습니다(사용 횟수를 두 번 쓰지 않게).
+    if (!text.trim() || isConvertingRef.current) return;
+    isConvertingRef.current = true;
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setMessage('');
     try {
       const response = await postMemoEvents({ deviceId: await loadDeviceId(), text: text.trim() });
+      if (requestId !== requestIdRef.current) return;
       const next = (Array.isArray(response.events) ? response.events : []).map(memoEventToCalendarEvent);
       if (next.length === 0) {
         setMessage('메모에서 일정을 찾지 못했어요. 날짜나 시간을 함께 적어 주세요.');
         return;
       }
+      isAddedRef.current = false;
       setEvents(next);
       setSelectedIds(new Set(next.map((event) => event.id)));
     } catch (error) {
-      setMessage(errorMessage(error));
+      if (requestId === requestIdRef.current) setMessage(errorMessage(error));
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        isConvertingRef.current = false;
+        setIsLoading(false);
+      }
     }
   };
 
@@ -179,7 +195,8 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
 
   const add = () => {
     const picked = (events ?? []).filter((event) => selectedIds.has(event.id));
-    if (picked.length === 0) return;
+    if (picked.length === 0 || isAddedRef.current) return;
+    isAddedRef.current = true;
     onAdd(picked);
     setText('');
     close();
