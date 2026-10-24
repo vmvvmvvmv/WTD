@@ -167,6 +167,11 @@ function leadNotificationBody(risk?: CalendarNotificationRisk) {
   return withTemperature(body, risk);
 }
 
+// 알림은 예약할 때 본 예보로 문구를 미리 써 둔다. 알림이 울릴 때까지 오래 남아 있으면 그사이 예보가 바뀔 수 있어서,
+// 이보다 먼 알림은 날씨를 단정하지 않고 확인을 권한다. 앱을 열거나 백그라운드 갱신이 돌면 가까워진 알림을 최신 예보로 다시 쓴다.
+const FRESH_FORECAST_WINDOW_MS = 12 * 60 * 60 * 1000;
+const STALE_FORECAST_BODY = '출발 전에 최신 날씨를 한 번 확인해 보세요.';
+
 function eventStartDate(event: CalendarEvent) {
   const date = new Date(`${event.date}T${event.time}:00`);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -215,8 +220,9 @@ export async function scheduleCalendarEventNotifications(event: CalendarEvent, r
     const requestedTriggerDate = new Date(eventStart.getTime() - event.notificationHoursBefore * 60 * 60 * 1000);
     const isLeadTimeAlreadyPast = requestedTriggerDate.getTime() <= Date.now() && eventStart.getTime() > Date.now();
     const triggerDate = isLeadTimeAlreadyPast ? eventStart : requestedTriggerDate;
+    const isForecastStaleAtTrigger = triggerDate.getTime() - Date.now() > FRESH_FORECAST_WINDOW_MS;
     const notificationId = await scheduleLocalNotification({
-      body: leadNotificationBody(risk),
+      body: isForecastStaleAtTrigger ? STALE_FORECAST_BODY : leadNotificationBody(risk),
       date: triggerDate,
       event,
       title: isLeadTimeAlreadyPast

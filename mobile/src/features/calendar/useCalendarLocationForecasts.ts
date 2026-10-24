@@ -11,7 +11,7 @@ import { toNumber } from '../../utils/format';
 import { buildDashboardHourlyItems, buildDashboardWeatherHourlyItems } from '../dashboard/dashboardData';
 import { weatherStateFromHourlyItem } from '../weather/weatherData';
 
-async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel: string): Promise<[string, CalendarLocationForecast] | null> {
+export async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel: string): Promise<[string, CalendarLocationForecast] | null> {
   const key = calendarEventLocationKey(event);
   if (!key || typeof event.locationLat !== 'number' || typeof event.locationLng !== 'number') return null;
 
