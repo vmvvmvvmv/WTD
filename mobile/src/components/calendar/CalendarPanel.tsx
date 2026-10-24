@@ -261,20 +261,7 @@ export function CalendarPanel({
   return (
     <View style={styles.calendarPanel}>
       <Reanimated.View style={[styles.calendarFullStage, sheet.stageStyle]}>
-        <View>
-          <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
-          {/* 메모의 날짜로 들어가는 기능이라 특정 날짜가 아닌, 어느 보기에서나 보이는 탭 줄에 둡니다. */}
-          <Pressable
-            accessibilityLabel="메모로 일정 추가"
-            accessibilityRole="button"
-            hitSlop={10}
-            onPress={() => setIsMemoOpen(true)}
-            style={({ pressed }) => [styles.calendarTabMemoLink, pressed && styles.pressedFeedback]}
-          >
-            <Ionicons color={accentTone} name="sparkles" size={14} />
-            <Text style={[styles.calendarTabMemoText, { color: accentTone }]}>메모로</Text>
-          </Pressable>
-        </View>
+        <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
           <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
@@ -350,6 +337,19 @@ export function CalendarPanel({
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
       <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
+        {/* 일정 추가(+) 옆에 두어 '일정을 넣는 두 가지 방법'으로 함께 보이게 합니다. 날짜와 상관없이 메모의 날짜로 들어갑니다.
+            날짜 시트가 열리면 버튼이 마지막 주 날짜 칸을 가려서 숨깁니다. */}
+        {!sheet.isOpen && (
+          <Pressable
+            accessibilityLabel="메모로 일정 추가"
+            accessibilityRole="button"
+            onPress={() => setIsMemoOpen(true)}
+            style={({ pressed }) => [styles.calendarFloatingMemoButton, { backgroundColor: accentTone, shadowColor: accentTone }, pressed && styles.pressedFeedback]}
+          >
+            <Ionicons color="#ffffff" name="sparkles" size={16} />
+            <Text style={styles.calendarFloatingMemoText}>메모로 추가</Text>
+          </Pressable>
+        )}
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
