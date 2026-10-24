@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
@@ -260,7 +261,20 @@ export function CalendarPanel({
   return (
     <View style={styles.calendarPanel}>
       <Reanimated.View style={[styles.calendarFullStage, sheet.stageStyle]}>
-        <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
+        <View>
+          <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
+          {/* 메모의 날짜로 들어가는 기능이라 특정 날짜가 아닌, 어느 보기에서나 보이는 탭 줄에 둡니다. */}
+          <Pressable
+            accessibilityLabel="메모로 일정 추가"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => setIsMemoOpen(true)}
+            style={({ pressed }) => [styles.calendarTabMemoLink, pressed && styles.pressedFeedback]}
+          >
+            <Ionicons color={accentTone} name="sparkles" size={14} />
+            <Text style={[styles.calendarTabMemoText, { color: accentTone }]}>메모로</Text>
+          </Pressable>
+        </View>
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
           <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
@@ -314,7 +328,6 @@ export function CalendarPanel({
         <CalendarDaySheet
           events={selectedEvents}
           onAddEvent={() => draft.openEditor(selectedDate)}
-          onOpenMemo={() => setIsMemoOpen(true)}
           isExpanded={sheet.isExpanded}
           onDismiss={() => sheet.setIsOpen(false)}
           onEditEvent={editEvent}
