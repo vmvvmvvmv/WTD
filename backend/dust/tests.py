@@ -809,3 +809,33 @@ class EarlyEventWeatherNotificationTests(TestCase):
         self.device.save()
         result, _ = self._run(6)
         self.assertEqual(result.sent, 0)
+
+
+class CurrentObservationTests(TestCase):
+    """지금 시각 한 행은 기상청 초단기실황(실측)으로 덮고, 실황에 없는 하늘 상태·강수확률은 예보 값을 둔다."""
+
+    def test_current_hour_uses_observation(self):
+        from datetime import datetime
+        from django.utils import timezone as dj_timezone
+        from dust.models import WeatherHourlyMeasurement
+        from dust.services import weather
+        tz = dj_timezone.get_current_timezone()
+        hour = dj_timezone.make_aware(datetime(2026, 10, 24, 18), tz)
+        WeatherHourlyMeasurement.objects.create(nx=98, ny=76, measured_at=hour, temperature=10, rain_probability=30, sky='3', label='흐림', raw_data={'T1H': '10', 'SKY': '3', 'POP': '30', 'LGT': '0', 'PTY': '0'})
+
+        class Response:
+            status_code = 200
+
+            def json(self):
+                items = [{'category': c, 'obsrValue': v} for c, v in (('T1H', '12.3'), ('REH', '81'), ('WSD', '3.4'), ('VEC', '200'), ('RN1', '0'), ('PTY', '0'))]
+                return {'response': {'header': {'resultCode': '00'}, 'body': {'items': {'item': items}}}}
+
+        with patch.object(weather, 'public_api_get', return_value=Response()):
+            stored = weather._store_current_observation({'nx': 98, 'ny': 76}, now=dj_timezone.make_aware(datetime(2026, 10, 24, 18, 45), tz))
+        row = WeatherHourlyMeasurement.objects.get(nx=98, ny=76, measured_at=hour)
+        self.assertIsNotNone(stored)
+        self.assertEqual(row.temperature, 12.3)
+        self.assertEqual(row.humidity, 81)
+        self.assertEqual(row.sky, '3')
+        self.assertEqual(row.rain_probability, 30)
+        self.assertEqual(row.label, '흐림')

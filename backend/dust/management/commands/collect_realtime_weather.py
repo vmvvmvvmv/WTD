@@ -9,7 +9,7 @@ from dust.external_api import public_api_get
 from dust.models import AirQualityStation
 from dust.config import AIRKOREA_HEADERS, KMA_API_KEY, KMA_ULTRA_SHORT_FORECAST_URL
 from dust.services.common import _dfs_grid_from_lat_lng
-from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_weather_hourly_measurement
+from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_current_observation, _store_weather_hourly_measurement
 
 
 def env_int(name, default):
@@ -168,6 +168,10 @@ def _collect_grid_weather(
                 saved += 1
             if saved >= forecast_hours:
                 break
+
+    # 예보를 다 저장한 뒤 지금 시각 한 행만 실측으로 덮는다(먼저 덮으면 예보가 다시 덮어쓴다).
+    if use_ultra_short:
+        _store_current_observation(grid)
 
     if saved:
         return saved, None
