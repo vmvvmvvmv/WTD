@@ -10,18 +10,35 @@ set "LOG_FILE=%~dp0collect_hourly.log"
 set "CURRENT_STEP=python_check"
 set "FAILED_STEPS="
 
+REM collect_hourly.bat dust     every hour at :25 - dust (AirKorea fills the hour's values between :15 and :30), spike push
+REM collect_hourly.bat weather  every hour at :45 - weather (KMA ultra-short forecast after :45), mid-term, early-event push
+REM collect_hourly.bat          both (first run to fill the database). Same as deploy/collect_hourly.sh.
+set "PART=%~1"
+if not defined PART set "PART=all"
+
 echo ================================================== >> "%LOG_FILE%"
-echo [%date% %time%] hourly collection start >> "%LOG_FILE%"
+echo [%date% %time%] hourly collection start (%PART%) >> "%LOG_FILE%"
 
 "%PYTHON_EXE%" --version >> "%LOG_FILE%" 2>&1
 if errorlevel 1 goto :python_missing
 
-REM One failed step (e.g. some sidos failed) must not skip the rest. Same as deploy/collect_hourly.sh.
+REM One failed step (e.g. some sidos failed) must not skip the rest.
+if /i "%PART%"=="weather" goto :weather
+
 set "CURRENT_STEP=collect_realtime_dust"
 echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 "%PYTHON_EXE%" manage.py collect_realtime_dust --spike-retry-delay 60 >> "%LOG_FILE%" 2>&1
 if errorlevel 1 call :mark_failed
 
+REM Push once a day when today's PM10 turns bad. Uses the data collected above.
+set "CURRENT_STEP=send_dust_spike_notifications"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py send_dust_spike_notifications >> "%LOG_FILE%" 2>&1
+if errorlevel 1 call :mark_failed
+
+if /i "%PART%"=="dust" goto :finish
+
+:weather
 set "CURRENT_STEP=collect_realtime_weather"
 echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 "%PYTHON_EXE%" manage.py collect_realtime_weather --workers 8 --forecast-hours 72 >> "%LOG_FILE%" 2>&1
@@ -40,14 +57,15 @@ echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 "%PYTHON_EXE%" manage.py check_data_freshness --max-dust-age-hours 3 --max-weather-age-hours 6 >> "%LOG_FILE%" 2>&1
 if errorlevel 1 call :mark_failed
 
-REM Push once a day when today's PM10 turns bad. Uses the data collected above.
-set "CURRENT_STEP=send_dust_spike_notifications"
+REM Weather push about an hour before events that start before the 07:00 morning push.
+set "CURRENT_STEP=send_early_event_weather_notifications"
 echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
-"%PYTHON_EXE%" manage.py send_dust_spike_notifications >> "%LOG_FILE%" 2>&1
+"%PYTHON_EXE%" manage.py send_early_event_weather_notifications >> "%LOG_FILE%" 2>&1
 if errorlevel 1 call :mark_failed
 
+:finish
 if defined FAILED_STEPS goto :failed
-echo [%date% %time%] hourly collection success >> "%LOG_FILE%"
+echo [%date% %time%] hourly collection success (%PART%) >> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"
 exit /b 0
 

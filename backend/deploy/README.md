@@ -6,7 +6,7 @@ Docker는 쓰지 않는다. 서버 한 대에 서비스 하나라 systemd로 충
 
 ```
 deploy/
-├─ collect_hourly.sh          # 매시 5분 수집 (collect_hourly.bat과 같은 순서)
+├─ collect_hourly.sh          # 시간마다 수집: dust(매시 25분)·weather(매시 45분) (collect_hourly.bat과 같은 순서)
 ├─ morning_notifications.sh   # 07:00 아침 알림 + 30일 지난 기록 삭제
 ├─ mysql/weathertodo.cnf      # MySQL 느린 쿼리 기록 설정
 ├─ redis/weathertodo.conf     # Redis 캐시 메모리 제한 설정
@@ -111,7 +111,8 @@ chmod +x deploy/*.sh
 ```bash
 sudo cp deploy/systemd/* /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now weathertodo weathertodo-collect.timer weathertodo-morning.timer
+# 예전 매시 5분 타이머를 쓰던 서버라면 먼저 끈다: sudo systemctl disable --now weathertodo-collect.timer
+sudo systemctl enable --now weathertodo weathertodo-collect-dust.timer weathertodo-collect-weather.timer weathertodo-morning.timer
 systemctl list-timers 'weathertodo*'
 ```
 
@@ -219,6 +220,6 @@ sudo systemctl restart weathertodo
 | 증상 | 볼 곳 |
 |---|---|
 | 502 Bad Gateway | `sudo journalctl -u weathertodo -n 50` (gunicorn이 안 떴음. 대개 `.env` 값 문제) |
-| 데이터가 안 바뀜 | `journalctl -u weathertodo-collect -n 100`, `systemctl list-timers` |
+| 데이터가 안 바뀜 | `journalctl -u 'weathertodo-collect@*' -n 100`, `systemctl list-timers` |
 | 아침 알림이 안 옴 | `journalctl -u weathertodo-morning -n 50` |
 | 지도 아이콘이 안 뜸 | `collectstatic`을 했는지, `/home/ubuntu` 권한 |

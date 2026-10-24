@@ -769,3 +769,43 @@ class MorningEventLinesTests(SimpleTestCase):
         lines = [line for line in body.splitlines() if '일정 때' in line]
         self.assertEqual(len(lines), 3)
         self.assertEqual(len(set(lines)), 3)
+
+
+class EarlyEventWeatherNotificationTests(TestCase):
+    """7시 전에 시작하는 일정은 아침 알림과 따로, 약 1시간 전에 그 시간 날씨를 한 번 보낸다."""
+
+    def setUp(self):
+        from dust.models import NotificationDevice
+        self.device = NotificationDevice.objects.create(
+            expo_push_token='ExponentPushToken[early]', city='부산', region='대신동', enabled=True, weather_morning_alerts=True,
+            calendar_events=[{'date': '2026-10-25', 'time': '06:00'}, {'date': '2026-10-25', 'time': '09:00'}],
+        )
+
+    def _run(self, hour, minute=45):
+        from datetime import datetime
+        from django.utils import timezone as dj_timezone
+        from dust import weather_morning_notifications as module
+        from dust.models import WeatherHourlyMeasurement
+        tz = dj_timezone.get_current_timezone()
+        now = dj_timezone.make_aware(datetime(2026, 10, 25, hour, minute), tz)
+        point = WeatherHourlyMeasurement(measured_at=dj_timezone.make_aware(datetime(2026, 10, 25, 6), tz), temperature=4, rain_mm=2, rain_probability=80, label='비', precipitation_type='1')
+        messages = []
+        with patch.object(module, 'weather_points_for_region', return_value=[point]), patch.object(module, 'send_expo_push', side_effect=lambda token, title, body, data: messages.append((title, body))):
+            result = module.send_early_event_weather_notifications(now=now, write=lambda _m: None)
+        return result, messages
+
+    def test_sends_once_about_an_hour_before(self):
+        result, messages = self._run(3)
+        self.assertEqual(result.sent, 0)  # 06:00은 아직 멀다
+        result, messages = self._run(4)
+        self.assertEqual(result.sent, 1)
+        self.assertIn('06:00', messages[0][0])
+        self.assertIn('비', messages[0][1])
+        result, _ = self._run(4)
+        self.assertEqual(result.sent, 0)  # 같은 일정은 한 번만
+
+    def test_events_from_seven_are_left_to_the_morning_push(self):
+        self.device.calendar_events = [{'date': '2026-10-25', 'time': '07:30'}]
+        self.device.save()
+        result, _ = self._run(6)
+        self.assertEqual(result.sent, 0)

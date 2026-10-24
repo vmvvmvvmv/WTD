@@ -407,29 +407,6 @@ def _parse_airkorea_datetime(value):
     return None
 
 
-def _apply_realtime_spike_guard(values, history_by_key):
-    rules = {
-        "pm10": {"min_value": 120, "min_delta": 70, "ratio": 2.5},
-        "pm25": {"min_value": 70, "min_delta": 35, "ratio": 2.5},
-    }
-    for key, item in values.items():
-        history = history_by_key.get(key) or []
-        if len(history) < 3:
-            continue
-        for field, rule in rules.items():
-            latest = _to_float(item.get(field))
-            previous = [_to_float(row.get(field)) for row in history[1:5]]
-            baseline = _median(previous)
-            if latest is None or baseline is None or baseline <= 0:
-                continue
-            if latest >= rule["min_value"] and latest - baseline >= rule["min_delta"] and latest / baseline >= rule["ratio"]:
-                item[f"raw{field.upper()}"] = latest
-                item[field] = round(baseline, 1)
-                item[f"{field}SpikeAdjusted"] = True
-                item["qualityNote"] = "single_sample_spike_adjusted"
-    return values
-
-
 def _is_single_sample_spike(latest, previous_values, rule):
     baseline = _median(previous_values)
     if latest is None or baseline is None or baseline <= 0:
@@ -473,15 +450,9 @@ def _load_latest_realtime_values_from_db(max_age_hours=24):
         .order_by('station_id', '-measured_at')
     )
     values = {}
-    history_by_key = {}
     for measurement in measurements:
         station = measurement.station
         key = f'{station.sido}:{station.name}'
-        history_by_key.setdefault(key, []).append({
-            "pm10": measurement.pm10_value,
-            "pm25": measurement.pm25_value,
-            "measured_at": measurement.measured_at,
-        })
         existing = values.get(key)
         if not existing:
             existing = {
@@ -517,7 +488,8 @@ def _load_latest_realtime_values_from_db(max_age_hours=24):
         if existing["o3"] is None and measurement.o3_value is not None:
             existing["o3"] = measurement.o3_value
             existing["o3_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
-    return _apply_realtime_spike_guard(values, history_by_key)
+    # 튄 값은 저장할 때 걸러진다(_neighbor_spike_fields). 여기서 측정된 적 없는 값으로 바꾸지 않는다.
+    return values
 
 
 def _find_station_for_realtime_value(value):

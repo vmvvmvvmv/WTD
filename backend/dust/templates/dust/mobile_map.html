@@ -114,6 +114,9 @@
       .weather-badge.rain { color: #3D7FEA; animation: rainPulse 1.8s ease-in-out infinite; }
       .weather-badge.snow { color: #65A1D8; animation: snowFloat 2.4s ease-in-out infinite; }
       .weather-badge.wind { color: #475569; animation: windDrift 1.6s ease-in-out infinite; }
+      .weather-badge.thunder { animation: thunderFlash 2.6s ease-in-out infinite; }
+      .weather-badge.thunder svg { display: block; height: 15px; width: 15px; }
+      @keyframes thunderFlash { 0%, 70%, 100% { opacity: 1; } 76% { opacity: .35; } 82% { opacity: 1; } 88% { opacity: .5; } }
       .marker-wrap.weather-rain .marker {
         box-shadow: 0 0 0 3px rgba(61,127,234,.42), 0 3px 10px rgba(40,86,140,.28);
       }
@@ -496,8 +499,11 @@
         );
         const hasWind = Number.isFinite(windSpeed) && windSpeed >= 5;
         const hasStrongWind = Number.isFinite(windSpeed) && windSpeed >= 9;
+        const hasThunder = label.includes('천둥') || label.includes('번개') || label.includes('thunder');
         const classes = [];
         const badges = [];
+        // 천둥번개는 가장 위험해서 맨 앞에 둔다(배지는 두 개까지만 보인다). 그림 파일 없이 번개 모양을 직접 그린다.
+        if (hasThunder) badges.push('<span class="weather-badge thunder" aria-label="천둥번개" title="천둥번개"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 1 3 9h4l-1.5 6L13 7H9z" fill="#C58A19"/></svg></span>');
         if (hasSnow) {
           classes.push('weather-snow');
           badges.push('<span class="weather-badge snow" aria-label="눈" title="눈"><img alt="" src="/static/dust/icons/map-weather-snow.png"></span>');
