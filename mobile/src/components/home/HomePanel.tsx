@@ -23,7 +23,7 @@ import { getWeatherVisualKind } from '../../utils/weather';
 import { isDateInEventRange } from '../calendar/calendarUtils';
 import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRemoval';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
-import { coachTarget } from '../shared/CoachMarks';
+import { tutorialTarget } from '../shared/TutorialTour';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
 import { HomeBannerSkeleton } from './HomeBannerSkeleton';
 import { OutfitCardContainer, type OutfitFallbackLocation } from '../outfit/OutfitCard';
@@ -370,8 +370,8 @@ export function HomePanel({
       <Animated.View style={[styles.homeHeroBanner, { opacity: bannerOpacity }]}>
         <View style={styles.homeHeroBannerImage}>
           <View style={styles.homeHeroBannerBottom}>
-            <View style={[styles.homeGaugeFeature, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[weatherBackgroundKind] }]}>
-              <HomeBannerScene animate={!reduceMotion} scene={{ background: weatherBackgroundKind, motion: weatherMotionKind }} />
+            <View ref={tutorialTarget('homeBanner')} style={[styles.homeGaugeFeature, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[weatherBackgroundKind] }]}>
+              <HomeBannerScene animate={!reduceMotion} precipitation={{ mm: peekForecast ? peekForecast.rainMm : weather?.rainMm, windSpeed: toNumber(peekForecast ? peekForecast.windSpeed : weather?.windSpeed) }} scene={{ background: weatherBackgroundKind, motion: weatherMotionKind }} />
             <View style={[styles.homeInfoCarouselViewport, { height: infoSlideHeight }]}>
               <ScrollView
                 ref={infoCarouselRef}
@@ -416,7 +416,7 @@ export function HomePanel({
               </View>
             </View>
             </View>
-            <View ref={coachTarget('homeHourly')} style={styles.homeHeroBannerForecastSection}>
+            <View ref={tutorialTarget('homeHourly')} style={styles.homeHeroBannerForecastSection}>
               {hasHourlyForecast ? (
                 <ScrollView
                   horizontal
@@ -486,7 +486,7 @@ export function HomePanel({
         layout={reduceMotion ? undefined : LinearTransition.duration(250).easing(ReanimatedEasing.out(ReanimatedEasing.cubic))}
         style={styles.homeSectionCard}
       >
-        <View accessibilityRole="tablist" onLayout={(event) => setSectionTabRowWidth(event.nativeEvent.layout.width)} ref={coachTarget('homeSections')} style={styles.homeSectionTabRow}>
+        <View accessibilityRole="tablist" onLayout={(event) => setSectionTabRowWidth(event.nativeEvent.layout.width)} ref={tutorialTarget('homeSections')} style={styles.homeSectionTabRow}>
           {homeSectionTabs.map((tab, index) => {
             const selected = tab.key === activeHomeSection;
             return (

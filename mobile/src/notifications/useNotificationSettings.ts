@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { registerNotificationDevice } from '../api/dustEndpoints';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../constants/dust';
 import { IS_EXPO_GO } from '../config/runtime';
-import { requestDustPushToken, scheduleTestNotification } from './expoPush';
+import { requestDustPushToken } from './expoPush';
 import { saveNotificationSettings, saveNotificationToken } from '../storage/appStorage';
 import type { CalendarEvent } from '../types/calendar';
 import type { RegionState } from '../types/region';
@@ -19,7 +19,6 @@ export function useNotificationSettings(
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   const [serverPushToken, setServerPushToken] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
 
   const hydrate = (storedSettings: NotificationSettings, storedToken: string | null) => {
     setSettings(storedSettings);
@@ -45,22 +44,6 @@ export function useNotificationSettings(
       notify(value ? '알림을 켰어요.' : '알림을 껐어요.');
     }
     setIsSaving(false);
-  };
-
-  const sendTest = async () => {
-    if (IS_EXPO_GO) {
-      notify('테스트 알림은 개발 빌드에서 확인할 수 있어요.');
-      return;
-    }
-    setIsTesting(true);
-    try {
-      const scheduled = await scheduleTestNotification();
-      notify(scheduled ? '3초 뒤 알림이 도착해요.' : '알림 권한을 허용하고 다시 시도해 주세요.');
-    } catch {
-      notify('알림을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setIsTesting(false);
-    }
   };
 
   useEffect(() => {
@@ -112,5 +95,5 @@ export function useNotificationSettings(
     if (hasLoadedStore) void saveNotificationSettings(settings);
   }, [hasLoadedStore, settings]);
 
-  return { settings, hydrate, isSaving, isTesting, updateSetting, sendTest };
+  return { settings, hydrate, isSaving, updateSetting };
 }

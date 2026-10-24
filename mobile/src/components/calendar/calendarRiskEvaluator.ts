@@ -337,12 +337,17 @@ function matchingRiskPoints(event: CalendarEvent, points: WeatherPoint[], predic
   return points.filter((item) => isPointNearEventRange(item.date, item.label, event) && predicate(item));
 }
 
-function pointsTimeRange(points: WeatherPoint[]) {
+// 하루 일정에서 그날 시간대면 시각만, 여러 날 일정이거나 다른 날이면 날짜를 붙인다(오늘 일로 읽히지 않게).
+function pointsTimeRange(points: WeatherPoint[], event: CalendarEvent) {
   if (points.length === 0) return undefined;
   const sorted = [...points].sort((a, b) => `${a.date} ${a.label}`.localeCompare(`${b.date} ${b.label}`));
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
-  if (first.date === last.date) return `${first.label}~${addOneHour(last.label)}`;
+  const singleDayEvent = (event.endDate ?? event.date) === event.date;
+  if (first.date === last.date) {
+    const hours = `${first.label}~${addOneHour(last.label)}`;
+    return singleDayEvent && first.date === event.date ? hours : `${first.date.slice(5)} ${hours}`;
+  }
   return `${first.date.slice(5)} ${first.label}~${last.date.slice(5)} ${addOneHour(last.label)}`;
 }
 
@@ -353,7 +358,7 @@ function rainSummaryForEvent(event: CalendarEvent, points: WeatherPoint[], midTe
       if (typeof item.rainProbability !== 'number') return best;
       return typeof best === 'number' ? Math.max(best, item.rainProbability) : item.rainProbability;
     }, undefined);
-    const timeRange = pointsTimeRange(rainyPoints) ?? '일정 시간대';
+    const timeRange = pointsTimeRange(rainyPoints, event) ?? '일정 시간대';
     return {
       probability: maxProbability,
       text: rainSummaryText(maxProbability, timeRange),
@@ -485,7 +490,7 @@ export function evaluateCalendarEventRisk(event: CalendarEvent, context: RiskCon
   const highTemperature = typeof temperatureMax === 'number' && temperatureMax >= 30;
   const lowTemperature = typeof temperatureMin === 'number' && temperatureMin <= 0;
   const hotOrCold = highTemperature || lowTemperature;
-  const windTimeRange = pointsTimeRange(windyPoints);
+  const windTimeRange = pointsTimeRange(windyPoints, event);
 
   const level: CalendarRiskLevel = thunder || veryHighDust || hardTemperature || snowy || (rainy && event.activityType === 'outdoor')
     ? 'bad'

@@ -7,6 +7,7 @@ export const ACTIVITY_WEATHER_ICONS: Record<ActivityWeatherKind, { background: s
   cloudy: { background: '#F1F4F8', color: '#7A889C', kind: 'cloudy' },
   rain: { background: '#E8F1FE', color: '#3D7FEA', kind: 'rain' },
   snow: { background: '#EAF6FD', color: '#4BA3D9', kind: 'snow' },
+  thunder: { background: '#FFF4E0', color: '#C58A19', kind: 'thunder' },
   wind: { background: '#E9F7F0', color: '#2F9B69', kind: 'wind' },
   unknown: { background: '#F1F4F8', color: '#B7C0CC', kind: 'unknown' },
 };

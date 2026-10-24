@@ -17,6 +17,8 @@ import { accentTone } from '../../theme/appTheme';
 const HOUR_HEIGHT = 56;
 const GUTTER_WIDTH = 44;
 const HOURS = Array.from({ length: 24 }, (_, hour) => hour);
+// 맨 아래까지 내렸을 때 23시대 일정이 일정 추가 버튼(아래 20 + 크기 58)에 가리지 않게 둔 여백.
+const ADD_BUTTON_CLEARANCE = 20 + 58 + 8;
 
 type Props = {
   // 1개면 일 보기, 7개면 주 보기.
@@ -134,7 +136,7 @@ export function CalendarTimeline({
           )
         )}
 
-        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} style={styles.calendarTimelineScroll}>
+        <ScrollView contentContainerStyle={{ paddingBottom: ADD_BUTTON_CLEARANCE }} ref={scrollRef} showsVerticalScrollIndicator={false} style={styles.calendarTimelineScroll}>
           <View style={{ height: 24 * HOUR_HEIGHT }}>
             {/* 목록·편집 화면처럼 24시간 표기(18:00 → 18). */}
             {HOURS.map((hour) => (

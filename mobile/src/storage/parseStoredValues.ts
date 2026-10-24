@@ -25,7 +25,7 @@ export function parseStoredFavoriteRegions(value: string | null) {
     const parsed = JSON.parse(value) as Partial<RegionState>[];
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((item) => typeof item.city === 'string' && typeof item.region === 'string' && item.city && item.region)
+      .filter((item) => !!item && typeof item.city === 'string' && typeof item.region === 'string' && item.city && item.region)
       .map((item) => ({ city: item.city as string, region: item.region as string, label: typeof item.label === 'string' ? item.label : undefined }))
       .slice(0, 15);
   } catch {
@@ -40,7 +40,7 @@ export function parseStoredMapRecentSearches(value: string | null): StationDustI
     const parsed = JSON.parse(value) as Partial<StationDustItem>[];
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((item) => typeof item.sido === 'string' && (typeof item.name === 'string' || typeof item.city === 'string') && typeof item.lat === 'number' && typeof item.lng === 'number')
+      .filter((item) => !!item && typeof item.sido === 'string' && (typeof item.name === 'string' || typeof item.city === 'string') && typeof item.lat === 'number' && typeof item.lng === 'number')
       .map((item) => ({
         addr: typeof item.addr === 'string' ? item.addr : undefined,
         city: typeof item.city === 'string' ? item.city : undefined,

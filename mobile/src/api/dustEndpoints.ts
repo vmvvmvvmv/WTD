@@ -9,9 +9,12 @@ const baseUrl = API_URL.replace(/\/$/, '');
 const FETCH_TIMEOUT_MS = 15000;
 
 export class ApiHttpError extends Error {
-  constructor(path: string, readonly status: number) {
+  readonly status: number;
+
+  constructor(path: string, status: number) {
     super(`${path} API ${status}`);
     this.name = 'ApiHttpError';
+    this.status = status;
   }
 }
 
@@ -42,7 +45,8 @@ async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, i
       signal: controller.signal,
     });
     if (!response.ok) throw new ApiHttpError(path, response.status);
-    return response.json();
+    // 본문을 다 받을 때까지 기다려야 시간 제한이 본문에도 걸린다(헤더만 오고 멈추는 응답).
+    return await response.json();
   } finally {
     clearTimeout(timeout);
     init?.signal?.removeEventListener('abort', abortFromParent);
@@ -59,7 +63,8 @@ async function fetchOptionalJson<T>(path: string, params?: Record<string, QueryV
     });
     if (response.status === 404) return null;
     if (!response.ok) throw new ApiHttpError(path, response.status);
-    return response.json();
+    // 본문을 다 받을 때까지 기다려야 시간 제한이 본문에도 걸린다(헤더만 오고 멈추는 응답).
+    return await response.json();
   } finally {
     clearTimeout(timeout);
   }

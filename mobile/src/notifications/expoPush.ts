@@ -229,29 +229,6 @@ export async function scheduleCalendarEventNotifications(event: CalendarEvent, r
   return notificationIds;
 }
 
-export async function scheduleTestNotification() {
-  if (IS_EXPO_GO) return false;
-  const hasPermission = await ensureNotificationPermission();
-  if (!hasPermission) return false;
-  const Notifications = await import('expo-notifications');
-  const date = new Date(Date.now() + 3000);
-  await Notifications.cancelScheduledNotificationAsync('weather-todo:test').catch(() => {});
-  await Notifications.scheduleNotificationAsync({
-    identifier: 'weather-todo:test',
-    content: {
-      body: '알림이 정상적으로 도착했어요.',
-      data: { targetTab: 'account', type: 'notification_test' },
-      title: '테스트 알림',
-    },
-    trigger: {
-      channelId: 'dust-alerts',
-      date,
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-    },
-  });
-  return true;
-}
-
 
 
 

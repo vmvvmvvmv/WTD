@@ -8,7 +8,7 @@ import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
 import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
-import { coachTarget } from '../shared/CoachMarks';
+import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
@@ -40,6 +40,7 @@ export function CalendarPanel({
   onRemoveFollowingEvents,
   onUpdateEvent,
   onUpdateEventSeries,
+  openEditorOnMount = false,
   outfitEnabled,
   outfitFigure,
   outfitSensitivity,
@@ -62,6 +63,7 @@ export function CalendarPanel({
   onRemoveFollowingEvents: (event: CalendarEvent) => void;
   onUpdateEvent?: (event: CalendarEvent) => void;
   onUpdateEventSeries?: (event: CalendarEvent) => void;
+  openEditorOnMount?: boolean;
   outfitEnabled: boolean;
   outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
@@ -88,6 +90,11 @@ export function CalendarPanel({
     visibleMonth,
     weekStart,
   } = useCalendarNavigation(todayDateLabel, sheet.close);
+  // 첫 실행 환영 시트의 "첫 일정 추가하기"로 왔으면 일정 추가 화면을 바로 엽니다.
+  useEffect(() => {
+    if (openEditorOnMount) draft.openEditor(selectedDate);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const sortedEvents = useMemo(
     () => [...events].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
@@ -294,7 +301,7 @@ export function CalendarPanel({
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
-          ref={coachTarget('calendarAdd')}
+          ref={tutorialTarget('calendarAdd')}
           style={({ pressed }) => [
             styles.calendarFloatingAddButton,
             styles.calendarFloatingAddButtonDocked,

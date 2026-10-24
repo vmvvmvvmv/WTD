@@ -105,3 +105,12 @@ test('does not suggest a shift when every nearby hour is rainy', () => {
   const result = evaluateCalendarEventRisk(event, { now: new Date(2026, 9, 9, 12, 0), todayDateLabel: '2026-10-09', weatherItems });
   assert.equal(result.rainFreeSuggestion, undefined);
 });
+
+test('여러 날 일정에서 비가 다른 날에 오면 시간대에 날짜를 붙인다', () => {
+  const hours = (date) => Array.from({ length: 24 }, (_, h) => ({ date, hour: `${String(h).padStart(2, '0')}:00`, label: '흐림', rain_mm: 0, rain_probability: 10, temperature: 18 }));
+  const weatherItems = [...hours('2026-10-24'), ...hours('2026-10-25'), ...hours('2026-10-26')]
+    .map((item) => (item.date === '2026-10-26' && ['14:00', '15:00'].includes(item.hour) ? { ...item, label: '비', rain_mm: 3, rain_probability: 80 } : item));
+  const trip = { activityType: 'outdoor', date: '2026-10-24', endDate: '2026-10-26', id: 'trip', sensitive: false, time: '09:00', endTime: '18:00', title: '출장' };
+  const result = evaluateCalendarEventRisk(trip, { now: new Date('2026-10-24T10:00:00'), todayDateLabel: '2026-10-24', weatherItems });
+  assert.equal(result.rainTimeRange, '10-26 14:00~16:00');
+});
