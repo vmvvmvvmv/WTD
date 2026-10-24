@@ -43,6 +43,8 @@ PLACE_LOOKUP_SECONDS = 4
 ACTIVITY_TYPES = {"outdoor", "indoor", "transit"}
 WEEKDAYS = "월화수목금토일"
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+# 앱의 isRepeatMemo와 같은 규칙.
+REPEAT_MEMO_PATTERN = re.compile(r"매\s?(?:일|주|달|월|년|번)|격주|격일|(?:요일|아침|저녁|주말|평일)\s?마다|주\s?\d\s?회")
 
 SYSTEM_PROMPT = """너는 일정 앱의 메모 정리 도우미다. 사용자가 대충 적은 한국어 메모에서 일정을 뽑아 JSON으로만 답한다.
 - today(오늘 날짜와 요일)를 기준으로 '내일', '모레', '이번 주 토요일', '다음 주 월요일', '25일' 같은 말을 YYYY-MM-DD 날짜로 바꾼다. 지난 날짜는 다음에 오는 날짜로 본다.
@@ -273,6 +275,9 @@ def events_from_memo(text, *, device_id: str = "", ip_key: str = "") -> list[dic
     text = text.strip()
     if len(text) > MAX_TEXT_LENGTH:
         raise MemoInputError(f"메모는 {MAX_TEXT_LENGTH}자까지 적을 수 있어요.")
+    # 반복 일정은 한 번짜리로만 만들어지므로 받지 않는다(앱도 보내기 전에 막는다).
+    if REPEAT_MEMO_PATTERN.search(text):
+        raise MemoInputError("반복 일정은 직접 일정 등록에서 반복을 골라 만들어 주세요.")
     # 날짜·시각·제목이 분명한 메모는 AI 없이 바로 바꾼다(0.1초 안팎, Google로 보내지 않음, 사용 횟수도 안 씀).
     now = timezone.localtime()
     quick = quick_parse(text, now)
