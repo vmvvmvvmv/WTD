@@ -42,6 +42,8 @@ const TEXT = {
 
 type Props = {
   onAddEvent?: () => void;
+  // 있으면 시트 왼쪽 아래에 '메모로 추가' 버튼이 생깁니다.
+  onOpenMemo?: () => void;
   events: CalendarEvent[];
   isExpanded?: boolean;
   onDismiss: () => void;
@@ -138,6 +140,7 @@ export function CalendarDaySheet({
   isExpanded = false,
   onAddEvent,
   onDismiss,
+  onOpenMemo,
   onEditEvent,
   onExpandStateChange,
   onRemoveEvent,
@@ -200,7 +203,7 @@ export function CalendarDaySheet({
 
       <ScrollView
         style={[styles.calendarDaySheetList, isExpanded && styles.calendarDaySheetListExpanded]}
-        contentContainerStyle={styles.calendarDaySheetListContent}
+        contentContainerStyle={[styles.calendarDaySheetListContent, onOpenMemo && styles.calendarDaySheetListContentWithMemo]}
         nestedScrollEnabled
         showsVerticalScrollIndicator={events.length > 1}
       >
@@ -292,6 +295,16 @@ export function CalendarDaySheet({
           );
         })}
       </ScrollView>
+      {onOpenMemo && (
+        <Pressable
+          accessibilityLabel="메모로 일정 추가"
+          onPress={onOpenMemo}
+          style={({ pressed }) => [styles.calendarDaySheetMemoButton, { borderColor: accentTone, shadowColor: accentTone }, pressed && styles.pressedFeedback]}
+        >
+          <Ionicons color={accentTone} name="sparkles" size={16} />
+          <Text style={[styles.calendarDaySheetMemoText, { color: accentTone }]}>메모로 추가</Text>
+        </Pressable>
+      )}
     </Reanimated.View>
   );
 }

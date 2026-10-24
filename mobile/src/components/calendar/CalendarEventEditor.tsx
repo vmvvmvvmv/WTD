@@ -58,8 +58,6 @@ type Props = {
   onChangeStartTime: (value: string) => void;
   onChangeTitle: (value: string) => void;
   onClose: () => void;
-  // 새 일정을 만들 때만 넘깁니다. 있으면 왼쪽 아래에 '메모로 추가' 버튼이 생깁니다.
-  onOpenMemo?: () => void;
   onSave: () => void;
   repeatEndDate: string;
   repeatMode: CalendarRepeatMode;
@@ -92,7 +90,6 @@ export function CalendarEventEditor({
   onChangeStartTime,
   onChangeTitle,
   onClose,
-  onOpenMemo,
   onSave,
   repeatEndDate,
   repeatMode,
@@ -372,20 +369,6 @@ export function CalendarEventEditor({
             </View>
           </ScrollView>
         </KeyboardAvoidingView>
-        {onOpenMemo && (
-          <Pressable
-            accessibilityLabel="메모로 일정 추가"
-            onPress={onOpenMemo}
-            style={({ pressed }) => [
-              styles.calendarEditorMemoButton,
-              { borderColor: accentTone, bottom: Math.max(18, insets.bottom + 14) + 6, shadowColor: accentTone },
-              pressed && styles.pressedFeedback,
-            ]}
-          >
-            <Ionicons color={accentTone} name="sparkles" size={16} />
-            <Text style={[styles.calendarEditorMemoText, { color: accentTone }]}>메모로 추가</Text>
-          </Pressable>
-        )}
         <Pressable
           accessibilityLabel="일정 저장"
           disabled={!title.trim()}
