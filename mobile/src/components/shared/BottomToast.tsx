@@ -40,7 +40,7 @@ export function BottomToast({ message, showId }: { message: string; showId: numb
   );
 }
 
-function useKeyboardHeight() {
+export function useKeyboardHeight() {
   const [height, setHeight] = useState(0);
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';

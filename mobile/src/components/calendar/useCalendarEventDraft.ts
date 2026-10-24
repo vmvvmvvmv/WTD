@@ -137,6 +137,13 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     setIsEditorOpen(true);
   };
 
+  // 메모로 추가 미리보기의 일정을 고칠 때: 값만 채우고 저장하면 새 일정으로 추가됩니다.
+  const openEditorWithValues = (event: CalendarEvent) => {
+    openEditorForEvent(event);
+    setEditingEventId(null);
+    setEditingRepeatMeta(null);
+  };
+
   const closeEditor = () => setIsEditorOpen(false);
 
   const saveEvent = ({ onAddEvent, onAddEvents, onSaved, onUpdateEvent, onUpdateEventSeries, selectedDate }: SaveParams) => {
@@ -209,6 +216,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     notificationHoursBefore,
     openEditor,
     openEditorForEvent,
+    openEditorWithValues,
     // 반복 일정을 고칠 때는 반복 규칙을 잠급니다(보기만).
     isRepeatLocked: !!editingEventId && !!editingRepeatMeta?.repeatGroupId,
     repeatEndDate,

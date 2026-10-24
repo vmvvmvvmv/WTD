@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
@@ -9,6 +9,7 @@ import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
 import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
+import { BottomToast } from '../shared/BottomToast';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
@@ -80,6 +81,9 @@ export function CalendarPanel({
   const draft = useCalendarEventDraft(todayDateLabel, defaultLocation);
   const sheet = useCalendarDaySheet(windowSize.height);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
+  const [toast, setToast] = useState({ id: 0, message: '' });
+  // 메모 미리보기에서 고치려고 연 일정이 저장되면, 미리보기에서 그 일정을 빼려고 부릅니다.
+  const memoEditSavedRef = useRef<(() => void) | null>(null);
   const {
     changeViewMode,
     goToday,
@@ -194,6 +198,8 @@ export function CalendarPanel({
       onAddEvent,
       onAddEvents,
       onSaved: (date) => {
+        memoEditSavedRef.current?.();
+        memoEditSavedRef.current = null;
         setSelectedDate(date);
         sheet.setIsOpen(true);
       },
@@ -208,7 +214,30 @@ export function CalendarPanel({
     if (onAddEvents) onAddEvents(added);
     else added.forEach(onAddEvent);
     selectDate(added.map((event) => event.date).sort()[0]);
+    setToast((current) => ({ id: current.id + 1, message: `${added.length}개 추가했어요` }));
   };
+
+  const editMemoEvent = (event: CalendarEvent, onSaved: () => void) => {
+    memoEditSavedRef.current = onSaved;
+    draft.openEditorWithValues(event);
+  };
+
+  const closeEditor = () => {
+    memoEditSavedRef.current = null;
+    draft.closeEditor();
+  };
+
+  const memoRiskByEvent = (previewEvents: CalendarEvent[], previewForecasts: Record<string, CalendarLocationForecast>) => buildCalendarRiskByEvent(previewEvents, {
+    currentPm10,
+    eventLocationForecasts: { ...eventLocationForecasts, ...previewForecasts },
+    hourlyItems,
+    prediction,
+    sensitiveMode,
+    todayDateLabel,
+    weather,
+    weatherHourlyItems,
+    weatherMidTermItems,
+  });
 
   const removeEvent = (event: CalendarEvent) => {
     confirmCalendarEventRemoval(event, {
@@ -308,17 +337,21 @@ export function CalendarPanel({
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
       <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
-        <Pressable
-          accessibilityLabel="메모로 일정 추가"
-          onPress={() => setIsMemoOpen(true)}
-          style={({ pressed }) => [
-            styles.calendarFloatingMemoButton,
-            { borderColor: accentTone, shadowColor: accentTone },
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          <Ionicons color={accentTone} name="create-outline" size={24} />
-        </Pressable>
+        {/* 날짜 시트가 열리면 날짜 칸을 가리지 않게 숨깁니다. */}
+        {!sheet.isOpen && (
+          <Pressable
+            accessibilityLabel="메모로 일정 추가"
+            onPress={() => setIsMemoOpen(true)}
+            style={({ pressed }) => [
+              styles.calendarFloatingMemoButton,
+              { borderColor: accentTone, shadowColor: accentTone },
+              pressed && styles.pressedFeedback,
+            ]}
+          >
+            <Ionicons color={accentTone} name="sparkles" size={16} />
+            <Text style={[styles.calendarFloatingMemoText, { color: accentTone }]}>메모로 추가</Text>
+          </Pressable>
+        )}
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
@@ -334,7 +367,15 @@ export function CalendarPanel({
         </Pressable>
       </Reanimated.View>
 
-      <CalendarMemoSheet isOpen={isMemoOpen} onAdd={addMemoEvents} onClose={() => setIsMemoOpen(false)} />
+      <CalendarMemoSheet
+        isOpen={isMemoOpen}
+        onAdd={addMemoEvents}
+        onClose={() => setIsMemoOpen(false)}
+        onEditEvent={editMemoEvent}
+        riskByEvent={memoRiskByEvent}
+        todayDateLabel={todayDateLabel}
+      />
+      <BottomToast message={toast.message} showId={toast.id} />
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
@@ -357,7 +398,7 @@ export function CalendarPanel({
         onChangeStartDate={draft.setStartDate}
         onChangeStartTime={draft.setStartTime}
         onChangeTitle={draft.setTitle}
-        onClose={draft.closeEditor}
+        onClose={closeEditor}
         onSave={saveEvent}
         repeatEndDate={draft.repeatEndDate}
         repeatMode={draft.repeatMode}
