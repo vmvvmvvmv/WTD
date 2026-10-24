@@ -30,7 +30,8 @@ const ACTIVITY_LABEL = { indoor: '실내', outdoor: '실외', transit: '이동' 
 function errorMessage(error: unknown) {
   if (error instanceof ApiHttpError) {
     if (error.status === 429) return '오늘은 다 썼어요. 내일 다시 써 주세요.';
-    if (error.status === 503) return '지금은 쓸 수 없어요.';
+    // 503: AI 설정이 없거나, 앱 전체가 함께 쓰는 AI 한도가 찬 경우.
+    if (error.status === 503) return '지금 AI 사용량이 많아요. 잠시 뒤 다시 하거나 직접 입력을 써 주세요.';
   }
   return '일정으로 바꾸지 못했어요. 잠시 뒤 다시 해 주세요.';
 }
@@ -56,7 +57,8 @@ function ThinkingLabel() {
   }, [opacity, reduceMotion]);
   return (
     <Animated.View style={[local.buttonRow, { opacity }]}>
-      <Text style={local.primaryText}>일정 찾는 중…</Text>
+      <Ionicons color="#ffffff" name="sparkles" size={16} />
+      <Text style={local.primaryText}>AI가 일정 찾는 중…</Text>
     </Animated.View>
   );
 }
@@ -223,17 +225,17 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
       visible={isOpen}
     >
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[local.root, Platform.OS === 'android' && keyboardHeight > 0 && { paddingBottom: keyboardHeight + insets.bottom }]}>
-        <Pressable accessibilityLabel="메모로 입력 닫기" onPress={close} style={local.backdrop} />
+        <Pressable accessibilityLabel="AI로 입력 닫기" onPress={close} style={local.backdrop} />
         <View style={[local.sheet, { paddingBottom: keyboardHeight > 0 ? 16 : Math.max(16, insets.bottom + 10) }]}>
           <View style={local.handle} />
           <View style={local.header}>
-            <Text style={local.title}>{events ? '이렇게 추가할까요?' : '메모로 입력'}</Text>
+            <Text style={local.title}>{events ? '이렇게 추가할까요?' : 'AI로 입력'}</Text>
             <Pressable accessibilityLabel="닫기" hitSlop={10} onPress={close} style={({ pressed }) => pressed && appStyles.pressedFeedback}>
               <Ionicons color={textColors.secondary} name="close" size={26} />
             </Pressable>
           </View>
           <Text style={local.subtitle}>
-            {events ? '카드를 누르면 고칠 수 있어요.' : '날짜·시간·장소를 편하게 적으면 일정으로 바꿔 드려요.'}
+            {events ? '카드를 누르면 고칠 수 있어요.' : '날짜·시간·장소를 편하게 적으면 AI가 일정으로 바꿔 드려요.'}
           </Text>
 
           {events ? (
@@ -276,7 +278,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
               </ScrollView>
               <View style={local.notice}>
                 <Ionicons color={textColors.muted} name="lock-closed-outline" size={13} />
-                <Text style={local.noticeText}>메모는 일정으로 바꾸는 데만 쓰고 저장하지 않아요</Text>
+                <Text style={local.noticeText}>Google AI로 보내 정리해요 · 메모는 저장하지 않아요</Text>
               </View>
             </>
           )}
@@ -304,7 +306,10 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                 style={({ pressed }) => [local.primary, local.primaryFlex, !text.trim() && local.disabled, pressed && appStyles.pressedFeedback]}
               >
                 {isLoading ? <ThinkingLabel /> : (
-                  <Text style={local.primaryText}>일정 만들기</Text>
+                  <View style={local.buttonRow}>
+                    <Ionicons color="#ffffff" name="sparkles" size={16} />
+                    <Text style={local.primaryText}>AI로 일정 만들기</Text>
+                  </View>
                 )}
               </Pressable>
             )}

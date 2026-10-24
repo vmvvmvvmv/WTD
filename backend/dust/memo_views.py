@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 from dust.api_errors import error_response
 
-from .services.memo_events import MemoFailed, MemoInputError, MemoQuotaExceeded, MemoUnavailable, events_from_memo
+from .services.memo_events import MemoBusy, MemoFailed, MemoInputError, MemoQuotaExceeded, MemoUnavailable, events_from_memo
 
 
 def _client_ip(request) -> str:
@@ -34,6 +34,8 @@ def memo_events(request):
         return error_response(400, str(exc))
     except MemoQuotaExceeded:
         return error_response(429, '오늘은 메모로 추가를 다 썼어요. 내일 다시 써 주세요.', 'quota_exceeded')
+    except MemoBusy:
+        return error_response(503, '지금 AI 사용량이 많아요. 잠시 뒤 다시 하거나 직접 입력을 써 주세요.', 'ai_busy')
     except MemoUnavailable:
         return error_response(503, '메모로 추가를 지금 쓸 수 없어요.')
     except MemoFailed:

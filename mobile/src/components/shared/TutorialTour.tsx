@@ -262,7 +262,7 @@ export function CalendarTip({ onDone }: { onDone: () => void }) {
       <Pressable accessibilityLabel="말풍선 닫기" onPress={onDone} style={StyleSheet.absoluteFill}>
         <Bubble rect={rect} visible>
           <Text accessibilityRole="header" style={styles.title}>일정 추가</Text>
-          <Text style={styles.body}>오른쪽 아래 버튼을 눌러 직접 적거나, 메모로 한 번에 넣어 보세요.</Text>
+          <Text style={styles.body}>오른쪽 아래 버튼을 눌러 직접 적거나, AI로 한 번에 넣어 보세요.</Text>
           <View style={styles.actions}>
             <Pressable accessibilityRole="button" onPress={onDone} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
               <Text style={styles.primaryText}>확인</Text>
