@@ -1,0 +1,11 @@
+# 매시 45분. 이전 수집이 아직 돌고 있으면 systemd가 겹쳐 실행하지 않는다. 서버가 꺼져 있었으면 켜진 뒤 한 번 따라잡는다.
+[Unit]
+Description=Run WeatherToDo weather collection at minute 45 of every hour
+
+[Timer]
+OnCalendar=*-*-* *:45:00 Asia/Seoul
+Persistent=true
+Unit=weathertodo-collect@weather.service
+
+[Install]
+WantedBy=timers.target
