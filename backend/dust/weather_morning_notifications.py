@@ -132,6 +132,9 @@ def hour_blocks_text(hours: list[int], limit: int = 2) -> str:
     return ", ".join(texts) + (" 등" if len(blocks) > limit else "")
 
 
+MAX_EVENT_LINES = 3
+
+
 def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasurement], events: list[dict]) -> tuple[str, str]:
     """(제목, 본문). 핵심만 짧게: 남은 시간의 비·눈·천둥·강풍과 시간대, 기온, 날씨가 겹치는 일정, 챙길 것."""
     rain = [_hour(point) for point in points if _is_rain(point)]
@@ -147,11 +150,14 @@ def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasure
     if low is not None and high is not None:
         lines.append(f"기온 {low}°" if low == high else f"기온 {low}~{high}°")
 
-    for time_text in (_event_label(event) for event in events):
+    # 날씨가 겹치는 일정은 같은 시각을 한 줄로 합치고, 알림이 길어지지 않게 앞의 3줄만 보여 준다.
+    event_lines = []
+    for time_text in dict.fromkeys(_event_label(event) for event in events):
         hour = int(time_text[:2]) if time_text[:2].isdigit() else None
         kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", wind)) if hour in hours]
         if kinds:
-            lines.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
+            event_lines.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
+    lines.extend(event_lines[:MAX_EVENT_LINES])
 
     bring = [item for item, needed in (
         ("우산", bool(rain)),

@@ -43,7 +43,10 @@ def _coordinate(value: Any, minimum: float, maximum: float) -> float | None:
 
 
 def _date_time(value: Any, field: str):
-    parsed = parse_datetime(str(value or "").strip())
+    try:
+        parsed = parse_datetime(str(value or "").strip())
+    except ValueError:  # 형식은 맞지만 없는 시각(예: 25:00, 2월 30일)
+        parsed = None
     if parsed is None:
         raise OutfitContextError(f"{field}는 ISO8601 형식이어야 합니다.")
     if timezone.is_naive(parsed):

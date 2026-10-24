@@ -1,6 +1,7 @@
 """화면용 API: 요청 값을 읽고 서비스 결과를 응답으로 바꾼다. 업무 로직은 dust.services, 설정은 dust.config에 있다."""
 import json
 import logging
+import math
 import re
 from datetime import datetime, time, timedelta
 from django.conf import settings
@@ -19,7 +20,7 @@ from dust.notification_registry import notification_device_response, upsert_noti
 from dust.services.common import _dfs_grid_from_lat_lng, _parse_measure_date, _to_float
 from dust.services.dust_history import _fetch_past_dust_items_by_station, _latest_past_item_date, _load_recent_realtime_hourly_dust, _load_stored_past_dust, _load_stored_realtime_daily_dust, _load_stored_realtime_hourly_dust, _merge_past_items, _store_past_dust_items
 from dust.services.places import _naver_coord, _strip_html
-from dust.services.stations import _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
+from dust.services.stations import dust_cache_version, _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
 from dust.services.weather import _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -40,8 +41,8 @@ def mobile_map(request):
     picker_mode = request.GET.get("picker") == "1"
     view_mode = request.GET.get("view") or ("picker" if picker_mode else "unknown")
     basic_mode = request.GET.get("basic") == "1"
-    initial_lat = _to_float(request.GET.get("lat"))
-    initial_lng = _to_float(request.GET.get("lng"))
+    initial_lat = _coordinate(request.GET.get("lat"), 90)
+    initial_lng = _coordinate(request.GET.get("lng"), 180)
     try:
         initial_zoom = int(request.GET.get("zoom") or 7)
     except (TypeError, ValueError):
@@ -61,6 +62,12 @@ def mobile_map(request):
         'map_css_variables': build_map_css_variables(),
     })
 
+
+
+def _coordinate(value, limit):
+    """요청으로 받은 위도·경도. 숫자가 아니거나(NaN·무한대 포함) 범위를 벗어나면 없는 값으로 본다(격자 계산이 수학 오류로 터지지 않게)."""
+    number = _to_float(value)
+    return number if number is not None and math.isfinite(number) and abs(number) <= limit else None
 
 @api_view(['POST'])
 def register_notification_device(request):
@@ -118,7 +125,7 @@ def korea_station_dust(request):
         return response
 
     try:
-        cache_key = 'korea_station_dust_response_v3'
+        cache_key = f'korea_station_dust_response_v3:{dust_cache_version()}'
         cached_response = cache.get(cache_key)
         if cached_response is not None:
             return station_response(cached_response)
@@ -208,8 +215,8 @@ def korea_station_dust(request):
 @api_view(['GET'])
 def midterm_weather(request):
     # This endpoint reads stored forecasts only. KMA traffic stays in the scheduled collection command.
-    lat = _to_float(request.GET.get("lat"))
-    lng = _to_float(request.GET.get("lng"))
+    lat = _coordinate(request.GET.get("lat"), 90)
+    lng = _coordinate(request.GET.get("lng"), 180)
     start_date = _parse_measure_date(request.GET.get("startDate")) if request.GET.get("startDate") else timezone.localdate()
     end_date = _parse_measure_date(request.GET.get("endDate")) if request.GET.get("endDate") else timezone.localdate() + timedelta(days=14)
     if lat is None or lng is None:
@@ -369,8 +376,8 @@ def past_weather(request):
 
 @api_view(['GET'])
 def current_weather(request):
-    lat = _to_float(request.GET.get("lat"))
-    lng = _to_float(request.GET.get("lng"))
+    lat = _coordinate(request.GET.get("lat"), 90)
+    lng = _coordinate(request.GET.get("lng"), 180)
     if lat is None or lng is None:
         return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 
@@ -402,8 +409,8 @@ def current_weather(request):
 
 @api_view(['GET'])
 def hourly_weather(request):
-    lat = _to_float(request.GET.get("lat"))
-    lng = _to_float(request.GET.get("lng"))
+    lat = _coordinate(request.GET.get("lat"), 90)
+    lng = _coordinate(request.GET.get("lng"), 180)
     date_param = request.GET.get("date")
     stored_only = str(request.GET.get("stored_only") or "").lower() in ("1", "true", "yes", "y")
     try:

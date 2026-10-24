@@ -58,6 +58,7 @@ def merge_daily_snapshots(snapshots: list[dict]) -> dict:
         "pm25_max": max(_values(snapshots, "pm25_max"), default=None),
         "has_snow": any(snapshot.get("has_snow") for snapshot in snapshots),
         "has_rain": any(snapshot.get("has_rain") for snapshot in snapshots),
+        "has_mixed_precipitation": any(snapshot.get("has_mixed_precipitation") for snapshot in snapshots),
         "rain_hours": sum(int(snapshot.get("rain_hours") or 0) for snapshot in snapshots),
         "total_hours": sum(int(snapshot.get("total_hours") or 0) for snapshot in snapshots),
         "rain_start": min((snapshot["rain_start"] for snapshot in snapshots if snapshot.get("rain_start")), default=None),

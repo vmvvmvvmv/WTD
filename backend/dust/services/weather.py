@@ -1,4 +1,5 @@
 """기상청 단기·초단기·중기 예보와 ASOS 일자료 수집·저장·조회."""
+import logging
 from datetime import datetime, timedelta
 from django.core.cache import cache
 from django.utils import timezone
@@ -9,29 +10,33 @@ from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
 from dust.services.common import _dfs_grid_from_lat_lng, _haversine_km, _to_float
 from dust.services.stations import _current_station_location
 
+logger = logging.getLogger(__name__)
+
 
 def _latest_weather_by_grid_for_locations(station_locations, max_age_hours=24):
-    cutoff = timezone.now() - timedelta(hours=max_age_hours)
-    grids = {}
+    # 지도용 기온. 이 표에는 72시간 뒤 예보도 들어 있어서, 지금 시각 이전 값 중 가장 최근 것을 쓴다.
+    # 날씨는 주소 지역마다 대표 격자만 모으므로, 값이 없는 격자는 가장 가까운 수집 격자 값을 빌려 쓴다.
+    now = timezone.now()
+    wanted = set()
     for location in station_locations.values():
         grid = _dfs_grid_from_lat_lng(location.get("lat"), location.get("lng"))
-        grids[(grid["nx"], grid["ny"])] = grid
+        wanted.add((grid["nx"], grid["ny"]))
 
-    if not grids:
+    if not wanted:
         return {}
 
     rows = (
         WeatherHourlyMeasurement.objects
-        .filter(measured_at__gte=cutoff, nx__in=[grid["nx"] for grid in grids.values()], ny__in=[grid["ny"] for grid in grids.values()])
+        .filter(measured_at__gte=now - timedelta(hours=max_age_hours), measured_at__lte=now)
         .order_by('nx', 'ny', '-measured_at')
     )
-    latest = {}
+    collected = {}
     for row in rows:
         key = (row.nx, row.ny)
-        if key in latest:
+        if key in collected:
             continue
         measured_at = timezone.localtime(row.measured_at)
-        latest[key] = {
+        collected[key] = {
             "weatherTemperature": row.temperature,
             "weatherHumidity": row.humidity,
             "weatherWindSpeed": row.wind_speed,
@@ -40,6 +45,14 @@ def _latest_weather_by_grid_for_locations(station_locations, max_age_hours=24):
             "weatherLabel": row.label,
             "weatherTime": measured_at.strftime('%Y-%m-%d %H:%M'),
         }
+    if not collected:
+        return {}
+
+    # ponytail: 격자 수(수백 개)끼리 전부 비교한다. 수천 개로 늘면 KD-tree로 바꾼다.
+    latest = {}
+    for key in wanted:
+        nearest = key if key in collected else min(collected, key=lambda other: (other[0] - key[0]) ** 2 + (other[1] - key[1]) ** 2)
+        latest[key] = collected[nearest]
     return latest
 
 
@@ -62,7 +75,11 @@ def _kma_ultra_short_base_datetime_candidates(limit=4):
     return candidates
 
 
-def _kma_current_weather_label(pty, sky):
+def _kma_current_weather_label(pty, sky, lgt=None):
+    # 낙뢰(LGT, 초단기예보에만 있음)가 있으면 천둥번개를 붙인다. 비·눈과 같이 오면 둘 다 남겨 비 판정도 유지한다.
+    if (_to_float(lgt) or 0) > 0:
+        base = _kma_current_weather_label(pty, sky)
+        return f"{base}·천둥번개" if base in ("비", "눈") else "천둥번개"
     pty_text = str(pty or "0")
     sky_text = str(sky or "")
     if pty_text != "0":
@@ -122,7 +139,7 @@ def _store_weather_hourly_measurement(grid, selected_key, selected):
             "rain_probability": _to_float(selected.get("POP")),
             "sky": str(selected.get("SKY") or ""),
             "precipitation_type": str(selected.get("PTY") or ""),
-            "label": _kma_current_weather_label(selected.get("PTY"), selected.get("SKY")),
+            "label": _kma_current_weather_label(selected.get("PTY"), selected.get("SKY"), selected.get("LGT")),
             "raw_data": selected,
         },
     )
@@ -214,7 +231,7 @@ def _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12):
                 "wind_direction": _to_float(bucket.get("VEC")),
                 "rain_mm": _parse_kma_precipitation(bucket.get("PCP")),
                 "rain_probability": _to_float(bucket.get("POP")),
-                "label": _kma_current_weather_label(bucket.get("PTY"), bucket.get("SKY")),
+                "label": _kma_current_weather_label(bucket.get("PTY"), bucket.get("SKY"), bucket.get("LGT")),
                 "sky": str(bucket.get("SKY") or ""),
                 "precipitation_type": str(bucket.get("PTY") or ""),
                 "source": "kma_vilage_forecast",
@@ -345,7 +362,12 @@ def collect_midterm_weather_forecasts(regions=None):
     saved = 0
     for region in regions or MIDTERM_REGIONS:
         for tm_fc in current_midterm_announce_candidates():
-            region_saved = _store_midterm_forecast_for_region(region, tm_fc)
+            # data.go.kr은 할당량 초과·키 오류 때 JSON 대신 XML을 준다. 한 지역이 실패해도 나머지는 계속 모은다.
+            try:
+                region_saved = _store_midterm_forecast_for_region(region, tm_fc)
+            except Exception:
+                logger.exception("Mid-term forecast collection failed for %s %s", region.get("key"), tm_fc)
+                continue
             if region_saved:
                 saved += region_saved
                 break
