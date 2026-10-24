@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { Alert, Animated, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Alert, Animated, InteractionManager, Pressable, useWindowDimensions, View } from 'react-native';
 import Reanimated from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
@@ -222,6 +221,11 @@ export function CalendarPanel({
     draft.openEditorWithValues(event);
   };
 
+  const openMemoFromEditor = () => {
+    draft.closeEditor();
+    setIsMemoOpen(true);
+  };
+
   const closeEditor = () => {
     memoEditSavedRef.current = null;
     draft.closeEditor();
@@ -337,21 +341,6 @@ export function CalendarPanel({
 
       {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
       <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
-        {/* 날짜 시트가 열리면 날짜 칸을 가리지 않게 숨깁니다. */}
-        {!sheet.isOpen && (
-          <Pressable
-            accessibilityLabel="메모로 일정 추가"
-            onPress={() => setIsMemoOpen(true)}
-            style={({ pressed }) => [
-              styles.calendarFloatingMemoButton,
-              { borderColor: accentTone, shadowColor: accentTone },
-              pressed && styles.pressedFeedback,
-            ]}
-          >
-            <Ionicons color={accentTone} name="sparkles" size={16} />
-            <Text style={[styles.calendarFloatingMemoText, { color: accentTone }]}>메모로 추가</Text>
-          </Pressable>
-        )}
         <Pressable
           accessibilityLabel="일정 추가"
           onPress={() => draft.openEditor(selectedDate)}
@@ -399,6 +388,7 @@ export function CalendarPanel({
         onChangeStartTime={draft.setStartTime}
         onChangeTitle={draft.setTitle}
         onClose={closeEditor}
+        onOpenMemo={!draft.editingEventId && !memoEditSavedRef.current ? openMemoFromEditor : undefined}
         onSave={saveEvent}
         repeatEndDate={draft.repeatEndDate}
         repeatMode={draft.repeatMode}
