@@ -221,11 +221,6 @@ export function CalendarPanel({
     draft.openEditorWithValues(event);
   };
 
-  const openMemoFromEditor = () => {
-    draft.closeEditor();
-    setIsMemoOpen(true);
-  };
-
   const closeEditor = () => {
     memoEditSavedRef.current = null;
     draft.closeEditor();
@@ -319,6 +314,7 @@ export function CalendarPanel({
         <CalendarDaySheet
           events={selectedEvents}
           onAddEvent={() => draft.openEditor(selectedDate)}
+          onOpenMemo={() => setIsMemoOpen(true)}
           isExpanded={sheet.isExpanded}
           onDismiss={() => sheet.setIsOpen(false)}
           onEditEvent={editEvent}
@@ -388,7 +384,6 @@ export function CalendarPanel({
         onChangeStartTime={draft.setStartTime}
         onChangeTitle={draft.setTitle}
         onClose={closeEditor}
-        onOpenMemo={!draft.editingEventId && !memoEditSavedRef.current ? openMemoFromEditor : undefined}
         onSave={saveEvent}
         repeatEndDate={draft.repeatEndDate}
         repeatMode={draft.repeatMode}
