@@ -45,3 +45,6 @@ expo.*.log
 google-services.json
 *firebase-adminsdk*.json
 *service-account*.json
+
+# local Expo module build output
+/modules/*/android/build/

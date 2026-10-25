@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { registerNotificationDevice } from '../api/dustEndpoints';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../constants/dust';
 import { IS_EXPO_GO } from '../config/runtime';
+import { askExactAlarmIfNeeded } from './exactAlarm';
 import { requestDustPushToken } from './expoPush';
 import { saveNotificationSettings, saveNotificationToken } from '../storage/appStorage';
 import type { CalendarEvent } from '../types/calendar';
@@ -36,6 +37,7 @@ export function useNotificationSettings(
     setSettings(nextSettings);
     if (key === 'calendarReminders') {
       notify(value ? '일정 알림을 켰어요.' : '일정 알림을 껐어요.');
+      if (value) askExactAlarmIfNeeded();
     } else if (key === 'weatherMorningAlerts') {
       notify(value ? '아침 날씨 알림을 켰어요.' : '아침 날씨 알림을 껐어요.');
     } else if (key === 'dustSpikeAlerts') {

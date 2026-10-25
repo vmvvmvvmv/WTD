@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
+import { askExactAlarmIfNeeded } from '../../../notifications/exactAlarm';
 import { styles } from '../../../styles/appStyles';
 import { accentTone } from '../../../theme/appTheme';
 
@@ -37,6 +38,7 @@ export function NotificationLeadSelector({
     setCustomMinutes(normalizedText);
     if (Number.isFinite(minutes) && minutes > 0) {
       onChangeNotificationHoursBefore(Math.min(minutes, 10080) / 60);
+      askExactAlarmIfNeeded();
     }
   };
 
@@ -50,6 +52,7 @@ export function NotificationLeadSelector({
             onPress={() => {
               setShowCustomInput(false);
               onChangeNotificationHoursBefore(option.value);
+              if (option.value !== null) askExactAlarmIfNeeded();
             }}
             style={({ pressed }) => [
               styles.calendarActivityOption,

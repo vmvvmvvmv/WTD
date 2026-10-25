@@ -1,6 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
 import type { CalendarForecastContext } from '../../components/calendar/calendarForecast';
+import { canScheduleExactAlarms } from '../../notifications/exactAlarm';
 import { configureDustNotifications } from '../../notifications/expoPush';
 import type { CalendarEvent } from '../../types/calendar';
 import { setCalendarReminderBackgroundTask } from './calendarReminderBackground';
@@ -21,6 +23,15 @@ export function useCalendarReminderSync(
 
   useEffect(() => {
     void configureDustNotifications().catch(() => {});
+  }, []);
+
+  // '알람 및 리마인더'를 허용하고 돌아오면 이미 예약된 알림도 정확한 알람으로 다시 예약한다(아래 동기화가 다시 돈다).
+  const [exactAlarmAllowed, setExactAlarmAllowed] = useState(canScheduleExactAlarms);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setExactAlarmAllowed(canScheduleExactAlarms());
+    });
+    return () => subscription.remove();
   }, []);
 
   // 앱이 꺼져 있어도 휴대폰이 가끔 앱을 깨워 일정 알림을 최신 예보로 다시 씁니다(일정 알림을 켠 동안만).
@@ -63,5 +74,6 @@ export function useCalendarReminderSync(
     weatherMidTermItems,
     hasLoadedStore,
     remindersEnabled,
+    exactAlarmAllowed,
   ]);
 }
