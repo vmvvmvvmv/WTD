@@ -16,6 +16,7 @@ import requests
 from django.utils import timezone
 
 from dust.models import ExpoPushTicket, NotificationDevice
+from dust.weather_morning_notifications import expo_request_headers
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def check_push_receipts(now: datetime | None = None, write: Callable[[str], None
     tickets = list(ExpoPushTicket.objects.filter(created_at__lte=now - RECEIPT_DELAY).values_list("ticket_id", "expo_push_token")[:1000])
     for start in range(0, len(tickets), BATCH_SIZE):
         batch = dict(tickets[start:start + BATCH_SIZE])
-        response = requests.post(EXPO_RECEIPTS_URL, json={"ids": list(batch)}, timeout=15)
+        response = requests.post(EXPO_RECEIPTS_URL, json={"ids": list(batch)}, headers=expo_request_headers(), timeout=15)
         response.raise_for_status()
         receipts = (response.json() or {}).get("data") or {}
         checked = []
