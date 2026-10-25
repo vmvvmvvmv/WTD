@@ -22,7 +22,7 @@ import { buildCalendarRiskByEvent, buildSelectedCalendarForecast, type CalendarL
 import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
 import type { CalendarLocationCandidate } from './calendarLocation';
 import { addDays, buildMonthCells, buildWeekCells, dayLabel, eventTone, isDateInEventRange, monthLabel, parseDateParts, weekLabel } from './calendarUtils';
-import { topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { dailyWeatherByDate as buildDailyWeatherByDate, topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
@@ -196,6 +196,10 @@ export function CalendarPanel({
     });
     return next;
   }, [forecastContext, isTransitionDone, monthCells, sortedEvents]);
+  const dailyWeatherByDate = useMemo(
+    () => buildDailyWeatherByDate({ todayDateLabel, weatherHourlyItems, weatherMidTermItems }),
+    [todayDateLabel, weatherHourlyItems, weatherMidTermItems],
+  );
   const selectedWeatherRisks = useMemo(
     () => selectedEvents
       .flatMap((event) => weatherRiskIndicators(selectedRiskByEvent[event.id]))
@@ -295,6 +299,7 @@ export function CalendarPanel({
             title={viewMode === 'week' ? weekLabel(weekStart) : dayLabel(selectedDate)}
             todayDateLabel={todayDateLabel}
             transitionDirection={transitionDirection}
+            dailyWeatherByDate={dailyWeatherByDate}
             weatherRiskByDate={weatherRiskByDate}
           />
         )}
@@ -322,6 +327,7 @@ export function CalendarPanel({
             selectedDate={selectedDate}
             todayDateLabel={todayDateLabel}
             transitionDirection={transitionDirection}
+            dailyWeatherByDate={dailyWeatherByDate}
             weatherRiskByDate={weatherRiskByDate}
           />
         )}

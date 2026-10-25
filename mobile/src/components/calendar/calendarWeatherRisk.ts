@@ -4,7 +4,8 @@ import type { CalendarEvent } from '../../types/calendar';
 import { semanticColors } from '../../theme/semanticColors';
 import { isDateInEventRange } from './calendarUtils';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
-import type { WeatherIconKind } from '../shared/WeatherIcon';
+import { weatherIconKind, type WeatherIconKind } from '../shared/WeatherIcon';
+import type { WeatherHourlyItem, WeatherMidTermItem } from '../../types/weather';
 
 export type CalendarWeatherRiskIndicator = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -122,4 +123,62 @@ export function topWeatherRiskForDate(date: string, events: CalendarEvent[], ris
     .filter((event) => isDateInEventRange(date, event))
     .flatMap((event) => weatherRiskIndicators(riskByEvent[event.id]))
     .sort((a, b) => b.priority - a.priority)[0];
+}
+
+// 일정이 없어도 달력 칸 구석에 보여 줄 그날 날씨(오늘부터 예보가 있는 날까지).
+// 비·눈·천둥처럼 한 시간이라도 있으면 그걸, 아니면 가장 많이 나온 하늘 상태를 고른다. 시간별 예보가 없는 날은 중기예보(오전·오후)로 본다.
+// 비·눈이 오는 날은 언제 오는지도 함께 준다(예: "14~18시", 중기예보는 "오전"·"오후").
+export type CalendarDailyWeather = { kind: WeatherIconKind; time?: string };
+
+const DAILY_WEATHER_ORDER: WeatherIconKind[] = ['thunder', 'snow', 'rain', 'cloudy', 'partlyCloudy', 'clear'];
+const PRECIPITATION: WeatherIconKind[] = ['thunder', 'snow', 'rain'];
+
+type DailySlot = { kind: WeatherIconKind; hour?: number; half?: '오전' | '오후' };
+
+function precipitationTime(slots: DailySlot[]) {
+  const wet = slots.filter((slot) => PRECIPITATION.includes(slot.kind));
+  const hours = wet.map((slot) => slot.hour).filter((hour): hour is number => Number.isFinite(hour));
+  if (hours.length > 0) {
+    const start = Math.min(...hours);
+    const end = Math.max(...hours) + 1;
+    return start === 0 && end >= 24 ? '종일' : `${start}~${end}시`;
+  }
+  const halves = [...new Set(wet.map((slot) => slot.half).filter(Boolean))];
+  return halves.length === 1 ? halves[0] : undefined;
+}
+
+function dailyWeather(slots: DailySlot[]): CalendarDailyWeather | undefined {
+  const kinds = slots.map((slot) => slot.kind);
+  const precipitation = PRECIPITATION.find((kind) => kinds.includes(kind));
+  if (precipitation) return { kind: precipitation, time: precipitationTime(slots) };
+  if (kinds.length === 0) return undefined;
+  const count = (kind: WeatherIconKind) => kinds.filter((item) => item === kind).length;
+  // 같은 횟수면 흐린 쪽(cloudy > partlyCloudy > clear)을 고른다.
+  return { kind: DAILY_WEATHER_ORDER.slice(3).reduce((best, kind) => (count(kind) > count(best) ? kind : best)) };
+}
+
+export function dailyWeatherByDate({ todayDateLabel, weatherHourlyItems = [], weatherMidTermItems = [] }: {
+  todayDateLabel: string;
+  weatherHourlyItems?: WeatherHourlyItem[];
+  weatherMidTermItems?: WeatherMidTermItem[];
+}) {
+  const slotsByDate: Record<string, DailySlot[]> = {};
+  const add = (date: string, label: string | undefined, slot: Omit<DailySlot, 'kind'>) => {
+    const kind = weatherIconKind(label);
+    if (DAILY_WEATHER_ORDER.includes(kind)) (slotsByDate[date] ??= []).push({ kind, ...slot });
+  };
+  weatherHourlyItems.forEach((item) => {
+    if (item.date && item.date >= todayDateLabel) add(item.date, item.label, { hour: Number.parseInt(item.hour ?? '', 10) });
+  });
+  weatherMidTermItems.forEach((item) => {
+    if (!item.date || item.date < todayDateLabel || slotsByDate[item.date]) return;
+    add(item.date, item.weatherAm, { half: '오전' });
+    add(item.date, item.weatherPm, { half: '오후' });
+  });
+  const result: Record<string, CalendarDailyWeather> = {};
+  Object.entries(slotsByDate).forEach(([date, slots]) => {
+    const weather = dailyWeather(slots);
+    if (weather) result[date] = weather;
+  });
+  return result;
 }
