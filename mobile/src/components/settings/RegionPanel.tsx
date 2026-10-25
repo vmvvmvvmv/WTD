@@ -208,6 +208,17 @@ export function RegionPanel({
           value={notificationSettings.weatherWarningAlerts}
           onValueChange={(value) => onToggleNotificationSetting('weatherWarningAlerts', value)}
         />
+        {/* 아침 날씨·미세먼지·기상특보는 서버가 보내는 알림이라, 서버에 저장하는 정보를 토글 바로 아래에 알린다. */}
+        <Text style={styles.settingsUnavailableText}>
+          아침 날씨·미세먼지·특보 알림을 보내려고 알림 주소·지역·일정 날짜/시간을 서버에 저장해요.{' '}
+          <Text
+            accessibilityRole="link"
+            onPress={() => { Linking.openURL(PRIVACY_POLICY_URL).catch(() => {}); }}
+            style={{ color: accentTone, fontWeight: '700' }}
+          >
+            처리방침 보기
+          </Text>
+        </Text>
       </View>
 
       <View style={styles.settingsSection}>
