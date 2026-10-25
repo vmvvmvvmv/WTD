@@ -881,3 +881,45 @@ class KmaMissingValueTests(SimpleTestCase):
         self.assertIsNone(_kma_float('900'))
         self.assertEqual(_kma_float('-12.5'), -12.5)
         self.assertEqual(_kma_float('0'), 0.0)
+
+
+class DustBackfillTests(TestCase):
+    """서버가 멈췄던 시각만 채우고, 있던 기록은 건드리지 않는다."""
+
+    def test_fills_only_hours_most_stations_missed(self):
+        from datetime import datetime, timedelta, timezone as dt_timezone
+        from dust.models import AirQualityStation, RealtimeDustMeasurement
+        from dust.services import dust_backfill
+        now = datetime(2026, 10, 25, 12, 30, tzinfo=dt_timezone.utc)
+        stations = [AirQualityStation.objects.create(sido='부산', name=f'측정소{i}', lat=35.1, lng=129.0 + i * 0.01) for i in range(10)]
+        hours = [now.replace(minute=0) - timedelta(hours=h) for h in range(24, -1, -1)]
+        outage = set(hours[10:13])  # 3시간 동안 서버가 멈춤
+        for station in stations:
+            for hour in hours:
+                if hour not in outage and not (station.name == '측정소9' and hour == hours[5]):  # 고장 난 측정소 한 칸
+                    RealtimeDustMeasurement.objects.create(station=station, measured_at=hour, pm10_value=20)
+        self.assertEqual(dust_backfill.find_gap_hours(now), sorted(outage))
+
+        def rows(station):
+            return [{'dataTime': (hour + timedelta(hours=9)).strftime('%Y-%m-%d %H:%M'), 'pm10Value': '33', 'pm25Value': '11', 'pm10Flag': None} for hour in hours]
+
+        with patch.object(dust_backfill, '_hourly_rows_for_station', side_effect=rows):
+            filled, created, left = dust_backfill.backfill_missing_dust(limit=4, now=now)
+        self.assertEqual((filled, created, left), (4, 12, 6))
+        self.assertEqual(RealtimeDustMeasurement.objects.filter(raw_data__source='backfill').count(), 12)
+        # 원래 있던 기록과 고장 난 측정소의 빈칸(수집이 빠진 시각이 아님)은 그대로다.
+        self.assertFalse(RealtimeDustMeasurement.objects.filter(measured_at=hours[5], station__name='측정소9').exists())
+        self.assertEqual(RealtimeDustMeasurement.objects.filter(measured_at=hours[0]).exclude(pm10_value=20).count(), 0)
+
+
+class AdminAlertTests(SimpleTestCase):
+    @patch.dict('os.environ', {'ADMIN_PUSH_TOKENS': 'ExponentPushToken[admin]'})
+    def test_same_problem_is_sent_once(self):
+        from django.core.cache import cache
+        from dust import admin_alerts
+        cache.delete('admin_alert:freshness:x')
+        with patch.object(admin_alerts, 'send_expo_push') as push:
+            self.assertEqual(admin_alerts.alert_admins('freshness:x', 't', 'b'), 1)
+            self.assertEqual(admin_alerts.alert_admins('freshness:x', 't', 'b'), 0)
+        push.assert_called_once()
+        cache.delete('admin_alert:freshness:x')

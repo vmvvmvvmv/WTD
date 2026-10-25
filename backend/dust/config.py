@@ -55,6 +55,8 @@ STATION_INFO_URL = "http://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstn
 
 
 REALTIME_DUST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
+# 측정소 하나의 최근 24시간 매시 값(빈 기록 채우기용, 같은 서비스·같은 키).
+STATION_HOURLY_DUST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty"
 
 
 KMA_VILAGE_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
