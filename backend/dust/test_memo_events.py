@@ -261,3 +261,26 @@ class MemoRepeatGuardTests(TestCase):
         for text in ("매주 월요일 9시 회의", "월요일마다 요가", "주 3회 헬스"):
             with self.assertRaises(MemoInputError):
                 events_from_memo(text)
+
+
+class MemoRound2RegressionTests(TestCase):
+    def test_time_before_phone_is_kept(self):
+        from dust.services.memo_privacy import mask_memo
+        masked, _ = mask_memo("2026-10-25 15:00 010-1234-5678 연락, 계좌 3333-01-1234567")
+        self.assertIn("15:00", masked)
+        self.assertNotIn("1234-5678", masked)
+        self.assertNotIn("1234567", masked)
+
+    def test_event_at_2359_ends_after_it_starts(self):
+        events = __import__("dust.services.memo_events", fromlist=["clean_events"]).clean_events(
+            {"events": [{"title": "야식", "date": "2026-10-26", "time": "23:59", "end_date": "", "end_time": "", "place": "", "activity_type": "indoor"}]},
+            date(2026, 10, 25),
+        )
+        self.assertEqual((events[0]["end_date"], events[0]["end_time"]), ("2026-10-27", "00:59"))
+
+    def test_quick_parse_leaves_ambiguous_past_times_to_ai(self):
+        from dust.services.memo_quick import quick_parse
+        now = datetime(2026, 10, 25, 13, 0)
+        self.assertIsNone(quick_parse("25일 오전 7시 회의", now))
+        self.assertIsNone(quick_parse("오늘 오후 3시 회의, 오전 7시 약속", now))
+        self.assertIsNotNone(quick_parse("오늘 오전 7시 회의", now))  # '오늘'이라고 분명히 쓴 경우는 그대로

@@ -133,8 +133,16 @@ def _parse_piece(piece: str, now: datetime, previous_date: date | None) -> dict 
     title, place = _split_place(rest)
     start = datetime.combine(day, datetime.min.time()).replace(hour=start_hour, minute=_minute(time_match, 1))
     # 요일만 썼는데 오늘이고 이미 지난 시각이면 다음 주 그 요일(AI 규칙과 같게).
-    if date_match and date_match.group("wd") and not date_match.group("week") and start <= now.replace(tzinfo=None):
+    is_past = start <= now.replace(tzinfo=None)
+    if date_match and date_match.group("wd") and not date_match.group("week") and is_past:
         day += timedelta(days=7)
+    # "25일 오전 7시"처럼 날짜를 숫자로 적었는데 오늘의 지난 시각이면, 오늘을 잘못 쓴 건지 다음 달인지 애매해 AI에게 맡긴다.
+    # ('오늘'·'내일'처럼 분명히 쓴 경우와 앞 조각의 날짜를 이어 쓴 경우는 그대로 둔다.)
+    elif date_match and (date_match.group("day") or date_match.group("d2")) and is_past:
+        return None
+    # 앞 조각의 날짜를 이어 쓴 일정("오늘 9시 회의, 7시 약속")이 이미 지난 시각이면 뜻이 애매해 AI에게 맡긴다.
+    elif not date_match and is_past:
+        return None
     return {
         "title": title,
         "date": day.isoformat(),

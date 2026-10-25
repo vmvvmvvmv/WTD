@@ -44,7 +44,7 @@ ACTIVITY_TYPES = {"outdoor", "indoor", "transit"}
 WEEKDAYS = "월화수목금토일"
 TIME_PATTERN = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 # 앱의 isRepeatMemo와 같은 규칙.
-REPEAT_MEMO_PATTERN = re.compile(r"매\s?(?:일|주|달|월|년|번)|격주|격일|(?:요일|아침|저녁|주말|평일)\s?마다|주\s?\d\s?회")
+REPEAT_MEMO_PATTERN = re.compile(r"매\s?(?:일|주|달|월|년|번)(?:(?![가-힣])|(?=[월화수목금토일]요일|아침|저녁|밤|오전|오후|말))|격주|격일|(?:요일|아침|저녁|주말|평일)\s?마다|주\s?\d\s?회")
 
 SYSTEM_PROMPT = """너는 일정 앱의 메모 정리 도우미다. 사용자가 대충 적은 한국어 메모에서 일정을 뽑아 JSON으로만 답한다.
 - today(오늘 날짜와 요일)를 기준으로 '내일', '모레', '이번 주 토요일', '다음 주 월요일', '25일' 같은 말을 YYYY-MM-DD 날짜로 바꾼다. 지난 날짜는 다음에 오는 날짜로 본다.
@@ -204,8 +204,12 @@ def _parse_time(value) -> str:
 def _default_end(start_date: date, start_time: str) -> tuple[date, str]:
     start = datetime.combine(start_date, datetime.strptime(start_time, "%H:%M").time())
     end = start + timedelta(hours=1)
-    # 자정을 넘기면 그날 23:59에 끝나는 것으로 둔다(하루 일정으로 보이게).
-    return (start_date, "23:59") if end.date() != start_date else (start_date, end.strftime("%H:%M"))
+    # 자정을 넘기면 그날 23:59에 끝나는 것으로 둔다(하루 일정으로 보이게). 23:59에 시작하면 끝이 시작과 같아지므로 다음 날로 넘긴다.
+    if end.date() == start_date:
+        return start_date, end.strftime("%H:%M")
+    if start_time < "23:59":
+        return start_date, "23:59"
+    return end.date(), end.strftime("%H:%M")
 
 
 def clean_events(raw, today: date) -> list[dict]:
