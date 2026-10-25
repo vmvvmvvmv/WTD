@@ -6,6 +6,10 @@
 #   collect_hourly.sh          둘 다(처음 DB를 채울 때)
 # 한 단계가 실패해도 다음 단계는 계속 돌리고, 마지막에 실패가 있었으면 0이 아닌 값으로 끝낸다(journalctl에 남음).
 cd "$(dirname "$0")/.." || exit 1
+# dust·weather 수집이 겹치면(서버가 다시 켜져 놓친 실행을 한꺼번에 따라잡을 때 등) 특보·급등 알림이 두 번 갈 수 있다.
+# 잠금을 잡아 한쪽이 끝날 때까지 다른 쪽은 기다리게 한다.
+exec 9>/tmp/weathertodo-collect.lock
+flock 9
 PY=venv/bin/python
 part="${1:-all}"
 status=0
