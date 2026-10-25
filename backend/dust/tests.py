@@ -475,15 +475,15 @@ class NeighborSpikeTests(SimpleTestCase):
         return points
 
     def test_isolated_spike_is_dropped(self):
-        from dust.services.stations import _neighbor_spike_fields
+        from dust.services.dust_quality import _neighbor_spike_fields
         self.assertEqual(_neighbor_spike_fields(self._grid(699, 27))[0], {"pm10"})
 
     def test_regional_high_is_kept(self):
-        from dust.services.stations import _neighbor_spike_fields
+        from dust.services.dust_quality import _neighbor_spike_fields
         self.assertEqual(_neighbor_spike_fields(self._grid(180, 150))[0], set())
 
     def test_small_rise_is_kept(self):
-        from dust.services.stations import _neighbor_spike_fields
+        from dust.services.dust_quality import _neighbor_spike_fields
         self.assertEqual(_neighbor_spike_fields(self._grid(40, 15))[0], set())
 
 
@@ -578,7 +578,7 @@ class AirKoreaMidnightTimeTests(SimpleTestCase):
 
     def test_24_00_is_next_day_midnight(self):
         from django.utils import timezone as dj_timezone
-        from dust.services.stations import _parse_airkorea_datetime
+        from dust.services.airkorea_client import _parse_airkorea_datetime
         parsed = dj_timezone.localtime(_parse_airkorea_datetime('2026-10-22 24:00'))
         self.assertEqual(parsed.strftime('%Y-%m-%d %H:%M'), '2026-10-23 00:00')
         self.assertEqual(dj_timezone.localtime(_parse_airkorea_datetime('2026-10-31 24:00')).strftime('%Y-%m-%d %H:%M'), '2026-11-01 00:00')
