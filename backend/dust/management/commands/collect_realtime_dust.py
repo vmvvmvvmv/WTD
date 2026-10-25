@@ -6,7 +6,8 @@ from django.core.management import call_command
 from django.core.management.base import BaseCommand, CommandError
 
 from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES
-from dust.services.stations import bump_dust_cache_version, _fetch_realtime_station_values_for_sido, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
+from dust.services.airkorea_client import _fetch_realtime_station_values_for_sido
+from dust.services.stations import bump_dust_cache_version, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
 
 
 def env_int(name, default):

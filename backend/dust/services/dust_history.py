@@ -7,7 +7,8 @@ from dust.external_api import public_api_get, REQUEST_TIMEOUT
 from dust.ml.hourly_pm10 import build_ml_hourly_pm10_forecast
 from dust.models import DustMeasurement, HourlyDustPrediction, RealtimeDustMeasurement
 from dust.services.common import _parse_measure_date, _to_float
-from dust.services.stations import _find_air_quality_station, _parse_airkorea_datetime, _parse_airkorea_response
+from dust.services.airkorea_client import _parse_airkorea_datetime, _parse_airkorea_response
+from dust.services.stations import _find_air_quality_station
 
 
 PAST_API_FAILURE_TTL_SECONDS = 10 * 60

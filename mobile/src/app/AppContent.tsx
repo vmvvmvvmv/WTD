@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, AppState, BackHandler, Keyboard, Linking, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, AppState, BackHandler, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
@@ -27,7 +27,7 @@ import { useRegions } from '../features/region/useRegions';
 import { useStations } from '../features/stations/useStations';
 import { AppTabBar } from '../navigation/AppTabBar';
 import { useNotificationSettings } from '../notifications/useNotificationSettings';
-import { loadStoredAppState, saveCalendarTipSeen, saveOutfitSettings, saveTutorialSeen } from '../storage/appStorage';
+import { loadStoredAppState, saveOutfitSettings } from '../storage/appStorage';
 import { styles } from '../styles/appStyles';
 import { bauhausColors } from '../theme/bauhaus';
 import type { StationDustItem } from '../types/dust';
@@ -36,16 +36,16 @@ import type { OutfitSettings } from '../types/outfit';
 import type { RegionState } from '../types/region';
 import { isSameRegion } from '../features/region/regionUtils';
 import { toNumber } from '../utils/format';
-import { normalizeLatLng } from '../utils/geo';
-import { buildMobileMapUrl } from '../utils/mobileMapUrl';
 import { useTodayLabel } from '../utils/useTodayLabel';
+import { useAppMapUrls } from './useAppMapUrls';
+import { useAppNavigationEvents } from './useAppNavigationEvents';
+import { useAppTutorial } from './useAppTutorial';
+import { useToast } from './useToast';
 import { accentTone } from '../theme/appTheme';
 
 // 탭 이동, 화면 사이 연결(지역 전환·검색 패널·토스트), 저장된 설정 복원을 맡는 최상위 화면입니다.
 // 데이터와 상태는 기능별 훅이 관리합니다: 지역(useRegions), 측정소(useStations), 홈 데이터(useDashboardData),
 // 일정(useCalendarEvents), 알림(useNotificationSettings), 지도 검색(useMapSearch).
-// 홈에서 뒤로가기를 두 번 누를 때 '한 번 더'로 볼 시간.
-const EXIT_BACK_INTERVAL_MS = 2000;
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
@@ -53,37 +53,19 @@ export function AppContent() {
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
   const [homeRegionSearchText, setHomeRegionSearchText] = useState('');
   const [outfitSettings, setOutfitSettings] = useState<OutfitSettings>(DEFAULT_OUTFIT_SETTINGS);
-  // 토스트는 보여 준 뒤 지운다. 남겨 두면 탭을 옮길 때 다시 그려지면서 예전 문구가 또 뜬다.
-  // id는 같은 문구를 연달아 보내도(예: 테스트 알림 두 번) 다시 띄우기 위한 값이다.
-  const [toast, setToast] = useState<{ id: number; message: string } | null>(null);
-  const toastIdRef = useRef(0);
-  const setNotificationMessage = useCallback((message: string) => {
-    toastIdRef.current += 1;
-    setToast(message ? { id: toastIdRef.current, message } : null);
-  }, []);
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 2600);
-    return () => clearTimeout(timer);
-  }, [toast]);
+  const { showToast: setNotificationMessage, toast } = useToast();
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
-  const [tutorialMode, setTutorialMode] = useState<'none' | 'welcome' | 'tour'>('none');
-  const [calendarTipSeen, setCalendarTipSeen] = useState(true);
   const [openCalendarEditor, setOpenCalendarEditor] = useState(false);
+  const {
+    addFirstEvent, calendarTipSeen, continueTutorialInCalendar, dismissCalendarTip, finishTutorial,
+    hydrate: hydrateTutorial, setTutorialMode, skipTutorialForNow, tutorialMode,
+  } = useAppTutorial({ notify: setNotificationMessage, openCalendarEditor: () => setOpenCalendarEditor(true), switchTab: (tab) => switchTab(tab) });
   // 캘린더를 떠나면 끕니다. 다시 와도 일정 추가 화면이 또 열리지 않게.
   useEffect(() => {
     if (activeTab !== 'calendar') setOpenCalendarEditor(false);
   }, [activeTab]);
-  // 홈 화면 위젯의 + 버튼(weathertodo://calendar)으로 열리면 캘린더 탭을 보여 줍니다.
-  useEffect(() => {
-    const openCalendar = (url: string | null) => {
-      if (url?.startsWith('weathertodo://calendar')) setActiveTab('calendar');
-    };
-    void Linking.getInitialURL().then(openCalendar);
-    const subscription = Linking.addEventListener('url', ({ url }) => openCalendar(url));
-    return () => subscription.remove();
-  }, []);
+  useAppNavigationEvents(activeTab, setActiveTab, setNotificationMessage);
 
   const todayDateLabel = useTodayLabel();
   const regionTransition = useRegionTransition();
@@ -189,37 +171,9 @@ export function AppContent() {
     return findStationSuggestions(mapStations, homeRegionSearchText, 6);
   }, [homeRegionSearchText, mapStations]);
 
-  const calendarMapPickerStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
-  const calendarMapPickerCoords = normalizeLatLng(calendarMapPickerStation?.lat, calendarMapPickerStation?.lng);
-  const homeMapPreviewStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
-  const homeMapPreviewCoords = normalizeLatLng(homeMapPreviewStation?.lat, homeMapPreviewStation?.lng);
-  const homeMapPreviewUrl = homeMapPreviewCoords
-    ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: 'weather', zoom: 11, view: 'preview' })
-    : buildMobileMapUrl({ mode: 'weather', view: 'preview' });
-  // 지도 탭에 들어온 순간의 주소를 고정해, 머무는 동안 WebView가 다시 로드되지 않게 합니다.
-  const fullMapUrlRef = useRef<string | null>(null);
-  if (activeTab === 'map' && !fullMapUrlRef.current) {
-    fullMapUrlRef.current = homeMapPreviewCoords
-      ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: mapMarkerMode, zoom: 11, view: 'full' })
-      : buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
-  } else if (activeTab !== 'map') {
-    fullMapUrlRef.current = null;
-  }
-  const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
-  const calendarMapPickerUrl = calendarMapPickerCoords
-    ? buildMobileMapUrl({ lat: calendarMapPickerCoords.lat, lng: calendarMapPickerCoords.lng, zoom: 15, view: 'picker' })
-    : buildMobileMapUrl({ view: 'picker' });
-  const calendarDefaultLocation = calendarMapPickerStation && calendarMapPickerCoords
-    ? {
-      address: calendarMapPickerStation.addr,
-      city: calendarMapPickerStation.sido || gpsRegion?.city || selectedRegion?.city,
-      label: [calendarMapPickerStation.sido || gpsRegion?.city || selectedRegion?.city, calendarMapPickerStation.city || gpsRegion?.region || calendarMapPickerStation.name || selectedRegion?.region].filter(Boolean).join(' '),
-      lat: calendarMapPickerCoords.lat,
-      lng: calendarMapPickerCoords.lng,
-      region: calendarMapPickerStation.city || gpsRegion?.region || calendarMapPickerStation.name,
-      source: 'station',
-    }
-    : null;
+  const { calendarDefaultLocation, calendarMapPickerUrl, fullMapUrl, homeMapPreviewUrl } = useAppMapUrls({
+    activeTab, findStationForRegion, gpsRegion, mapMarkerMode, selectedRegion,
+  });
 
   const updateOutfitSetting = <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => {
     setOutfitSettings((current) => ({ ...current, [key]: value }));
@@ -308,8 +262,7 @@ export function AppContent() {
         hydrateNotificationSettings(storedState.notificationSettings, storedState.notificationToken);
         setOutfitSettings(storedState.outfitSettings);
         setCalendarEvents(storedState.calendarEvents);
-        setTutorialMode(storedState.tutorialSeen ? 'none' : 'welcome');
-        setCalendarTipSeen(storedState.calendarTipSeen);
+        hydrateTutorial(storedState);
         setHasLoadedRegionStore(true);
       })
       .catch(() => {
@@ -330,32 +283,6 @@ export function AppContent() {
     setHasTriedInitialLocation(true);
     applyNearestGpsRegion();
   }, [hasLoadedRegionStore, hasTriedInitialLocation]);
-
-  // 튜토리얼: 첫 실행이면 환영 시트를 먼저 띄우고, "둘러보기"를 고른 사람만 홈 투어를 봅니다.
-  const finishTutorial = () => {
-    void saveTutorialSeen();
-    setTutorialMode('none');
-  };
-  const continueTutorialInCalendar = () => {
-    finishTutorial();
-    setCalendarTipSeen(false);
-    switchTab('calendar');
-  };
-  const skipTutorialForNow = () => {
-    finishTutorial();
-    setNotificationMessage('설정 > 앱 정보에서 언제든 볼 수 있어요.');
-  };
-  const dismissCalendarTip = () => {
-    void saveCalendarTipSeen();
-    setCalendarTipSeen(true);
-  };
-  // "첫 일정 추가하기": 캘린더 일정 추가 화면을 바로 엽니다. 추가 버튼 말풍선은 겹치니 본 것으로 둡니다.
-  const addFirstEvent = () => {
-    finishTutorial();
-    dismissCalendarTip();
-    setOpenCalendarEditor(true);
-    switchTab('calendar');
-  };
 
   // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
   useEffect(() => {
@@ -393,27 +320,6 @@ export function AppContent() {
       }),
     ]).start();
   }, [activeTab, homePanelOpacity, homePanelTranslateY, showFavoritePicker, showHomeRegionSearch]);
-
-  // Android 뒤로가기의 마지막 단계: 다른 탭이면 홈으로, 홈이면 한 번은 토스트로 알리고 2초 안에 한 번 더 누르면 나갑니다.
-  // 한 번만 등록합니다. 뒤로가기 처리는 나중에 등록한 것부터 불리므로, 패널·시트·지도처럼 그때그때 등록되는 처리가 먼저 받습니다.
-  const activeTabRef = useRef(activeTab);
-  activeTabRef.current = activeTab;
-  const lastHomeBackAtRef = useRef(0);
-  useEffect(() => {
-    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (activeTabRef.current !== 'home') {
-        Keyboard.dismiss();
-        setActiveTab('home');
-        return true;
-      }
-      const now = Date.now();
-      if (now - lastHomeBackAtRef.current < EXIT_BACK_INTERVAL_MS) return false;
-      lastHomeBackAtRef.current = now;
-      setNotificationMessage('한 번 더 누르면 앱이 종료돼요');
-      return true;
-    });
-    return () => subscription.remove();
-  }, [setNotificationMessage]);
 
   // Android 뒤로가기: 홈 검색/즐겨찾기 패널이 열려 있으면 패널만 닫습니다.
   useEffect(() => {
