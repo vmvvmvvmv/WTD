@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { registerNotificationDevice } from '../api/dustEndpoints';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../constants/dust';
@@ -20,6 +20,12 @@ export function useNotificationSettings(
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   const [serverPushToken, setServerPushToken] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  // 설정을 빠르게 바꿔도 서버에 마지막 설정이 남도록 등록 요청을 하나씩 순서대로 보낸다.
+  const registerQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const registerInOrder = (payload: Parameters<typeof registerNotificationDevice>[0]) => {
+    registerQueueRef.current = registerQueueRef.current.then(() => registerNotificationDevice(payload).catch(() => {}));
+    return registerQueueRef.current;
+  };
 
   const hydrate = (storedSettings: NotificationSettings, storedToken: string | null) => {
     setSettings(storedSettings);
@@ -56,7 +62,7 @@ export function useNotificationSettings(
     const syncServerDevice = async () => {
       if (!settings.enabled) {
         if (!serverPushToken) return;
-        await registerNotificationDevice({
+        await registerInOrder({
           city: selectedRegion.city,
           dustSpikeAlerts: false,
           enabled: false,
@@ -64,7 +70,7 @@ export function useNotificationSettings(
           region: selectedRegion.region,
           weatherMorningAlerts: false,
           weatherWarningAlerts: false,
-        }).catch(() => {});
+        });
         return;
       }
 
@@ -81,7 +87,7 @@ export function useNotificationSettings(
         ? events.filter((event) => event.date >= todayDateLabel).slice(0, 30)
           .map((event) => ({ date: event.date, time: event.time }))
         : [];
-      await registerNotificationDevice({
+      await registerInOrder({
         calendarEvents: calendarEventSummary,
         city: selectedRegion.city,
         dustSpikeAlerts: settings.dustSpikeAlerts,
@@ -90,7 +96,7 @@ export function useNotificationSettings(
         region: selectedRegion.region,
         weatherMorningAlerts: settings.weatherMorningAlerts,
         weatherWarningAlerts: settings.weatherWarningAlerts,
-      }).catch(() => {});
+      });
     };
 
     void syncServerDevice();

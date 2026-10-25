@@ -59,6 +59,17 @@ export async function requestDustPushToken() {
   return token.data;
 }
 
+// 저장된 목록에 없는 일정 알림을 지운다(예약 도중 앱이 꺼져 남은 것 등). 서버 푸시는 예약 알림이 아니라 영향이 없다.
+export async function cancelCalendarNotificationsExcept(keepIds: string[]) {
+  if (IS_EXPO_GO) return;
+  const Notifications = await import('expo-notifications');
+  const keep = new Set(keepIds);
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(scheduled
+    .filter((item) => item.content.data?.calendarEventId && !keep.has(item.identifier))
+    .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)));
+}
+
 export async function cancelCalendarEventNotifications(notificationIds: string[]) {
   if (IS_EXPO_GO) return;
   const Notifications = await import('expo-notifications');

@@ -43,6 +43,7 @@ export async function refreshCalendarRemindersInBackground() {
 
   await syncCalendarReminders({
     events: state.calendarEvents,
+    loadEvents: async () => (await loadStoredAppState()).calendarEvents,
     forecast: {
       currentPm10: toNumber(dust?.currentItem?.pm10Value),
       eventLocationForecasts,
