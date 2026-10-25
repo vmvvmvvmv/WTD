@@ -11,7 +11,7 @@ import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
 import { buildTimelineBlocks, isMultiDayEvent } from './calendarTimelineLayout';
 import { parseDateParts, weekdayLabels } from './calendarUtils';
-import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import type { CalendarDailyWeather, CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { accentTone } from '../../theme/appTheme';
 
 const HOUR_HEIGHT = 56;
@@ -33,6 +33,7 @@ type Props = {
   todayDateLabel: string;
   transitionDirection: number;
   weatherRiskByDate?: Record<string, CalendarWeatherRiskIndicator | undefined>;
+  dailyWeatherByDate?: Record<string, CalendarDailyWeather | undefined>;
 };
 
 function nowMinute() {
@@ -53,6 +54,7 @@ export function CalendarTimeline({
   todayDateLabel,
   transitionDirection,
   weatherRiskByDate,
+  dailyWeatherByDate,
 }: Props) {
   const isWeek = dates.length > 1;
   const { animatedStyle, swipeHandlers } = useCalendarSlide(title, transitionDirection, onMove);
@@ -101,6 +103,7 @@ export function CalendarTimeline({
                 <CalendarDayCell
                   cellIndex={index}
                   compact
+                  dailyWeather={dailyWeatherByDate?.[cell.date]}
                   date={cell.date}
                   day={cell.day}
                   eventCount={allDayCounts[cell.date] ?? 0}
