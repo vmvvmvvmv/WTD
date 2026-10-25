@@ -247,3 +247,14 @@ class LlmDailyUsage(models.Model):
     class Meta:
         db_table = 'llm_daily_usage'
         unique_together = ('day', 'client_digest')
+
+
+# Expo가 푸시를 받았다는 접수 번호. 실제 전달 결과(영수증)는 몇 분 뒤에 나오므로 check_push_receipts가 확인하고 지운다.
+class ExpoPushTicket(models.Model):
+    ticket_id = models.CharField(max_length=64, unique=True)
+    expo_push_token = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'expo_push_ticket'
+        indexes = [models.Index(fields=['created_at'], name='push_ticket_time_idx')]

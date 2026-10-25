@@ -819,3 +819,55 @@ class WeatherWarningTests(TestCase):
         # 밤에는 주의보를 보내지 않는다.
         night = send_weather_warning_notifications(now=timezone.make_aware(datetime(2026, 10, 26, 23, 0)), status_text="o 강풍주의보 : 부산")
         self.assertEqual(night.sent, 0)
+
+
+class PushReceiptTests(TestCase):
+    def test_receipts_disable_uninstalled_devices_and_count_failures(self):
+        from datetime import timedelta
+        from unittest.mock import MagicMock
+        from dust.models import ExpoPushTicket, NotificationDevice
+        from dust.push_receipts import check_push_receipts
+        gone = NotificationDevice.objects.create(expo_push_token='ExponentPushToken[gone]', city='부산', region='대신동', calendar_events=[{'title': 'x'}])
+        NotificationDevice.objects.create(expo_push_token='ExponentPushToken[ok]', city='부산', region='대신동')
+        for ticket_id, token in [('t-ok', 'ok'), ('t-gone', 'gone'), ('t-fcm', 'ok'), ('t-wait', 'ok'), ('t-new', 'ok')]:
+            ExpoPushTicket.objects.create(ticket_id=ticket_id, expo_push_token=f'ExponentPushToken[{token}]')
+        now = timezone.now()
+        ExpoPushTicket.objects.exclude(ticket_id='t-new').update(created_at=now - timedelta(minutes=20))
+        response = MagicMock()
+        response.json.return_value = {'data': {
+            't-ok': {'status': 'ok'},
+            't-gone': {'status': 'error', 'details': {'error': 'DeviceNotRegistered'}},
+            't-fcm': {'status': 'error', 'details': {'error': 'DeveloperError'}},
+        }}
+        with patch('dust.push_receipts.requests.post', return_value=response) as post:
+            result = check_push_receipts(now=now)
+        self.assertEqual(sorted(post.call_args.kwargs['json']['ids']), ['t-fcm', 't-gone', 't-ok', 't-wait'])
+        self.assertEqual((result.ok, result.failed, result.unregistered), (1, 1, 1))
+        gone.refresh_from_db()
+        self.assertFalse(gone.enabled)
+        self.assertEqual(gone.calendar_events, [])
+        # 결과가 아직 없는 티켓과 15분이 안 된 티켓은 남겨 다음에 다시 묻는다.
+        self.assertEqual(sorted(ExpoPushTicket.objects.values_list('ticket_id', flat=True)), ['t-new', 't-wait'])
+
+    def test_accepted_push_keeps_ticket_for_receipt_check(self):
+        from unittest.mock import MagicMock
+        from dust.models import ExpoPushTicket
+        from dust.weather_morning_notifications import send_expo_push
+        response = MagicMock()
+        response.json.return_value = {'data': {'status': 'ok', 'id': 'ticket-1'}}
+        with patch('dust.weather_morning_notifications.requests.post', return_value=response):
+            send_expo_push('ExponentPushToken[a]', 't', 'b', {})
+        self.assertTrue(ExpoPushTicket.objects.filter(ticket_id='ticket-1', expo_push_token='ExponentPushToken[a]').exists())
+
+
+class LateMorningNotificationTests(SimpleTestCase):
+    def test_morning_notifications_skip_after_ten(self):
+        from datetime import datetime
+        from dust.weather_morning_notifications import send_weather_morning_notifications
+        late = timezone.make_aware(datetime(2026, 10, 25, 14, 0))
+        with patch('dust.weather_morning_notifications.timezone.localtime', return_value=late), \
+                patch('dust.weather_morning_notifications.timezone.localdate', return_value=late.date()), \
+                patch('dust.weather_morning_notifications.NotificationDevice.objects.filter') as devices:
+            result = send_weather_morning_notifications(late.date())
+        devices.assert_not_called()
+        self.assertEqual(result.sent, 0)
