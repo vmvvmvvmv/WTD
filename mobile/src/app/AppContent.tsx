@@ -646,6 +646,7 @@ export function AppContent() {
         {activeTab === 'account' && (
           <RegionPanel
             favoriteRegions={favoriteRegions}
+            gpsRegion={gpsRegion}
             isLocating={isLocating}
             isSavingNotificationSettings={isSavingNotificationSettings}
             locationMessage={locationMessage}
