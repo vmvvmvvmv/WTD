@@ -20,10 +20,12 @@ export function useMapTabLifecycle(map: MapSearch, activeTab: TabKey, goHome: ()
     map.setShowSearchSuggestions(false);
   };
 
-  // 지도 탭을 떠나면 선택 마커를 지우고 다음에 지도를 새로 그립니다.
+  // 지도 탭을 떠나면 선택 마커와 그 안내 문구를 지우고 다음에 지도를 새로 그립니다.
+  // 문구만 남으면 다시 들어왔을 때 선택도 안 된 측정소 이름이나 "검색 결과가 없습니다"가 보인다.
   useEffect(() => {
     if (previousTabRef.current === 'map' && !isMapTab) {
       map.setSelectedStation(null);
+      map.setMapSearchMessage('');
       map.setMapViewKey((key) => key + 1);
     }
     previousTabRef.current = activeTab;

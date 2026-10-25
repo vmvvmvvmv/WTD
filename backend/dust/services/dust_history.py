@@ -1,5 +1,5 @@
 """과거(일평균)·시간별 미세먼지 저장·조회와 시간별 예측 저장."""
-from datetime import timedelta
+from datetime import datetime, time, timedelta
 from django.core.cache import cache
 from django.utils import timezone
 from dust.config import AIRKOREA_SERVICE_KEY, API_URL
@@ -7,7 +7,8 @@ from dust.external_api import public_api_get, REQUEST_TIMEOUT
 from dust.ml.hourly_pm10 import build_ml_hourly_pm10_forecast
 from dust.models import DustMeasurement, HourlyDustPrediction, RealtimeDustMeasurement
 from dust.services.common import _parse_measure_date, _to_float
-from dust.services.stations import _find_air_quality_station, _parse_airkorea_datetime, _parse_airkorea_response
+from dust.services.airkorea_client import _parse_airkorea_datetime, _parse_airkorea_response
+from dust.services.stations import _find_air_quality_station
 
 
 PAST_API_FAILURE_TTL_SECONDS = 10 * 60
@@ -136,12 +137,15 @@ def _load_stored_realtime_daily_dust(city, district, station_name, start_date, e
     if not station:
         return []
 
+    local_tz = timezone.get_current_timezone()
+    range_start = timezone.make_aware(datetime.combine(start, time.min), local_tz)
+    range_end = timezone.make_aware(datetime.combine(end + timedelta(days=1), time.min), local_tz)
     measurements = (
         RealtimeDustMeasurement.objects
         .filter(
             station=station,
-            measured_at__date__gte=start,
-            measured_at__date__lte=end,
+            measured_at__gte=range_start,
+            measured_at__lt=range_end,
         )
         .order_by('measured_at')
     )
@@ -194,9 +198,12 @@ def _load_stored_realtime_hourly_dust(city, district, station_name, measured_dat
     if not station:
         return []
 
+    local_tz = timezone.get_current_timezone()
+    range_start = timezone.make_aware(datetime.combine(measured_date, time.min), local_tz)
+    range_end = range_start + timedelta(days=1)
     measurements = (
         RealtimeDustMeasurement.objects
-        .filter(station=station, measured_at__date=measured_date)
+        .filter(station=station, measured_at__gte=range_start, measured_at__lt=range_end)
         .order_by('measured_at')
     )
     return [_serialize_realtime_hourly_measurement(measurement, city, district, station) for measurement in measurements]

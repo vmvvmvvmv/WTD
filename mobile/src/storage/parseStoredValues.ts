@@ -25,7 +25,7 @@ export function parseStoredFavoriteRegions(value: string | null) {
     const parsed = JSON.parse(value) as Partial<RegionState>[];
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((item) => typeof item.city === 'string' && typeof item.region === 'string' && item.city && item.region)
+      .filter((item) => !!item && typeof item.city === 'string' && typeof item.region === 'string' && item.city && item.region)
       .map((item) => ({ city: item.city as string, region: item.region as string, label: typeof item.label === 'string' ? item.label : undefined }))
       .slice(0, 15);
   } catch {
@@ -40,7 +40,7 @@ export function parseStoredMapRecentSearches(value: string | null): StationDustI
     const parsed = JSON.parse(value) as Partial<StationDustItem>[];
     if (!Array.isArray(parsed)) return [];
     return parsed
-      .filter((item) => typeof item.sido === 'string' && (typeof item.name === 'string' || typeof item.city === 'string') && typeof item.lat === 'number' && typeof item.lng === 'number')
+      .filter((item) => !!item && typeof item.sido === 'string' && (typeof item.name === 'string' || typeof item.city === 'string') && typeof item.lat === 'number' && typeof item.lng === 'number')
       .map((item) => ({
         addr: typeof item.addr === 'string' ? item.addr : undefined,
         city: typeof item.city === 'string' ? item.city : undefined,
@@ -55,21 +55,17 @@ export function parseStoredMapRecentSearches(value: string | null): StationDustI
   }
 }
 
-// 알림 설정. 빠진 값은 기본값으로 채웁니다.
+// 알림 설정. 사용자가 끈 값은 그대로 두고, 저장된 적 없는 값만 기본값으로 채웁니다.
 export function parseStoredNotificationSettings(value: string | null): NotificationSettings {
   if (!value) return DEFAULT_NOTIFICATION_SETTINGS;
   try {
     const parsed = JSON.parse(value) as Partial<NotificationSettings>;
-    const isLegacyDisabledDefault = parsed.enabled === false
-      && parsed.calendarReminders !== false
-      && parsed.weatherMorningAlerts !== true
-      && parsed.includeFavorites !== false;
-    if (isLegacyDisabledDefault) return DEFAULT_NOTIFICATION_SETTINGS;
     return {
       enabled: parsed.enabled !== false,
       calendarReminders: parsed.calendarReminders !== false,
       weatherMorningAlerts: parsed.weatherMorningAlerts !== false,
       dustSpikeAlerts: parsed.dustSpikeAlerts !== false,
+      weatherWarningAlerts: parsed.weatherWarningAlerts !== false,
       // TODO: 즐겨찾기 지역까지 알림에 넣는 기능. 필요 없으면 지울 후보.
       includeFavorites: parsed.includeFavorites !== false,
     };

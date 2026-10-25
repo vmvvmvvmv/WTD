@@ -1,6 +1,7 @@
 """화면용 API: 요청 값을 읽고 서비스 결과를 응답으로 바꾼다. 업무 로직은 dust.services, 설정은 dust.config에 있다."""
 import json
 import logging
+import math
 import re
 from datetime import datetime, time, timedelta
 from django.conf import settings
@@ -9,7 +10,7 @@ from django.shortcuts import render
 from django.utils import timezone
 from dust.api_errors import error_response
 from dust.airkorea_forecast import build_forecast_prediction, build_hourly_forecast_items
-from dust.config import AIRKOREA_SERVICE_KEY, KMA_API_KEY, KMA_ASOS_DAILY_URL, NAVER_LOCAL_SEARCH_URL, NAVER_MAP_CLIENT_ID, NAVER_SEARCH_CLIENT_ID, NAVER_SEARCH_CLIENT_SECRET
+from dust.config import AIRKOREA_SERVICE_KEY, KMA_API_KEY, KMA_ASOS_DAILY_URL, NAVER_MAP_CLIENT_ID
 from dust.current_dust_service import canonical_sido_name, select_current_dust
 from dust.external_api import public_api_get
 from dust.map_presentation import build_map_css_variables, build_map_ui_config
@@ -18,8 +19,8 @@ from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
 from dust.notification_registry import notification_device_response, upsert_notification_device
 from dust.services.common import _dfs_grid_from_lat_lng, _parse_measure_date, _to_float
 from dust.services.dust_history import _fetch_past_dust_items_by_station, _latest_past_item_date, _load_recent_realtime_hourly_dust, _load_stored_past_dust, _load_stored_realtime_daily_dust, _load_stored_realtime_hourly_dust, _merge_past_items, _store_past_dust_items
-from dust.services.places import _naver_coord, _strip_html
-from dust.services.stations import _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
+from dust.services.places import PlaceSearchFailed, PlaceSearchUnavailable, search_naver_places
+from dust.services.stations import dust_cache_version, _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
 from dust.services.weather import _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -40,8 +41,8 @@ def mobile_map(request):
     picker_mode = request.GET.get("picker") == "1"
     view_mode = request.GET.get("view") or ("picker" if picker_mode else "unknown")
     basic_mode = request.GET.get("basic") == "1"
-    initial_lat = _to_float(request.GET.get("lat"))
-    initial_lng = _to_float(request.GET.get("lng"))
+    initial_lat = _coordinate(request.GET.get("lat"), 90)
+    initial_lng = _coordinate(request.GET.get("lng"), 180)
     try:
         initial_zoom = int(request.GET.get("zoom") or 7)
     except (TypeError, ValueError):
@@ -61,6 +62,12 @@ def mobile_map(request):
         'map_css_variables': build_map_css_variables(),
     })
 
+
+
+def _coordinate(value, limit):
+    """요청으로 받은 위도·경도. 숫자가 아니거나(NaN·무한대 포함) 범위를 벗어나면 없는 값으로 본다(격자 계산이 수학 오류로 터지지 않게)."""
+    number = _to_float(value)
+    return number if number is not None and math.isfinite(number) and abs(number) <= limit else None
 
 @api_view(['POST'])
 def register_notification_device(request):
@@ -118,7 +125,7 @@ def korea_station_dust(request):
         return response
 
     try:
-        cache_key = 'korea_station_dust_response_v3'
+        cache_key = f'korea_station_dust_response_v3:{dust_cache_version()}'
         cached_response = cache.get(cache_key)
         if cached_response is not None:
             return station_response(cached_response)
@@ -208,8 +215,8 @@ def korea_station_dust(request):
 @api_view(['GET'])
 def midterm_weather(request):
     # This endpoint reads stored forecasts only. KMA traffic stays in the scheduled collection command.
-    lat = _to_float(request.GET.get("lat"))
-    lng = _to_float(request.GET.get("lng"))
+    lat = _coordinate(request.GET.get("lat"), 90)
+    lng = _coordinate(request.GET.get("lng"), 180)
     start_date = _parse_measure_date(request.GET.get("startDate")) if request.GET.get("startDate") else timezone.localdate()
     end_date = _parse_measure_date(request.GET.get("endDate")) if request.GET.get("endDate") else timezone.localdate() + timedelta(days=14)
     if lat is None or lng is None:
@@ -252,46 +259,16 @@ def naver_place_search(request):
     query = (request.GET.get("query") or "").strip()
     if len(query) < 1:
         return Response({"items": []})
-    if not NAVER_SEARCH_CLIENT_ID or not NAVER_SEARCH_CLIENT_SECRET:
-        logger.warning("Naver search credentials are not configured.")
-        return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
     try:
         display = max(1, min(int(request.GET.get("size") or 8), 10))
     except (TypeError, ValueError):
         display = 8
-
-    headers = {
-        "X-Naver-Client-Id": NAVER_SEARCH_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_SEARCH_CLIENT_SECRET,
-    }
     try:
-        response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=6)
-        data = response.json()
-    except Exception:
-        logger.exception("Naver place search request failed")
+        items = search_naver_places(query, display)
+    except PlaceSearchUnavailable:
+        return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
+    except PlaceSearchFailed:
         return error_response(502, "장소 검색에 실패했습니다.")
-
-    if response.status_code >= 400:
-        logger.warning("Naver place search returned %s", response.status_code)
-        return error_response(502, "장소 검색에 실패했습니다.")
-
-    items = []
-    for index, item in enumerate(data.get("items") or []):
-        lat = _naver_coord(item.get("mapy"))
-        lng = _naver_coord(item.get("mapx"))
-        if lat is None or lng is None:
-            continue
-        label = _strip_html(item.get("title")) or item.get("address") or query
-        items.append({
-            "id": f"naver:{item.get('mapx')}:{item.get('mapy')}:{index}",
-            "label": label,
-            "address": item.get("roadAddress") or item.get("address") or "",
-            "category": item.get("category") or "",
-            "lat": lat,
-            "lng": lng,
-            "source": "naver_local",
-        })
-
     return Response({"items": items})
 
 
@@ -369,12 +346,16 @@ def past_weather(request):
 
 @api_view(['GET'])
 def current_weather(request):
-    lat = _to_float(request.GET.get("lat"))
-    lng = _to_float(request.GET.get("lng"))
+    lat = _coordinate(request.GET.get("lat"), 90)
+    lng = _coordinate(request.GET.get("lng"), 180)
     if lat is None or lng is None:
         return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 
     grid = _dfs_grid_from_lat_lng(lat, lng)
+    cache_key = f"weather_current_v1_{grid['nx']}_{grid['ny']}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
     now = timezone.now()
     measurement = (
         WeatherHourlyMeasurement.objects
@@ -391,20 +372,23 @@ def current_weather(request):
         )
     if not measurement:
         return error_response(404, "이 위치의 저장된 날씨 데이터가 없습니다.", grid=grid)
-    return Response(_weather_measurement_to_response(measurement))
+    result = _weather_measurement_to_response(measurement)
+    cache.set(cache_key, result, 60)
+    return Response(result)
 
 
 @api_view(['GET'])
 def hourly_weather(request):
-    lat = _to_float(request.GET.get("lat"))
-    lng = _to_float(request.GET.get("lng"))
+    lat = _coordinate(request.GET.get("lat"), 90)
+    lng = _coordinate(request.GET.get("lng"), 180)
     date_param = request.GET.get("date")
     stored_only = str(request.GET.get("stored_only") or "").lower() in ("1", "true", "yes", "y")
     try:
         forecast_hours = int(request.GET.get("forecast_hours") or 12)
     except (TypeError, ValueError):
         forecast_hours = 12
-    forecast_hours = max(1, min(forecast_hours, 72))
+    # 단기예보 끝(글피 자정)까지 줄 수 있게 96시간까지 받는다(수집기와 같은 상한).
+    forecast_hours = max(1, min(forecast_hours, 96))
     if lat is None or lng is None:
         return error_response(400, "lat과 lng 파라미터가 필요합니다.")
 
@@ -413,6 +397,10 @@ def hourly_weather(request):
         return error_response(400, "date는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
 
     grid = _dfs_grid_from_lat_lng(lat, lng)
+    cache_key = f"weather_hourly_v2_{grid['nx']}_{grid['ny']}_{measured_date:%Y%m%d}_{forecast_hours}_{int(stored_only)}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
     local_tz = timezone.get_current_timezone()
     day_start = timezone.make_aware(datetime.combine(measured_date, time.min), local_tz)
     day_end = day_start + timedelta(days=1)
@@ -422,8 +410,9 @@ def hourly_weather(request):
         .filter(nx=grid["nx"], ny=grid["ny"], measured_at__gte=day_start, measured_at__lt=day_end, measured_at__lte=now)
         .order_by('measured_at')
     )
+    stored_measurements = list(measurements)
     items = []
-    for measurement in measurements:
+    for measurement in stored_measurements:
         measured_at = timezone.localtime(measurement.measured_at)
         items.append({
             "measuredAt": measured_at.isoformat(),
@@ -441,7 +430,7 @@ def hourly_weather(request):
             "source": "stored_weather_hourly",
             "phase": "stored",
         })
-    current_measurement = measurements.last()
+    current_measurement = stored_measurements[-1] if stored_measurements else None
     forecast_start = current_measurement.measured_at if current_measurement else now
     forecast_measurements = (
         WeatherHourlyMeasurement.objects
@@ -468,12 +457,14 @@ def hourly_weather(request):
                 "source": "stored_weather_forecast",
                 "phase": "forecast",
             })
-    return Response({
+    result = {
         "date": measured_date.isoformat(),
         "grid": grid,
         "items": items,
         "forecastItems": forecast_items,
-    })
+    }
+    cache.set(cache_key, result, 300)
+    return Response(result)
 
 
 @api_view(['GET'])
@@ -507,6 +498,11 @@ def hourly_dust(request):
     if not measured_date:
         return error_response(400, "date는 YYYYMMDD 또는 YYYY-MM-DD 형식이어야 합니다.")
 
+    cache_key = f"dust_hourly_v2_{city}_{district}_{measured_date:%Y%m%d}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
+
     station_name = _resolve_station_name(city, district)
     station = _find_air_quality_station(city, station_name)
     items = _load_stored_realtime_hourly_dust(city, district, station_name, measured_date, station=station)
@@ -517,7 +513,7 @@ def hourly_dust(request):
     # 앞으로 12시간 미세먼지는 에어코리아 공식 예보(하루 단위 등급)를 쓴다.
     # 직접 만든 시간별 예측 모델은 generate_hourly_dust_predictions 명령으로 따로 돌려 비교용으로만 남긴다.
     forecast_items = build_hourly_forecast_items(AIRKOREA_SERVICE_KEY, city)
-    return Response({
+    result = {
         "city": city,
         "region": district,
         "stationName": station_name,
@@ -530,7 +526,9 @@ def hourly_dust(request):
             "source": "airkorea",
             "note": "에어코리아 미세먼지 예보 등급(오늘·내일)을 등급별 대표 PM10 값으로 바꾼 값입니다.",
         },
-    })
+    }
+    cache.set(cache_key, result, 300)
+    return Response(result)
 
 
 @api_view(['GET'])

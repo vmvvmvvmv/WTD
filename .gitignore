@@ -41,6 +41,7 @@ backend/db.sqlite3
 backend/*.sqlite3
 backend/media/
 backend/staticfiles/
+backend/.cache/
 backend/build/
 backend/exports/
 backend/.venv/

@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { registerNotificationDevice } from '../api/dustEndpoints';
 import { DEFAULT_NOTIFICATION_SETTINGS } from '../constants/dust';
 import { IS_EXPO_GO } from '../config/runtime';
-import { requestDustPushToken, scheduleTestNotification } from './expoPush';
+import { askExactAlarmIfNeeded } from './exactAlarm';
+import { requestDustPushToken } from './expoPush';
 import { saveNotificationSettings, saveNotificationToken } from '../storage/appStorage';
 import type { CalendarEvent } from '../types/calendar';
 import type { RegionState } from '../types/region';
@@ -19,7 +20,14 @@ export function useNotificationSettings(
   const [settings, setSettings] = useState<NotificationSettings>(DEFAULT_NOTIFICATION_SETTINGS);
   const [serverPushToken, setServerPushToken] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isTesting, setIsTesting] = useState(false);
+  // 설정을 빠르게 바꿔도 서버에 마지막 설정이 남도록 등록 요청을 하나씩 순서대로 보낸다.
+  const registerQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // 토큰을 받는 동안 설정이 바뀌면 앞서 시작한 실행은 낡은 설정을 들고 있다. 가장 최근 실행만 서버에 등록한다.
+  const syncRunRef = useRef(0);
+  const registerInOrder = (payload: Parameters<typeof registerNotificationDevice>[0]) => {
+    registerQueueRef.current = registerQueueRef.current.then(() => registerNotificationDevice(payload).catch(() => {}));
+    return registerQueueRef.current;
+  };
 
   const hydrate = (storedSettings: NotificationSettings, storedToken: string | null) => {
     setSettings(storedSettings);
@@ -37,55 +45,47 @@ export function useNotificationSettings(
     setSettings(nextSettings);
     if (key === 'calendarReminders') {
       notify(value ? '일정 알림을 켰어요.' : '일정 알림을 껐어요.');
+      if (value) askExactAlarmIfNeeded();
     } else if (key === 'weatherMorningAlerts') {
       notify(value ? '아침 날씨 알림을 켰어요.' : '아침 날씨 알림을 껐어요.');
     } else if (key === 'dustSpikeAlerts') {
       notify(value ? '미세먼지 나쁨 알림을 켰어요.' : '미세먼지 나쁨 알림을 껐어요.');
+    } else if (key === 'weatherWarningAlerts') {
+      notify(value ? '기상특보 알림을 켰어요.' : '기상특보 알림을 껐어요.');
     } else {
       notify(value ? '알림을 켰어요.' : '알림을 껐어요.');
     }
     setIsSaving(false);
   };
 
-  const sendTest = async () => {
-    if (IS_EXPO_GO) {
-      notify('테스트 알림은 개발 빌드에서 확인할 수 있어요.');
-      return;
-    }
-    setIsTesting(true);
-    try {
-      const scheduled = await scheduleTestNotification();
-      notify(scheduled ? '3초 뒤 알림이 도착해요.' : '알림 권한을 허용하고 다시 시도해 주세요.');
-    } catch {
-      notify('알림을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
-    } finally {
-      setIsTesting(false);
-    }
-  };
-
   useEffect(() => {
     if (!hasLoadedStore || !selectedRegion || IS_EXPO_GO) return;
-    let cancelled = false;
+    const runId = ++syncRunRef.current;
+    const isLatest = () => runId === syncRunRef.current;
     const syncServerDevice = async () => {
       if (!settings.enabled) {
         if (!serverPushToken) return;
-        await registerNotificationDevice({
+        await registerInOrder({
           city: selectedRegion.city,
           dustSpikeAlerts: false,
           enabled: false,
           expoPushToken: serverPushToken,
           region: selectedRegion.region,
           weatherMorningAlerts: false,
-        }).catch(() => {});
+          weatherWarningAlerts: false,
+        });
         return;
       }
 
       let token = serverPushToken;
       if (!token) {
+        // 아직 서버에 등록한 적 없음: 서버 알림을 하나도 안 켰으면 등록하지 않는다.
+        if (!settings.weatherMorningAlerts && !settings.dustSpikeAlerts && !settings.weatherWarningAlerts) return;
         token = await requestDustPushToken().catch(() => null);
-        if (!token || cancelled) return;
+        if (!token) return;
         setServerPushToken(token);
         await saveNotificationToken(token);
+        if (!isLatest()) return;
       }
 
       // 아침 알림은 날짜·시간만 서버로 보냅니다. 일정 제목은 보내지 않습니다.
@@ -93,24 +93,25 @@ export function useNotificationSettings(
         ? events.filter((event) => event.date >= todayDateLabel).slice(0, 30)
           .map((event) => ({ date: event.date, time: event.time }))
         : [];
-      await registerNotificationDevice({
+      await registerInOrder({
         calendarEvents: calendarEventSummary,
         city: selectedRegion.city,
         dustSpikeAlerts: settings.dustSpikeAlerts,
-        enabled: settings.enabled,
+        // 서버 알림을 모두 끄면 서버 기기 정보도 비활성으로 둔다(30일 뒤 삭제 대상).
+        enabled: settings.enabled && (settings.weatherMorningAlerts || settings.dustSpikeAlerts || settings.weatherWarningAlerts),
         expoPushToken: token,
         region: selectedRegion.region,
         weatherMorningAlerts: settings.weatherMorningAlerts,
-      }).catch(() => {});
+        weatherWarningAlerts: settings.weatherWarningAlerts,
+      });
     };
 
     void syncServerDevice();
-    return () => { cancelled = true; };
-  }, [events, hasLoadedStore, selectedRegion, serverPushToken, settings.dustSpikeAlerts, settings.enabled, settings.weatherMorningAlerts, todayDateLabel]);
+  }, [events, hasLoadedStore, selectedRegion, serverPushToken, settings.dustSpikeAlerts, settings.enabled, settings.weatherMorningAlerts, settings.weatherWarningAlerts, todayDateLabel]);
 
   useEffect(() => {
     if (hasLoadedStore) void saveNotificationSettings(settings);
   }, [hasLoadedStore, settings]);
 
-  return { settings, hydrate, isSaving, isTesting, updateSetting, sendTest };
+  return { settings, hydrate, isSaving, updateSetting };
 }

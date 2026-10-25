@@ -2,12 +2,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import time
 
-from django.core.cache import cache
 from django.core.management import call_command
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES
-from dust.services.stations import _fetch_realtime_station_values_for_sido, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
+from dust.services.airkorea_client import _fetch_realtime_station_values_for_sido
+from dust.services.stations import bump_dust_cache_version, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
 
 
 def env_int(name, default):
@@ -83,14 +83,7 @@ class Command(BaseCommand):
             debug_rows.extend(retry_debug_rows)
 
         saved = _store_realtime_values_to_db(values)
-        cache.delete("airkorea_realtime_station_values_v2")
-        cache.delete("airkorea_realtime_station_values_v3")
-        cache.delete("airkorea_realtime_station_values_v4")
-        cache.delete("airkorea_realtime_station_values_v5")
-        cache.delete("latest_daily_station_values_v1")
-        cache.delete("korea_station_dust_response_v1")
-        cache.delete("korea_station_dust_response_v2")
-        cache.delete("korea_station_dust_response_v3")
+        bump_dust_cache_version()  # 측정값 캐시를 한 번에 무효화한다.
 
         self.stdout.write(self.style.SUCCESS(f"Realtime API rows: {len(values)}"))
         self.stdout.write(self.style.SUCCESS(f"Realtime DB rows created: {saved}"))
@@ -100,3 +93,14 @@ class Command(BaseCommand):
             self.stdout.write(f"First API debug row: {debug_rows[0]}")
 
         call_command("evaluate_hourly_dust_predictions", days=3, limit=2000)
+
+        # 받아 온 값이 하나도 없는 시도는 실패로 본다. 받은 시도는 위에서 이미 저장했고,
+        # 실패가 있으면 0이 아닌 종료 코드로 끝내서 수집 스크립트와 systemd 기록에 남긴다.
+        failed_sidos = [sido for sido in SIDO_NAMES if not any(key.startswith(f"{sido}:") for key in values)]
+        if failed_sidos:
+            for row in debug_rows:
+                if row.get("sido") in failed_sidos:
+                    self.stderr.write(f"Failed sido: {row}")
+            raise CommandError(
+                f"AirKorea realtime collection failed for {len(failed_sidos)}/{len(SIDO_NAMES)} sidos: {', '.join(failed_sidos)}"
+            )

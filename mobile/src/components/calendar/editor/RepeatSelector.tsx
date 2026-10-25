@@ -162,7 +162,7 @@ export function RepeatSelector({
         </View>
       )}
 
-      {(repeatMode === 'weekly' || repeatMode === 'daily') && (
+      {repeatMode !== 'none' && (
         <>
           <Pressable
             onPress={() => {

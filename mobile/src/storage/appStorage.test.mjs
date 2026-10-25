@@ -61,6 +61,37 @@ test('바꿔 끼우는 도중 꺼져 임시 파일만 남아도 값을 되살린
   assert.deepEqual(state.calendarEvents.map((item) => item.id), ['tmp']);
 });
 
+test('튜토리얼은 처음 설치한 사람에게만 띄우고, 다 보면 다시 띄우지 않는다', async () => {
+  globalThis.__files.clear();
+  globalThis.__secure.clear();
+  assert.equal((await storage.loadStoredAppState()).tutorialSeen, false);
+
+  // 튜토리얼 중간에 앱을 꺼도(그 사이 지역은 자동 저장됨) 다음 실행 때 다시 띄운다.
+  await storage.saveSelectedRegion({ city: '서울', region: '종로구' });
+  assert.equal((await storage.loadStoredAppState()).tutorialSeen, false);
+
+  await storage.saveTutorialSeen();
+  assert.equal((await storage.loadStoredAppState()).tutorialSeen, true);
+
+  // 튜토리얼이 생기기 전부터 쓰던 사람(저장된 지역이 있음)은 이미 본 것으로 친다.
+  globalThis.__files.clear();
+  await storage.saveSelectedRegion({ city: '서울', region: '종로구' });
+  assert.equal((await storage.loadStoredAppState()).tutorialSeen, true);
+});
+
+test('캘린더 첫 방문 말풍선은 새로 설치한 사람에게 한 번만 띄운다', async () => {
+  globalThis.__files.clear();
+  globalThis.__secure.clear();
+  assert.equal((await storage.loadStoredAppState()).calendarTipSeen, false);
+  await storage.saveCalendarTipSeen();
+  assert.equal((await storage.loadStoredAppState()).calendarTipSeen, true);
+
+  // 튜토리얼이 생기기 전부터 쓰던 사람에게는 띄우지 않는다.
+  globalThis.__files.clear();
+  await storage.saveSelectedRegion({ city: '서울', region: '종로구' });
+  assert.equal((await storage.loadStoredAppState()).calendarTipSeen, true);
+});
+
 test('푸시 토큰은 계속 SecureStore에 둔다', async () => {
   await storage.saveNotificationToken('ExponentPushToken[test]');
   assert.equal(globalThis.__secure.get('dust.notification-token'), 'ExponentPushToken[test]');

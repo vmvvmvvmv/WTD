@@ -26,23 +26,20 @@ export function WeatherBackdrop({ label }: { label?: string }) {
 }
 
 // 탭을 바꿀 때 화면이 살짝 아래에서 떠오르며 나타납니다.
+// 투명도는 건드리지 않는다. 0에서 시작하면 첫 프레임이 하얗게 비고, 안드로이드 새 아키텍처에서는
+// native driver 투명도 애니메이션이 시작할 때 한 번 더 깜박여 홈 배너가 번쩍여 보였다(2026-10-23 실기기 녹화로 확인).
 export function ScreenTransition({ children, transitionKey }: { children: ReactNode; transitionKey: string }) {
-  const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
 
   useLayoutEffect(() => {
-    opacity.setValue(0);
     translateY.setValue(10);
-    const transition = Animated.parallel([
-      Animated.timing(opacity, { duration: 180, easing: Easing.out(Easing.cubic), toValue: 1, useNativeDriver: true }),
-      Animated.timing(translateY, { duration: 220, easing: Easing.out(Easing.cubic), toValue: 0, useNativeDriver: true }),
-    ]);
+    const transition = Animated.timing(translateY, { duration: 220, easing: Easing.out(Easing.cubic), toValue: 0, useNativeDriver: true });
     transition.start();
     return () => transition.stop();
-  }, [opacity, transitionKey, translateY]);
+  }, [transitionKey, translateY]);
 
   return (
-    <Animated.View style={[styles.screenTransition, { opacity, transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.screenTransition, { transform: [{ translateY }] }]}>
       {children}
     </Animated.View>
   );

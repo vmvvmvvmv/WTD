@@ -9,3 +9,4 @@ python-dotenv==1.2.4
 Pillow==12.3.0  # app.Info.profile_image(ImageField)에 필요
 joblib==1.6.0
 gunicorn==23.0.0
+django-redis==5.4.0

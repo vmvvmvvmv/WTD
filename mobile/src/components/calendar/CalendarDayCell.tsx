@@ -8,7 +8,7 @@ import { styles } from '../../styles/appStyles';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/calendar';
-import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import type { CalendarDailyWeather, CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { accentSoftTone, accentTone } from '../../theme/appTheme';
 
 type CalendarRange = { endDate: string; startDate: string };
@@ -17,6 +17,7 @@ type Props = {
   cellIndex: number;
   // 일정 줄 자리를 미리 잡지 않습니다(주 보기 위쪽 날짜 줄).
   compact?: boolean;
+  dailyWeather?: CalendarDailyWeather;
   date: string;
   day: number;
   eventCount: number;
@@ -38,6 +39,7 @@ type Props = {
 export function CalendarDayCell({
   cellIndex,
   compact,
+  dailyWeather,
   date,
   day,
   eventCount,
@@ -91,6 +93,12 @@ export function CalendarDayCell({
       {!!weatherRisk && (
         <View style={[styles.calendarDayWeatherRiskBadge, { backgroundColor: `${weatherRisk.tone}18`, borderColor: `${weatherRisk.tone}55` }]}>
           {weatherRisk.imageKind ? <WeatherIcon kind={weatherRisk.imageKind} size={13} /> : <Ionicons color={weatherRisk.tone} name={weatherRisk.icon} size={11} />}
+        </View>
+      )}
+      {/* 일정이 없어도 예보가 있는 날은 그날 날씨를 구석에 작게 보여 준다(일정 날씨 배지가 있으면 그쪽이 우선). */}
+      {!weatherRisk && !!dailyWeather && (
+        <View style={styles.calendarDayWeatherIcon}>
+          <WeatherIcon kind={dailyWeather.kind} size={14} />
         </View>
       )}
       <Reanimated.Text style={[

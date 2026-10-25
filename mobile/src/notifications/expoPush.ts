@@ -59,6 +59,17 @@ export async function requestDustPushToken() {
   return token.data;
 }
 
+// 저장된 목록에 없는 일정 알림을 지운다(예약 도중 앱이 꺼져 남은 것 등). 서버 푸시는 예약 알림이 아니라 영향이 없다.
+export async function cancelCalendarNotificationsExcept(keepIds: string[]) {
+  if (IS_EXPO_GO) return;
+  const Notifications = await import('expo-notifications');
+  const keep = new Set(keepIds);
+  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+  await Promise.all(scheduled
+    .filter((item) => item.content.data?.calendarEventId && !keep.has(item.identifier))
+    .map((item) => Notifications.cancelScheduledNotificationAsync(item.identifier)));
+}
+
 export async function cancelCalendarEventNotifications(notificationIds: string[]) {
   if (IS_EXPO_GO) return;
   const Notifications = await import('expo-notifications');
@@ -167,6 +178,11 @@ function leadNotificationBody(risk?: CalendarNotificationRisk) {
   return withTemperature(body, risk);
 }
 
+// 알림은 예약할 때 본 예보로 문구를 미리 써 둔다. 알림이 울릴 때까지 오래 남아 있으면 그사이 예보가 바뀔 수 있어서,
+// 이보다 먼 알림은 날씨를 단정하지 않고 확인을 권한다. 앱을 열거나 백그라운드 갱신이 돌면 가까워진 알림을 최신 예보로 다시 쓴다.
+const FRESH_FORECAST_WINDOW_MS = 12 * 60 * 60 * 1000;
+const STALE_FORECAST_BODY = '출발 전에 최신 날씨를 한 번 확인해 보세요.';
+
 function eventStartDate(event: CalendarEvent) {
   const date = new Date(`${event.date}T${event.time}:00`);
   return Number.isNaN(date.getTime()) ? null : date;
@@ -215,8 +231,9 @@ export async function scheduleCalendarEventNotifications(event: CalendarEvent, r
     const requestedTriggerDate = new Date(eventStart.getTime() - event.notificationHoursBefore * 60 * 60 * 1000);
     const isLeadTimeAlreadyPast = requestedTriggerDate.getTime() <= Date.now() && eventStart.getTime() > Date.now();
     const triggerDate = isLeadTimeAlreadyPast ? eventStart : requestedTriggerDate;
+    const isForecastStaleAtTrigger = triggerDate.getTime() - Date.now() > FRESH_FORECAST_WINDOW_MS;
     const notificationId = await scheduleLocalNotification({
-      body: leadNotificationBody(risk),
+      body: isForecastStaleAtTrigger ? STALE_FORECAST_BODY : leadNotificationBody(risk),
       date: triggerDate,
       event,
       title: isLeadTimeAlreadyPast
@@ -227,29 +244,6 @@ export async function scheduleCalendarEventNotifications(event: CalendarEvent, r
   }
 
   return notificationIds;
-}
-
-export async function scheduleTestNotification() {
-  if (IS_EXPO_GO) return false;
-  const hasPermission = await ensureNotificationPermission();
-  if (!hasPermission) return false;
-  const Notifications = await import('expo-notifications');
-  const date = new Date(Date.now() + 3000);
-  await Notifications.cancelScheduledNotificationAsync('weather-todo:test').catch(() => {});
-  await Notifications.scheduleNotificationAsync({
-    identifier: 'weather-todo:test',
-    content: {
-      body: '알림이 정상적으로 도착했어요.',
-      data: { targetTab: 'account', type: 'notification_test' },
-      title: '테스트 알림',
-    },
-    trigger: {
-      channelId: 'dust-alerts',
-      date,
-      type: Notifications.SchedulableTriggerInputTypes.DATE,
-    },
-  });
-  return true;
 }
 
 

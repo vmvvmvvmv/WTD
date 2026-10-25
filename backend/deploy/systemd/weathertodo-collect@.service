@@ -1,0 +1,7 @@
+[Unit]
+Description=WeatherToDo %i collection
+
+[Service]
+Type=oneshot
+User=ubuntu
+ExecStart=/home/ubuntu/WTD/backend/deploy/collect_hourly.sh %i

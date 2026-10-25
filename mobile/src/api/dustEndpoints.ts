@@ -7,11 +7,16 @@ type QueryValue = string | number | boolean | null | undefined;
 
 const baseUrl = API_URL.replace(/\/$/, '');
 const FETCH_TIMEOUT_MS = 15000;
+// AI 일정 등록은 Gemini가 10초 넘게 걸릴 때가 있어 따로 넉넉히 둡니다(서버 쪽 상한은 약 19초).
+const MEMO_FETCH_TIMEOUT_MS = 25000;
 
 export class ApiHttpError extends Error {
-  constructor(path: string, readonly status: number) {
+  readonly status: number;
+
+  constructor(path: string, status: number) {
     super(`${path} API ${status}`);
     this.name = 'ApiHttpError';
+    this.status = status;
   }
 }
 
@@ -31,18 +36,19 @@ function withTestTokenHeaders(init?: RequestInit): RequestInit {
   return { ...init, headers };
 }
 
-async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, init?: RequestInit): Promise<T> {
+async function fetchJson<T>(path: string, params?: Record<string, QueryValue>, init?: RequestInit, timeoutMs = FETCH_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
   const abortFromParent = () => controller.abort();
   init?.signal?.addEventListener('abort', abortFromParent);
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(buildUrl(path, params), {
       ...withTestTokenHeaders(init),
       signal: controller.signal,
     });
     if (!response.ok) throw new ApiHttpError(path, response.status);
-    return response.json();
+    // 본문을 다 받을 때까지 기다려야 시간 제한이 본문에도 걸린다(헤더만 오고 멈추는 응답).
+    return await response.json();
   } finally {
     clearTimeout(timeout);
     init?.signal?.removeEventListener('abort', abortFromParent);
@@ -59,7 +65,8 @@ async function fetchOptionalJson<T>(path: string, params?: Record<string, QueryV
     });
     if (response.status === 404) return null;
     if (!response.ok) throw new ApiHttpError(path, response.status);
-    return response.json();
+    // 본문을 다 받을 때까지 기다려야 시간 제한이 본문에도 걸린다(헤더만 오고 멈추는 응답).
+    return await response.json();
   } finally {
     clearTimeout(timeout);
   }
@@ -114,6 +121,26 @@ export function searchNaverPlaces(params: { query: string; size?: number }) {
   });
 }
 
+export type MemoEventPlace = { address?: string; label: string; lat: number; lng: number; source: string };
+export type MemoEvent = {
+  activity_type: CalendarEvent['activityType'];
+  date: string;
+  end_date: string;
+  end_time: string;
+  place: MemoEventPlace | null;
+  place_text: string;
+  time: string;
+  title: string;
+};
+
+export function postMemoEvents(params: { deviceId: string; text: string }) {
+  return fetchJson<{ events?: MemoEvent[] }>('/dust/calendar/memo-events/', undefined, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Device-Id': params.deviceId },
+    body: JSON.stringify({ text: params.text }),
+  }, MEMO_FETCH_TIMEOUT_MS);
+}
+
 export function getHourlyWeather(params: { lat: number; lng: number; date: string; forecastHours?: number; storedOnly?: boolean }) {
   return fetchOptionalJson<{ items?: unknown[]; forecastItems?: unknown[] }>('/dust/weather/hourly/', {
     lat: params.lat,
@@ -141,6 +168,7 @@ export function registerNotificationDevice(params: {
   expoPushToken: string;
   region: string;
   weatherMorningAlerts: boolean;
+  weatherWarningAlerts?: boolean;
 }) {
   return fetchJson<{ ok?: boolean; deviceId?: number }>('/dust/notifications/register/', undefined, {
     method: 'POST',
@@ -153,6 +181,7 @@ export function registerNotificationDevice(params: {
       expoPushToken: params.expoPushToken,
       region: params.region,
       weatherMorningAlerts: params.weatherMorningAlerts,
+      weatherWarningAlerts: params.weatherWarningAlerts ?? false,
     }),
   });
 }
@@ -173,7 +202,6 @@ function outfitSchedulePayload(event: CalendarEvent) {
 
 export function postOutfitRecommendation(params: {
   event: CalendarEvent;
-  mode: 'rule' | 'full';
   sensitivity: OutfitSensitivity;
   signal?: AbortSignal;
 }) {
@@ -184,14 +212,12 @@ export function postOutfitRecommendation(params: {
     body: JSON.stringify({
       ...outfitSchedulePayload(params.event),
       sensitivity: params.sensitivity,
-      mode: params.mode,
     }),
   });
 }
 
 export function postDailyOutfitRecommendation(params: {
   events: CalendarEvent[];
-  mode: 'rule' | 'full';
   sensitivity: OutfitSensitivity;
   signal?: AbortSignal;
 }) {
@@ -202,7 +228,6 @@ export function postDailyOutfitRecommendation(params: {
     body: JSON.stringify({
       schedules: params.events.map(outfitSchedulePayload),
       sensitivity: params.sensitivity,
-      mode: params.mode,
     }),
   });
 }
