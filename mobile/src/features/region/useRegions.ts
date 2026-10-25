@@ -16,7 +16,7 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
   const [gpsRegion, setGpsRegion] = useState<RegionState | null>(null);
   const [favoriteRegions, setFavoriteRegions] = useState<RegionState[]>([]);
   const [isLocating, setIsLocating] = useState(false);
-  const [locationMessage, setLocationMessage] = useState('');
+  const [locationMessage, setLocationMessageState] = useState('');
 
   // 저장된 지역을 불러옵니다. 저장된 선택 지역이 기본값뿐이면 GPS 지역을, 그것도 없으면 기본 지역을 씁니다.
   const hydrate = (stored: { favoriteRegions: RegionState[]; gpsRegion: RegionState | null; selectedRegion: RegionState | null }) => {
@@ -54,13 +54,17 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
 
   // 현재 GPS 좌표와 가장 가까운 측정소의 지역을 찾습니다. 찾으면 GPS 지역으로 저장하고 돌려줍니다.
   // GPS 좌표는 이 함수 안에서만 쓰고 밖으로(서버로) 내보내지 않습니다. 위치정보법상 기기 안에서만 쓰는 위치는 신고 대상이 아닙니다.
-  const locateNearestRegion = async ({ ensureMapStations }: {
+  // silent: 앱을 열 때 조용히 갱신한다. 권한을 묻지 않고, 화면 문구·로딩 표시도 바꾸지 않는다.
+  const locateNearestRegion = async ({ ensureMapStations, silent = false }: {
     ensureMapStations: () => Promise<StationDustItem[]>;
+    silent?: boolean;
   }): Promise<RegionState | null> => {
-    setIsLocating(true);
+    const setLocationMessage = silent ? () => undefined : setLocationMessageState;
+    if (!silent) setIsLocating(true);
     setLocationMessage('위치 권한을 확인하는 중입니다.');
     try {
       const currentPermission = await Location.getForegroundPermissionsAsync();
+      if (silent && !currentPermission.granted) return null;
       const permission = currentPermission.granted ? currentPermission : await Location.requestForegroundPermissionsAsync();
       if (permission.status !== 'granted') {
         setLocationMessage('위치 권한이 없어 기본 지역 기준으로 표시합니다.');
@@ -102,13 +106,14 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
         label: nearest.station.name,
         region: nearest.station.city || nearest.station.name || DEFAULT_REGION,
       };
-      setGpsRegion(region);
+      // 같은 지역이면 그대로 둬서 알림 기기 등록이 다시 돌지 않게 한다.
+      setGpsRegion((previous) => (previous && isSameRegion(previous, region) ? previous : region));
       return region;
     } catch (caught) {
       setLocationMessage(caught instanceof Error ? caught.message : '현재 위치를 불러오지 못했습니다.');
       return null;
     } finally {
-      setIsLocating(false);
+      if (!silent) setIsLocating(false);
     }
   };
 
@@ -121,7 +126,7 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
     locationMessage,
     removeFavorite,
     selectedRegion,
-    setLocationMessage,
+    setLocationMessage: setLocationMessageState,
     setSelectedRegion,
     toggleFavorite,
   };
