@@ -40,7 +40,6 @@ const TEXT = {
   indoor: '실내',
   move: '이동',
   outdoor: '실외',
-  today: '오늘',
 };
 
 type Props = {
@@ -99,7 +98,7 @@ function MetricChip({
   return (
     <View accessibilityLabel={`${label} ${value}`} accessible style={styles.calendarMetricChip}>
       {weatherKind ? <WeatherIcon kind={weatherKind} size={18} /> : !!icon && <Ionicons color={tone} name={icon} size={14} />}
-      <Text style={[styles.calendarMetricChipValue, { color: tone }]}>
+      <Text numberOfLines={1} style={[styles.calendarMetricChipValue, { color: tone }]}>
         <Text style={styles.calendarMetricChipLabel}>{label} </Text>
         {value}
       </Text>
@@ -185,7 +184,7 @@ export function CalendarDaySheet({
       <View style={styles.calendarSelectionTopRow}>
         <View style={styles.calendarSelectionTitleGroup}>
           <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
-            {selectedDate === todayDateLabel ? TEXT.today : formatSelectedDateTitle(selectedDate)}
+            {formatSelectedDateTitle(selectedDate)}
           </Text>
           <Text style={styles.calendarSelectionSubText}>{formatDateDisplay(selectedDate)}</Text>
         </View>
@@ -254,7 +253,7 @@ export function CalendarDaySheet({
               key={event.id}
               style={styles.calendarEventGroup}
             >
-              <View style={styles.calendarEventRow}>
+              <View style={[styles.calendarEventRow, index === 0 && { borderTopWidth: 0 }]}>
                 <View accessibilityLabel={forecastLabel || undefined} style={[styles.calendarEventIcon, { backgroundColor: weatherIconStyle.background }]}>
                   <WeatherIcon kind={weatherIconStyle.kind} size={30} />
                 </View>
