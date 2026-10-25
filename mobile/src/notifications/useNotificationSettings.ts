@@ -40,6 +40,8 @@ export function useNotificationSettings(
       notify(value ? '아침 날씨 알림을 켰어요.' : '아침 날씨 알림을 껐어요.');
     } else if (key === 'dustSpikeAlerts') {
       notify(value ? '미세먼지 나쁨 알림을 켰어요.' : '미세먼지 나쁨 알림을 껐어요.');
+    } else if (key === 'weatherWarningAlerts') {
+      notify(value ? '기상특보 알림을 켰어요.' : '기상특보 알림을 껐어요.');
     } else {
       notify(value ? '알림을 켰어요.' : '알림을 껐어요.');
     }
@@ -59,6 +61,7 @@ export function useNotificationSettings(
           expoPushToken: serverPushToken,
           region: selectedRegion.region,
           weatherMorningAlerts: false,
+          weatherWarningAlerts: false,
         }).catch(() => {});
         return;
       }
@@ -84,12 +87,13 @@ export function useNotificationSettings(
         expoPushToken: token,
         region: selectedRegion.region,
         weatherMorningAlerts: settings.weatherMorningAlerts,
+        weatherWarningAlerts: settings.weatherWarningAlerts,
       }).catch(() => {});
     };
 
     void syncServerDevice();
     return () => { cancelled = true; };
-  }, [events, hasLoadedStore, selectedRegion, serverPushToken, settings.dustSpikeAlerts, settings.enabled, settings.weatherMorningAlerts, todayDateLabel]);
+  }, [events, hasLoadedStore, selectedRegion, serverPushToken, settings.dustSpikeAlerts, settings.enabled, settings.weatherMorningAlerts, settings.weatherWarningAlerts, todayDateLabel]);
 
   useEffect(() => {
     if (hasLoadedStore) void saveNotificationSettings(settings);

@@ -778,3 +778,44 @@ class CurrentObservationTests(TestCase):
         self.assertEqual(row.sky, '3')
         self.assertEqual(row.rain_probability, 30)
         self.assertEqual(row.label, '흐림')
+
+
+class WeatherWarningTests(TestCase):
+    STATUS = (
+        "o 태풍경보 : 제주도남쪽바깥먼바다\r\n"
+        "o 강풍주의보 : 전라남도(거문도.초도, 완도여서도), 제주도(제주시서부, 제주시북부 제외)\r\n"
+        "o 호우경보 : 부산, 경기도(연천, 포천, 가평), 서울(서울동남권)\r\n"
+        "o 대설주의보 : 강원도(태백 제외)"
+    )
+
+    def _applies(self, sido, sigungu):
+        from dust.weather_warning_notifications import parse_warning_status, warning_applies
+        return sorted(w.kind + w.level for w in parse_warning_status(self.STATUS) if warning_applies(w, sido, sigungu))
+
+    def test_region_matching(self):
+        self.assertEqual(self._applies('제주', '제주시'), ['강풍주의보'])  # 일부만 제외 → 나머지 지역 특보
+        self.assertEqual(self._applies('부산', '서구'), ['호우경보'])
+        self.assertEqual(self._applies('경기', '수원시'), [])
+        self.assertEqual(self._applies('경기', '포천시'), ['호우경보'])
+        self.assertEqual(self._applies('서울', '강남구'), ['호우경보'])
+        self.assertEqual(self._applies('서울', '종로구'), [])
+        self.assertEqual(self._applies('강원', '태백시'), [])
+        self.assertEqual(self._applies('강원', '춘천시'), ['대설주의보'])
+
+    @patch('dust.weather_warning_notifications.send_expo_push')
+    @patch('dust.weather_warning_notifications._station_for_region')
+    def test_push_once_and_quiet_hours(self, station_for_region, push):
+        from datetime import datetime, timedelta
+        from types import SimpleNamespace
+        from dust.models import NotificationDevice
+        from dust.weather_warning_notifications import send_weather_warning_notifications
+        station_for_region.return_value = SimpleNamespace(sido='부산', addr='부산 서구 대신로 150')
+        NotificationDevice.objects.create(expo_push_token='ExponentPushToken[w]', city='부산', region='대신동', enabled=True, weather_warning_alerts=True)
+        noon = timezone.make_aware(datetime(2026, 10, 25, 12, 0))
+        first = send_weather_warning_notifications(now=noon, status_text=self.STATUS)
+        again = send_weather_warning_notifications(now=noon + timedelta(hours=1), status_text=self.STATUS)
+        self.assertEqual((first.sent, again.sent), (1, 0))
+        self.assertIn('호우경보', push.call_args.args[1])
+        # 밤에는 주의보를 보내지 않는다.
+        night = send_weather_warning_notifications(now=timezone.make_aware(datetime(2026, 10, 26, 23, 0)), status_text="o 강풍주의보 : 부산")
+        self.assertEqual(night.sent, 0)

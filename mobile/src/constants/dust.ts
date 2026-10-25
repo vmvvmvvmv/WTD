@@ -25,6 +25,7 @@ export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {
   calendarReminders: true,
   weatherMorningAlerts: true,
   dustSpikeAlerts: true,
+  weatherWarningAlerts: true,
   // TODO: Favorites-included notifications are marked for possible removal.
   includeFavorites: true,
 };

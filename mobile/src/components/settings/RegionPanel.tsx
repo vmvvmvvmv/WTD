@@ -195,6 +195,13 @@ export function RegionPanel({
           value={notificationSettings.dustSpikeAlerts}
           onValueChange={(value) => onToggleNotificationSetting('dustSpikeAlerts', value)}
         />
+        <NotificationToggleRow
+          disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
+          description="내 지역에 호우·대설·강풍 같은 특보가 나오면 알려 줘요"
+          label="기상특보 알림"
+          value={notificationSettings.weatherWarningAlerts}
+          onValueChange={(value) => onToggleNotificationSetting('weatherWarningAlerts', value)}
+        />
       </View>
 
       <View style={styles.settingsSection}>
