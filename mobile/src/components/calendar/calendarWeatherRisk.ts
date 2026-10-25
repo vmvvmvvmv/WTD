@@ -182,3 +182,16 @@ export function dailyWeatherByDate({ todayDateLabel, weatherHourlyItems = [], we
   });
   return result;
 }
+
+// 날짜를 눌렀을 때 아래 시트에 보여 줄 그날 비·눈 시간대 배지(일정이 없어도). 같은 종류의 일정 배지가 있으면 그쪽을 쓴다.
+export function dailyPrecipitationIndicator(weather?: CalendarDailyWeather): CalendarWeatherRiskIndicator | undefined {
+  if (!weather || !PRECIPITATION.includes(weather.kind)) return undefined;
+  const when = weather.time ? `${weather.time} ` : '';
+  if (weather.kind === 'thunder') {
+    return { icon: 'thunderstorm-outline', imageKind: 'thunder', key: 'thunder', label: `${when}천둥·번개 예상`, priority: 40, tone: semanticColors.weather.danger.tone };
+  }
+  if (weather.kind === 'snow') {
+    return { icon: 'snow-outline', imageKind: 'snow', key: 'snowCold', label: `${when}눈 예상`, priority: 50, tone: semanticColors.weather.danger.tone };
+  }
+  return { icon: 'rainy-outline', imageKind: 'rain', key: 'rain', label: `${when}비 예상`, priority: 30, tone: semanticColors.weather.normal.tone };
+}

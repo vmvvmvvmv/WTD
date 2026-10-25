@@ -69,7 +69,6 @@ export const calendarStyles = StyleSheet.create({
   calendarBlankDayCell: { backgroundColor: '#fcfdfc' },
   calendarDraftRangeCell: { backgroundColor: '#e7f6ee' },
   calendarDayWeatherIcon: { alignItems: 'center', height: 18, justifyContent: 'center', opacity: 0.85, position: 'absolute', right: 3, top: 3, width: 18, zIndex: 3 },
-  calendarDayWeatherTime: { fontSize: 8, fontWeight: '800', position: 'absolute', right: 2, textAlign: 'right', top: 22, zIndex: 3 },
   calendarDayWeatherRiskBadge: { alignItems: 'center', borderRadius: 999, borderWidth: 1, height: 18, justifyContent: 'center', position: 'absolute', right: 3, top: 3, width: 18, zIndex: 3 },
   calendarRangeAnchorMark: { borderRadius: 999, height: 7, position: 'absolute', right: 3, top: 3, width: 7 },
   calendarDayText: { color: textColors.primary, fontSize: 13, fontWeight: '700', textAlign: 'center' },
