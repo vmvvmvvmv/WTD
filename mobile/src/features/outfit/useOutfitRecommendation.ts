@@ -19,7 +19,11 @@ export function useOutfitRecommendation({ enabled, events, sensitivity }: {
   sensitivity: OutfitSensitivity;
 }) {
   const key = useMemo(() => outfitCacheKeyForEvents(events, sensitivity), [events, sensitivity]);
-  const [result, setResult] = useState<OutfitRecommendation | null>(() => getCachedOutfit(key));
+  // 결과가 어느 요청(일정·체감 성향)의 것인지 함께 둔다. 일정이 바뀌면 새 결과가 올 때까지 이전 일정의 추천을 보여 주지 않는다.
+  const [resultEntry, setResultEntry] = useState<{ key: string; value: OutfitRecommendation } | null>(() => {
+    const cached = getCachedOutfit(key);
+    return cached ? { key, value: cached } : null;
+  });
   const [status, setStatus] = useState<OutfitLoadStatus>(enabled ? 'loading' : 'idle');
   const [retryVersion, setRetryVersion] = useState(0);
   const autoRetryAttemptRef = useRef(0);
@@ -35,7 +39,7 @@ export function useOutfitRecommendation({ enabled, events, sensitivity }: {
     }
     const cached = getCachedOutfit(key);
     if (cached) {
-      setResult(cached);
+      setResultEntry({ key, value: cached });
       setStatus('ready');
       return;
     }
@@ -49,7 +53,7 @@ export function useOutfitRecommendation({ enabled, events, sensitivity }: {
           ? await postDailyOutfitRecommendation({ events, sensitivity, signal: controller.signal })
           : await postOutfitRecommendation({ event: events[0], sensitivity, signal: controller.signal });
         if (!mounted) return;
-        setResult(next);
+        setResultEntry({ key, value: next });
         setCachedOutfit(key, next);
         setStatus('ready');
         autoRetryAttemptRef.current = 0;
@@ -57,7 +61,7 @@ export function useOutfitRecommendation({ enabled, events, sensitivity }: {
         if (!mounted || controller.signal.aborted) return;
         const last = getLastOutfit(key);
         if (last) {
-          setResult(last);
+          setResultEntry({ key, value: last });
           setStatus('ready');
           return;
         }
@@ -86,5 +90,5 @@ export function useOutfitRecommendation({ enabled, events, sensitivity }: {
     clearCachedOutfit(key);
     setRetryVersion((value) => value + 1);
   }, [key]);
-  return { result, retry, status };
+  return { result: resultEntry?.key === key ? resultEntry.value : null, retry, status };
 }

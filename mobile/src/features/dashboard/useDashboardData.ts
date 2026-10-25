@@ -47,6 +47,8 @@ export function useDashboardData({
   selectedRegionRef.current = selectedRegion;
   // 응답을 기다리는 사이 지역이 바뀌었다면 이전 지역 데이터로 화면을 덮어쓰지 않습니다.
   const isStaleRegion = (region: NonNullable<typeof selectedRegion>) => !selectedRegionRef.current || !isSameRegion(selectedRegionRef.current, region);
+  // 같은 지역에서 자동 갱신과 직접 조회가 겹치면, 가장 나중에 시작한 조회의 응답만 화면에 반영합니다.
+  const dashboardRequestRef = useRef(0);
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
 
@@ -85,7 +87,8 @@ export function useDashboardData({
   const loadDashboard = async (force = false) => {
     if (!selectedRegion) return;
     const region = selectedRegion;
-    const isStale = () => isStaleRegion(region);
+    const requestId = ++dashboardRequestRef.current;
+    const isStale = () => isStaleRegion(region) || requestId !== dashboardRequestRef.current;
     const cachedDashboard = await loadDashboardCache(region);
     if (isStale()) return;
     if (cachedDashboard) {
