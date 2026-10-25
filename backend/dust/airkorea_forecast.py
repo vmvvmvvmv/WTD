@@ -11,7 +11,7 @@ from .external_api import REQUEST_TIMEOUT, public_api_get
 
 
 logger = logging.getLogger(__name__)
-FORECAST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMinuDustFrcstDspth"
+FORECAST_URL = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMinuDustFrcstDspth"
 CACHE_TTL = 60 * 60
 FAILURE_CACHE_TTL = 5 * 60
 

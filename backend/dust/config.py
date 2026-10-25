@@ -48,33 +48,33 @@ API_KEY = _env_first(
 AIRKOREA_SERVICE_KEY = _public_data_service_key(API_KEY)
 
 
-API_URL = "http://apis.data.go.kr/B552584/ArpltnStatsSvc/getMsrstnAcctoRDyrg"
+API_URL = "https://apis.data.go.kr/B552584/ArpltnStatsSvc/getMsrstnAcctoRDyrg"
 
 
-STATION_INFO_URL = "http://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstnList"
+STATION_INFO_URL = "https://apis.data.go.kr/B552584/MsrstnInfoInqireSvc/getMsrstnList"
 
 
-REALTIME_DUST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
+REALTIME_DUST_URL = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty"
 # 측정소 하나의 최근 24시간 매시 값(빈 기록 채우기용, 같은 서비스·같은 키).
-STATION_HOURLY_DUST_URL = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty"
+STATION_HOURLY_DUST_URL = "https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getMsrstnAcctoRltmMesureDnsty"
 
 
-KMA_VILAGE_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
+KMA_VILAGE_FORECAST_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst"
 
 
-KMA_ULTRA_SHORT_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
-KMA_ULTRA_SHORT_NCST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
+KMA_ULTRA_SHORT_FORECAST_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
+KMA_ULTRA_SHORT_NCST_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
 # 기상특보 현황(시·도 단위 문장). 공공데이터포털 '기상청_기상특보 조회서비스' 활용 신청이 필요하다.
-KMA_WEATHER_WARNING_STATUS_URL = "http://apis.data.go.kr/1360000/WthrWrnInfoService/getPwnStatus"
+KMA_WEATHER_WARNING_STATUS_URL = "https://apis.data.go.kr/1360000/WthrWrnInfoService/getPwnStatus"
 
 
-KMA_ASOS_DAILY_URL = "http://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList"
+KMA_ASOS_DAILY_URL = "https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList"
 
 
-KMA_MID_TERM_LAND_URL = "http://apis.data.go.kr/1360000/MidFcstInfoService/getMidLandFcst"
+KMA_MID_TERM_LAND_URL = "https://apis.data.go.kr/1360000/MidFcstInfoService/getMidLandFcst"
 
 
-KMA_MID_TERM_TEMPERATURE_URL = "http://apis.data.go.kr/1360000/MidFcstInfoService/getMidTa"
+KMA_MID_TERM_TEMPERATURE_URL = "https://apis.data.go.kr/1360000/MidFcstInfoService/getMidTa"
 
 
 KMA_API_KEY = _public_data_service_key(_env_first(

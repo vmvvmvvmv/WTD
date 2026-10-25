@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Callable
@@ -13,6 +14,13 @@ from dust.services.stations import _current_station_location, _find_air_quality_
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+
+
+def expo_request_headers() -> dict:
+    """Expo 대시보드에서 'Enhanced Security for Push Notifications'를 켜면, 이 접근 토큰이 있어야만 푸시를 보낼 수 있다.
+    토큰이 없으면 머리글을 붙이지 않는다(보안 설정을 켜기 전과 같은 동작)."""
+    token = os.getenv("EXPO_ACCESS_TOKEN", "").strip()
+    return {"Authorization": f"Bearer {token}"} if token else {}
 LATE_MORNING_HOUR = 10
 RAIN_PROBABILITY_THRESHOLD = 60
 LOW_TEMPERATURE_THRESHOLD = 0
@@ -190,7 +198,7 @@ def send_expo_push(token: str, title: str, body: str, data: dict) -> None:
         "priority": "high",
         "data": data,
     }
-    response = requests.post(EXPO_PUSH_URL, json=payload, timeout=10)
+    response = requests.post(EXPO_PUSH_URL, json=payload, headers=expo_request_headers(), timeout=10)
     response.raise_for_status()
     response_data = response.json()
     ticket = response_data.get("data") if isinstance(response_data, dict) else None
