@@ -79,7 +79,7 @@ export function AppContent() {
     removeFollowingEvents: removeFollowingCalendarEvents,
     updateEvent: updateCalendarEvent,
     updateEventSeries: updateCalendarEventSeries,
-  } = useCalendarEvents(hasLoadedRegionStore);
+  } = useCalendarEvents(hasLoadedRegionStore, setNotificationMessage);
   const { ensureMapStations, isLoadingStations, loadStations, mapStations, setStationItems, stationItems } = useStations();
   const {
     favoriteRegions,

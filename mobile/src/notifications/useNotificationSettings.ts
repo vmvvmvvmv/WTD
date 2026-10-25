@@ -22,6 +22,8 @@ export function useNotificationSettings(
   const [isSaving, setIsSaving] = useState(false);
   // 설정을 빠르게 바꿔도 서버에 마지막 설정이 남도록 등록 요청을 하나씩 순서대로 보낸다.
   const registerQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  // 토큰을 받는 동안 설정이 바뀌면 앞서 시작한 실행은 낡은 설정을 들고 있다. 가장 최근 실행만 서버에 등록한다.
+  const syncRunRef = useRef(0);
   const registerInOrder = (payload: Parameters<typeof registerNotificationDevice>[0]) => {
     registerQueueRef.current = registerQueueRef.current.then(() => registerNotificationDevice(payload).catch(() => {}));
     return registerQueueRef.current;
@@ -58,6 +60,8 @@ export function useNotificationSettings(
 
   useEffect(() => {
     if (!hasLoadedStore || !selectedRegion || IS_EXPO_GO) return;
+    const runId = ++syncRunRef.current;
+    const isLatest = () => runId === syncRunRef.current;
     const syncServerDevice = async () => {
       if (!settings.enabled) {
         if (!serverPushToken) return;
@@ -81,6 +85,7 @@ export function useNotificationSettings(
         if (!token) return;
         setServerPushToken(token);
         await saveNotificationToken(token);
+        if (!isLatest()) return;
       }
 
       // 아침 알림은 날짜·시간만 서버로 보냅니다. 일정 제목은 보내지 않습니다.
