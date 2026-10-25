@@ -168,6 +168,7 @@ export function registerNotificationDevice(params: {
   expoPushToken: string;
   region: string;
   weatherMorningAlerts: boolean;
+  weatherWarningAlerts?: boolean;
 }) {
   return fetchJson<{ ok?: boolean; deviceId?: number }>('/dust/notifications/register/', undefined, {
     method: 'POST',
@@ -180,6 +181,7 @@ export function registerNotificationDevice(params: {
       expoPushToken: params.expoPushToken,
       region: params.region,
       weatherMorningAlerts: params.weatherMorningAlerts,
+      weatherWarningAlerts: params.weatherWarningAlerts ?? false,
     }),
   });
 }

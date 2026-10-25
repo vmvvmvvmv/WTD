@@ -70,6 +70,7 @@ export function parseStoredNotificationSettings(value: string | null): Notificat
       calendarReminders: parsed.calendarReminders !== false,
       weatherMorningAlerts: parsed.weatherMorningAlerts !== false,
       dustSpikeAlerts: parsed.dustSpikeAlerts !== false,
+      weatherWarningAlerts: parsed.weatherWarningAlerts !== false,
       // TODO: 즐겨찾기 지역까지 알림에 넣는 기능. 필요 없으면 지울 후보.
       includeFavorites: parsed.includeFavorites !== false,
     };
