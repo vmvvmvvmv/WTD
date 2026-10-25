@@ -21,6 +21,7 @@ const PRIVACY_POLICY_URL = `${API_URL.replace(/\/$/, '')}/privacy/`;
 // Manages location, notification options, and favorite regions on the settings screen.
 export function RegionPanel({
   favoriteRegions,
+  gpsRegion,
   isLocating,
   isSavingNotificationSettings,
   locationMessage,
@@ -35,6 +36,7 @@ export function RegionPanel({
   selectedRegion,
 }: {
   favoriteRegions: RegionState[];
+  gpsRegion: RegionState | null;
   isLocating: boolean;
   isSavingNotificationSettings: boolean;
   locationMessage: string;
@@ -164,6 +166,10 @@ export function RegionPanel({
           <View style={styles.settingsSectionTitleGroup}>
             <Text style={styles.settingsSectionTitle}>{'\uC54C\uB9BC \uC124\uC815'}</Text>
             {notificationsUnavailable && <Text style={styles.settingsUnavailableText}>{'\uAC1C\uBC1C \uBE4C\uB4DC\uC5D0\uC11C \uC54C\uB9BC\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC788\uC5B4\uC694.'}</Text>}
+            {/* \uC54C\uB9BC\uC740 \uD604\uC7AC \uC704\uCE58 \uC9C0\uC5ED \uAE30\uC900\uC774\uB77C, \uD648\uC5D0\uC11C \uB2E4\uB978 \uC9C0\uC5ED\uC744 \uBCF4\uACE0 \uC788\uC5B4\uB3C4 \uD5F7\uAC08\uB9AC\uC9C0 \uC54A\uAC8C \uBCF4\uC5EC \uC900\uB2E4. */}
+            <Text style={styles.settingsUnavailableText}>
+              \uC54C\uB9BC \uC9C0\uC5ED: {(gpsRegion ?? selectedRegion).city} {(gpsRegion ?? selectedRegion).region}{gpsRegion ? ' \u00B7 \uD604\uC7AC \uC704\uCE58' : ''}
+            </Text>
           </View>
           {isSavingNotificationSettings && <ActivityIndicator color={accentTone} />}
         </View>
