@@ -63,7 +63,6 @@ class AirQualityStation(models.Model):
         db_table = 'air_quality_station'
         unique_together = ('sido', 'name')
         indexes = [
-            models.Index(fields=['sido', 'name'], name='aq_station_sido_idx'),
             models.Index(fields=['is_active', 'sido'], name='aq_station_active_idx'),
         ]
 
@@ -86,7 +85,6 @@ class RealtimeDustMeasurement(models.Model):
         db_table = 'realtime_dust_measurement'
         unique_together = ('station', 'measured_at')
         indexes = [
-            models.Index(fields=['station', '-measured_at'], name='rt_dust_station_time_idx'),
             models.Index(fields=['measured_at'], name='rt_dust_time_idx'),
         ]
 
@@ -117,7 +115,6 @@ class HourlyDustPrediction(models.Model):
         db_table = 'hourly_dust_prediction'
         unique_together = ('station', 'target_at', 'predicted_at', 'model_name')
         indexes = [
-            models.Index(fields=['station', 'target_at'], name='hourly_pred_station_target_idx'),
             models.Index(fields=['city', 'region', 'target_at'], name='hourly_pred_region_target_idx'),
             models.Index(fields=['model_name', 'evaluated_at'], name='hourly_pred_eval_idx'),
         ]
@@ -147,7 +144,6 @@ class WeatherHourlyMeasurement(models.Model):
         db_table = 'weather_hourly_measurement'
         unique_together = ('nx', 'ny', 'measured_at')
         indexes = [
-            models.Index(fields=['nx', 'ny', '-measured_at'], name='weather_grid_time_idx'),
             models.Index(fields=['measured_at'], name='weather_time_idx'),
         ]
 
@@ -177,7 +173,6 @@ class WeatherMidTermForecast(models.Model):
         unique_together = ('land_reg_id', 'temp_reg_id', 'announced_at', 'forecast_date')
         indexes = [
             models.Index(fields=['region_key', 'forecast_date'], name='weather_mid_region_date_idx'),
-            models.Index(fields=['land_reg_id', 'temp_reg_id', '-announced_at'], name='weather_mid_code_time_idx'),
             models.Index(fields=['forecast_date'], name='weather_mid_date_idx'),
         ]
 

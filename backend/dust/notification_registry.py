@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db import OperationalError
+
 from dust.models import NotificationDevice
+
+MYSQL_DEADLOCK = 1213
 
 
 def clean_notification_regions(regions: Any, fallback_city: str, fallback_region: str) -> list[dict[str, str]]:
@@ -94,24 +98,28 @@ def upsert_notification_device(payload: Any) -> NotificationDevice:
     # 일정 제목은 아침 날씨 알림에만 필요하다. 알림이 꺼져 있으면 저장하지 않고 기존 값도 비운다.
     calendar_events = clean_notification_calendar_events(payload.get("calendarEvents")) if weather_morning_alerts else []
 
-    device, _created = NotificationDevice.objects.update_or_create(
-        expo_push_token=token,
-        defaults={
-            "city": city,
-            "region": region,
-            "enabled": bool_from_payload(payload.get("enabled"), True),
-            "notify_bad_only": bool_from_payload(payload.get("notifyBadOnly"), True),
-            "pm10_threshold": pm10_threshold,
-            "morning_summary": bool_from_payload(payload.get("morningSummary"), False),
-            "weather_morning_alerts": weather_morning_alerts,
-            "dust_spike_alerts": bool_from_payload(payload.get("dustSpikeAlerts"), False),
-            "weather_warning_alerts": bool_from_payload(payload.get("weatherWarningAlerts"), False),
-            "include_favorites": bool_from_payload(payload.get("includeFavorites"), True),
-            "regions": regions,
-            "calendar_events": calendar_events,
-        },
-    )
-    return device
+    defaults = {
+        "city": city,
+        "region": region,
+        "enabled": bool_from_payload(payload.get("enabled"), True),
+        "notify_bad_only": bool_from_payload(payload.get("notifyBadOnly"), True),
+        "pm10_threshold": pm10_threshold,
+        "morning_summary": bool_from_payload(payload.get("morningSummary"), False),
+        "weather_morning_alerts": weather_morning_alerts,
+        "dust_spike_alerts": bool_from_payload(payload.get("dustSpikeAlerts"), False),
+        "weather_warning_alerts": bool_from_payload(payload.get("weatherWarningAlerts"), False),
+        "include_favorites": bool_from_payload(payload.get("includeFavorites"), True),
+        "regions": regions,
+        "calendar_events": calendar_events,
+    }
+    # 같은 기기가 처음 등록할 때 요청이 겹치면 MySQL이 교착(deadlock)으로 한쪽을 끊는다. 다시 하면 이미 생긴 행을 고친다.
+    for _ in range(2):
+        try:
+            return NotificationDevice.objects.update_or_create(expo_push_token=token, defaults=defaults)[0]
+        except OperationalError as error:
+            if not error.args or error.args[0] != MYSQL_DEADLOCK:
+                raise
+    return NotificationDevice.objects.update_or_create(expo_push_token=token, defaults=defaults)[0]
 
 
 def notification_device_response(device: NotificationDevice) -> dict[str, Any]:

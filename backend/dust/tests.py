@@ -871,3 +871,13 @@ class LateMorningNotificationTests(SimpleTestCase):
             result = send_weather_morning_notifications(late.date())
         devices.assert_not_called()
         self.assertEqual(result.sent, 0)
+
+
+class KmaMissingValueTests(SimpleTestCase):
+    def test_kma_sentinels_are_stored_as_missing(self):
+        from dust.services.weather import _kma_float
+        self.assertIsNone(_kma_float('-999'))
+        self.assertIsNone(_kma_float('-998.9'))
+        self.assertIsNone(_kma_float('900'))
+        self.assertEqual(_kma_float('-12.5'), -12.5)
+        self.assertEqual(_kma_float('0'), 0.0)
