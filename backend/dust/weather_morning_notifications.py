@@ -7,12 +7,13 @@ from typing import Callable
 import requests
 from django.utils import timezone
 
-from dust.models import AirQualityStation, DustNotificationLog, NotificationDevice, WeatherHourlyMeasurement
+from dust.models import AirQualityStation, DustNotificationLog, ExpoPushTicket, NotificationDevice, WeatherHourlyMeasurement
 from dust.services.common import _dfs_grid_from_lat_lng
 from dust.services.stations import _current_station_location, _find_air_quality_station, _resolve_station_name
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+LATE_MORNING_HOUR = 10
 RAIN_PROBABILITY_THRESHOLD = 60
 LOW_TEMPERATURE_THRESHOLD = 0
 HIGH_TEMPERATURE_THRESHOLD = 30
@@ -198,10 +199,17 @@ def send_expo_push(token: str, title: str, body: str, data: dict) -> None:
         if isinstance(details, dict) and details.get("error") == "DeviceNotRegistered":
             raise ExpoDeviceNotRegistered(f"Expo push failed: {response_data}")
         raise RuntimeError(f"Expo push failed: {response_data}")
+    # 접수됐다는 뜻일 뿐이다. 실제 전달 여부는 check_push_receipts가 영수증으로 확인한다.
+    if ticket.get("id"):
+        ExpoPushTicket.objects.get_or_create(ticket_id=ticket["id"], defaults={"expo_push_token": token})
 
 
 def send_weather_morning_notifications(target_date: date, dry_run: bool = False, force: bool = False, write: Callable[[str], None] | None = None) -> WeatherMorningResult:
     write = write or (lambda _message: None)
+    # 서버가 꺼져 있다가 늦게 켜지면 타이머가 놓친 실행을 따라잡는다. 오후에 "아침 날씨"가 가지 않게 막는다.
+    if not force and target_date == timezone.localdate() and timezone.localtime().hour >= LATE_MORNING_HOUR:
+        write(f"Past {LATE_MORNING_HOUR}:00; morning notifications skipped.")
+        return WeatherMorningResult()
     sent = 0
     skipped = 0
     failed = 0

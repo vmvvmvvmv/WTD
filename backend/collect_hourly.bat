@@ -76,6 +76,12 @@ echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 if errorlevel 1 call :mark_failed
 
 :finish
+REM Check delivery receipts of pushes sent 15+ minutes ago (disables uninstalled devices, fails on delivery errors).
+set "CURRENT_STEP=check_push_receipts"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py check_push_receipts >> "%LOG_FILE%" 2>&1
+if errorlevel 1 call :mark_failed
+
 if defined FAILED_STEPS goto :failed
 echo [%date% %time%] hourly collection success (%PART%) >> "%LOG_FILE%"
 echo. >> "%LOG_FILE%"

@@ -22,4 +22,6 @@ if [ "$part" = weather ] || [ "$part" = all ]; then
   run send_early_event_weather_notifications
   run send_weather_warning_notifications
 fi
+# 15분 넘게 지난 푸시의 전달 영수증 확인. 앱이 지워진 기기는 끄고, 전달 실패가 있으면 실패로 끝낸다.
+run check_push_receipts
 exit $status
