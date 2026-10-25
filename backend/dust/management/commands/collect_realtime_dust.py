@@ -7,6 +7,7 @@ from django.core.management.base import BaseCommand, CommandError
 
 from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES
 from dust.services.airkorea_client import _fetch_realtime_station_values_for_sido
+from dust.services.dust_backfill import backfill_missing_dust
 from dust.services.stations import bump_dust_cache_version, _load_station_locations, _sidos_with_realtime_spikes, _store_realtime_values_to_db
 
 
@@ -41,6 +42,12 @@ class Command(BaseCommand):
             type=int,
             default=env_int("REALTIME_SPIKE_RETRY_DELAY_SECONDS", 600),
             help="Seconds to wait before retrying sidos with suspected one-sample spikes.",
+        )
+        parser.add_argument(
+            "--backfill-limit",
+            type=int,
+            default=env_int("DUST_BACKFILL_LIMIT", 100),
+            help="Max stations to backfill per run when recent hours are missing (0 disables).",
         )
 
     def handle(self, *args, **options):
@@ -83,6 +90,14 @@ class Command(BaseCommand):
             debug_rows.extend(retry_debug_rows)
 
         saved = _store_realtime_values_to_db(values)
+        # 서버가 멈췄던 시간 등으로 비어 있는 최근 24시간 기록을 채운다. 실패해도 이번 수집은 그대로 둔다.
+        if options["backfill_limit"] > 0:
+            try:
+                filled, created, remaining = backfill_missing_dust(limit=options["backfill_limit"])
+                if filled:
+                    self.stdout.write(f"Backfill: stations {filled}, rows {created}, stations left {remaining}")
+            except Exception as exc:
+                self.stderr.write(f"Backfill failed: {exc}")
         bump_dust_cache_version()  # 측정값 캐시를 한 번에 무효화한다.
 
         self.stdout.write(self.style.SUCCESS(f"Realtime API rows: {len(values)}"))
