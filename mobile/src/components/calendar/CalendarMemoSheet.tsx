@@ -23,6 +23,8 @@ import { dayLabel } from './calendarUtils';
 
 const MAX_LENGTH = 500;
 const CAUTIONS = [
+  // 국외 이전 고지: 받는 곳·국가·시점·보관 여부·거부 방법(처리방침 4번과 같은 내용).
+  '메모는 정리할 때만 미국 Google(Gemini)로 보내요. 앱 서버에는 저장하지 않고, 이 기능을 쓰지 않으면 보내지 않아요.',
   '연락처·주소 같은 개인정보와 병원 같은 민감한 단어는 가려서 보내지만, 모두 가려지지는 않아요.',
   'AI가 날짜나 시간을 잘못 읽을 수 있어요. 추가 전에 꼭 확인하세요.',
 ];
@@ -337,7 +339,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                 style={local.notice}
               >
                 <Ionicons color={CAUTION_TONE} name="lock-closed-outline" size={13} />
-                <Text style={[local.noticeText, local.noticeStrong]}>Google AI로 정리합니다. 민감한 개인정보는 적지 마세요.</Text>
+                <Text style={[local.noticeText, local.noticeStrong]}>Google AI(미국)로 정리합니다. 민감한 개인정보는 적지 마세요.</Text>
                 <Ionicons color={CAUTION_TONE} name={showCautions ? 'chevron-up' : 'chevron-down'} size={14} />
               </Pressable>
               {showCautions && CAUTIONS.map((caution) => (
