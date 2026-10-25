@@ -101,10 +101,6 @@ export function CalendarDayCell({
           <WeatherIcon kind={dailyWeather.kind} size={14} />
         </View>
       )}
-      {/* 비·눈은 하루 종일 오는 게 아니라서 언제 오는지 아이콘 아래에 적는다. */}
-      {!!dailyWeather?.time && (
-        <Text numberOfLines={1} style={[styles.calendarDayWeatherTime, { color: weatherRisk?.tone ?? accentTone }]}>{dailyWeather.time}</Text>
-      )}
       <Reanimated.Text style={[
         dayScaleStyle,
         styles.calendarDayText,

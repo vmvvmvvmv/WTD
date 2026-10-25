@@ -22,7 +22,7 @@ import { buildCalendarRiskByEvent, buildSelectedCalendarForecast, type CalendarL
 import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLayout';
 import type { CalendarLocationCandidate } from './calendarLocation';
 import { addDays, buildMonthCells, buildWeekCells, dayLabel, eventTone, isDateInEventRange, monthLabel, parseDateParts, weekLabel } from './calendarUtils';
-import { dailyWeatherByDate as buildDailyWeatherByDate, topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { dailyPrecipitationIndicator, dailyWeatherByDate as buildDailyWeatherByDate, topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
@@ -201,12 +201,15 @@ export function CalendarPanel({
     [todayDateLabel, weatherHourlyItems, weatherMidTermItems],
   );
   const selectedWeatherRisks = useMemo(
-    () => selectedEvents
-      .flatMap((event) => weatherRiskIndicators(selectedRiskByEvent[event.id]))
+    () => [
+      ...selectedEvents.flatMap((event) => weatherRiskIndicators(selectedRiskByEvent[event.id])),
+      dailyPrecipitationIndicator(dailyWeatherByDate[selectedDate]),
+    ]
+      .filter((indicator): indicator is CalendarWeatherRiskIndicator => !!indicator)
       .filter((indicator, index, items) => items.findIndex((item) => item.key === indicator.key) === index)
       .sort((a, b) => b.priority - a.priority)
       .slice(0, 3),
-    [selectedEvents, selectedRiskByEvent],
+    [dailyWeatherByDate, selectedDate, selectedEvents, selectedRiskByEvent],
   );
 
   const selectDate = (nextDate: string, options?: { openSheet?: boolean }) => {
