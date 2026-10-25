@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Keyboard, Linking, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Animated, AppState, BackHandler, Keyboard, Linking, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
@@ -147,7 +147,19 @@ export function AppContent() {
     hydrate: hydrateNotificationSettings,
     isSaving: isSavingNotificationSettings,
     updateSetting: updateNotificationSetting,
-  } = useNotificationSettings(hasLoadedRegionStore, selectedRegion, calendarEvents, todayDateLabel, setNotificationMessage);
+  } = useNotificationSettings(hasLoadedRegionStore, gpsRegion ?? selectedRegion, calendarEvents, todayDateLabel, setNotificationMessage);
+
+  // 알림(특보·미세먼지·아침 날씨)은 현재 위치 기준이다. 시작할 때는 아래 첫 위치 찾기가 하고,
+  // 백그라운드에 있다가 돌아오면 권한이 이미 있을 때만 조용히 갱신한다. 화면의 선택 지역은 바꾸지 않는다.
+  // 10분 안에 알던 위치는 그대로 쓰고 같은 지역이면 다시 등록하지 않아서, 자주 돌아와도 비용이 거의 없다.
+  useEffect(() => {
+    if (!hasLoadedRegionStore) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void locateNearestRegion({ ensureMapStations, silent: true });
+    });
+    return () => subscription.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLoadedRegionStore]);
   useCalendarReminderSync(calendarEvents, hasLoadedRegionStore, notificationSettings.enabled && notificationSettings.calendarReminders, {
     currentPm10,
     eventLocationForecasts: calendarLocationForecasts,
