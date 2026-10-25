@@ -13,6 +13,12 @@ from dust.services.stations import _current_station_location
 logger = logging.getLogger(__name__)
 
 
+def _kma_float(value):
+    """기상청 수치. 측정을 못 하면 -999·-998.9·+900 같은 값이 오므로 값 없음(None)으로 본다."""
+    number = _to_float(value)
+    return None if number is None or abs(number) >= 900 else number
+
+
 def _latest_weather_by_grid_for_locations(station_locations, max_age_hours=24):
     # 지도용 기온. 이 표에는 72시간 뒤 예보도 들어 있어서, 지금 시각 이전 값 중 가장 최근 것을 쓴다.
     # 날씨는 주소 지역마다 대표 격자만 모으므로, 값이 없는 격자는 가장 가까운 수집 격자 값을 빌려 쓴다.
@@ -77,7 +83,7 @@ def _kma_ultra_short_base_datetime_candidates(limit=4):
 
 def _kma_current_weather_label(pty, sky, lgt=None):
     # 낙뢰(LGT, 초단기예보에만 있음)가 있으면 천둥번개를 붙인다. 비·눈과 같이 오면 둘 다 남겨 비 판정도 유지한다.
-    if (_to_float(lgt) or 0) > 0:
+    if (_kma_float(lgt) or 0) > 0:
         base = _kma_current_weather_label(pty, sky)
         return f"{base}·천둥번개" if base in ("비", "눈") else "천둥번개"
     pty_text = str(pty or "0")
@@ -131,12 +137,12 @@ def _store_weather_hourly_measurement(grid, selected_key, selected):
         ny=grid["ny"],
         measured_at=measured_at,
         defaults={
-            "temperature": _to_float(selected.get("T1H")),
-            "humidity": _to_float(selected.get("REH")),
-            "wind_speed": _to_float(selected.get("WSD")),
-            "wind_direction": _to_float(selected.get("VEC")),
-            "rain_mm": _to_float(selected.get("RN1")) or _parse_kma_precipitation(selected.get("PCP")),
-            "rain_probability": _to_float(selected.get("POP")),
+            "temperature": _kma_float(selected.get("T1H")),
+            "humidity": _kma_float(selected.get("REH")),
+            "wind_speed": _kma_float(selected.get("WSD")),
+            "wind_direction": _kma_float(selected.get("VEC")),
+            "rain_mm": _kma_float(selected.get("RN1")) or _parse_kma_precipitation(selected.get("PCP")),
+            "rain_probability": _kma_float(selected.get("POP")),
             "sky": str(selected.get("SKY") or ""),
             "precipitation_type": str(selected.get("PTY") or ""),
             "label": _kma_current_weather_label(selected.get("PTY"), selected.get("SKY"), selected.get("LGT")),
@@ -164,7 +170,7 @@ def _store_current_observation(grid, now=None):
         except Exception:
             continue
         observed = {str(item.get("category")): item.get("obsrValue") for item in items if isinstance(item, dict)}
-        if _to_float(observed.get("T1H")) is None:
+        if _kma_float(observed.get("T1H")) is None:
             continue
         key = base.strftime("%Y%m%d%H00")
         existing = WeatherHourlyMeasurement.objects.filter(nx=grid["nx"], ny=grid["ny"], measured_at=_weather_measured_at_from_key(key)).first()
@@ -241,7 +247,7 @@ def _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12):
             if forecast_key <= now_key:
                 continue
             bucket = grouped[forecast_key]
-            temperature = _to_float(bucket.get("TMP"))
+            temperature = _kma_float(bucket.get("TMP"))
             if temperature is None:
                 continue
             measured_at = _weather_measured_at_from_key(forecast_key)
@@ -253,11 +259,11 @@ def _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=12):
                 "date": local_time.date().isoformat(),
                 "hour": local_time.strftime("%H:00"),
                 "temperature": temperature,
-                "humidity": _to_float(bucket.get("REH")),
-                "wind_speed": _to_float(bucket.get("WSD")),
-                "wind_direction": _to_float(bucket.get("VEC")),
+                "humidity": _kma_float(bucket.get("REH")),
+                "wind_speed": _kma_float(bucket.get("WSD")),
+                "wind_direction": _kma_float(bucket.get("VEC")),
                 "rain_mm": _parse_kma_precipitation(bucket.get("PCP")),
-                "rain_probability": _to_float(bucket.get("POP")),
+                "rain_probability": _kma_float(bucket.get("POP")),
                 "label": _kma_current_weather_label(bucket.get("PTY"), bucket.get("SKY"), bucket.get("LGT")),
                 "sky": str(bucket.get("SKY") or ""),
                 "precipitation_type": str(bucket.get("PTY") or ""),
@@ -284,13 +290,13 @@ def _serialize_asos_daily_item(item):
         "date": str(item.get("tm") or ""),
         "stationId": str(item.get("stnId") or ""),
         "stationName": str(item.get("stnNm") or ""),
-        "avgTemperature": _to_float(item.get("avgTa")),
-        "minTemperature": _to_float(item.get("minTa")),
-        "maxTemperature": _to_float(item.get("maxTa")),
-        "avgHumidity": _to_float(item.get("avgRhm")),
-        "avgWindSpeed": _to_float(item.get("avgWs")),
-        "maxWindSpeed": _to_float(item.get("maxWs")),
-        "rainMm": _to_float(item.get("sumRn")),
+        "avgTemperature": _kma_float(item.get("avgTa")),
+        "minTemperature": _kma_float(item.get("minTa")),
+        "maxTemperature": _kma_float(item.get("maxTa")),
+        "avgHumidity": _kma_float(item.get("avgRhm")),
+        "avgWindSpeed": _kma_float(item.get("avgWs")),
+        "maxWindSpeed": _kma_float(item.get("maxWs")),
+        "rainMm": _kma_float(item.get("sumRn")),
         "source": "kma_asos_daily",
     }
 
@@ -337,7 +343,7 @@ def _midterm_weather_value(item, day, suffix):
 
 
 def _midterm_rain_value(item, day, suffix):
-    return _to_float(item.get(f"rnSt{day}{suffix}") or item.get(f"rnSt{day}"))
+    return _kma_float(item.get(f"rnSt{day}{suffix}") or item.get(f"rnSt{day}"))
 
 
 def _store_midterm_forecast_for_region(region, tm_fc):
@@ -368,8 +374,8 @@ def _store_midterm_forecast_for_region(region, tm_fc):
             defaults={
                 "region_key": region["key"],
                 "region_label": region["label"],
-                "min_temperature": _to_float((temp_item or {}).get(f"taMin{day}")),
-                "max_temperature": _to_float((temp_item or {}).get(f"taMax{day}")),
+                "min_temperature": _kma_float((temp_item or {}).get(f"taMin{day}")),
+                "max_temperature": _kma_float((temp_item or {}).get(f"taMax{day}")),
                 "weather_am": str(weather_am or ""),
                 "weather_pm": str(weather_pm or ""),
                 "rain_probability_am": rain_am,
@@ -451,7 +457,7 @@ def _parse_kma_precipitation(value):
     if '50.0mm 이상' in text:
         return 50.0
     number = ''.join(ch for ch in text if ch.isdigit() or ch == '.')
-    return _to_float(number) or 0.0
+    return _kma_float(number) or 0.0
 
 
 def _fetch_kma_weather_by_station(sido, station_name):
@@ -539,21 +545,21 @@ def _summarize_kma_weather(items, periods=3):
         if category == "PCP":
             bucket["rain_mm"] = max(bucket["rain_mm"], _parse_kma_precipitation(value))
         elif category == "POP":
-            pop = _to_float(value)
+            pop = _kma_float(value)
             bucket["rain_probability"] = max(bucket["rain_probability"] or 0, pop or 0)
         elif category == "WSD":
-            wind = _to_float(value)
+            wind = _kma_float(value)
             bucket["wind_speed"] = max(bucket["wind_speed"] or 0, wind or 0)
         elif category == "REH":
-            humidity = _to_float(value)
+            humidity = _kma_float(value)
             bucket["humidity"] = max(bucket["humidity"] or 0, humidity or 0)
         elif category == "TMP":
             temps = bucket.setdefault("_temperatures", [])
-            temp = _to_float(value)
+            temp = _kma_float(value)
             if temp is not None:
                 temps.append(temp)
         elif category == "PTY":
-            pty = _to_float(value)
+            pty = _kma_float(value)
             bucket["precipitation_type"] = max(bucket["precipitation_type"], int(pty or 0))
 
     today = datetime.now().date()
