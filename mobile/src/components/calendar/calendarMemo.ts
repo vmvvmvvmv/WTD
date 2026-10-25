@@ -66,8 +66,8 @@ export function withMemoHistory(history: string[], text: string, limit = 5): str
   return [memo, ...history.filter((item) => item.trim() !== memo)].slice(0, limit);
 }
 
-// 반복 일정 메모("매주 월요일 9시 회의" 등). AI 일정 등록은 한 번짜리만 만들 수 있어, 이런 메모는 보내지 않고 직접 등록으로 안내합니다.
-const REPEAT_MEMO_PATTERN = /매\s?(?:일|주|달|월|년|번)|격주|격일|(?:요일|아침|저녁|주말|평일)\s?마다|주\s?\d\s?회/;
+// 반복 일정 메모("매주 월요일 9시 회의" 등). '매일유업'·'매월드'처럼 '매일·매월'로 시작하는 이름은 반복으로 보지 않는다. AI 일정 등록은 한 번짜리만 만들 수 있어, 이런 메모는 보내지 않고 직접 등록으로 안내합니다.
+const REPEAT_MEMO_PATTERN = /매\s?(?:일|주|달|월|년|번)(?:(?![가-힣])|(?=[월화수목금토일]요일|아침|저녁|밤|오전|오후|말))|격주|격일|(?:요일|아침|저녁|주말|평일)\s?마다|주\s?\d\s?회/;
 
 export function isRepeatMemo(text: string) {
   return REPEAT_MEMO_PATTERN.test(text);
