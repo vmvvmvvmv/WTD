@@ -78,7 +78,7 @@ export function RegionPanel({
           ) : (
             <>
               <AppActionIcon name="location" size={24} />
-              <Text style={[styles.locationButtonText, { color: accentTone }]}>{'\uD604\uC7AC \uC704\uCE58\uB85C \uC9C0\uC5ED \uC124\uC815'}</Text>
+              <Text style={[styles.locationButtonText, { color: accentTone }]}>{'현재 위치로 지역 설정'}</Text>
               <Ionicons color={accentTone} name="chevron-forward" size={17} />
             </>
           )}
@@ -164,11 +164,11 @@ export function RegionPanel({
             <AppActionIcon name="notification" size={25} />
           </View>
           <View style={styles.settingsSectionTitleGroup}>
-            <Text style={styles.settingsSectionTitle}>{'\uC54C\uB9BC \uC124\uC815'}</Text>
-            {notificationsUnavailable && <Text style={styles.settingsUnavailableText}>{'\uAC1C\uBC1C \uBE4C\uB4DC\uC5D0\uC11C \uC54C\uB9BC\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC788\uC5B4\uC694.'}</Text>}
-            {/* \uC54C\uB9BC\uC740 \uD604\uC7AC \uC704\uCE58 \uC9C0\uC5ED \uAE30\uC900\uC774\uB77C, \uD648\uC5D0\uC11C \uB2E4\uB978 \uC9C0\uC5ED\uC744 \uBCF4\uACE0 \uC788\uC5B4\uB3C4 \uD5F7\uAC08\uB9AC\uC9C0 \uC54A\uAC8C \uBCF4\uC5EC \uC900\uB2E4. */}
+            <Text style={styles.settingsSectionTitle}>{'알림 설정'}</Text>
+            {notificationsUnavailable && <Text style={styles.settingsUnavailableText}>{'개발 빌드에서 알림을 사용할 수 있어요.'}</Text>}
+            {/* 알림은 현재 위치 지역 기준이라, 홈에서 다른 지역을 보고 있어도 헷갈리지 않게 보여 준다. */}
             <Text style={styles.settingsUnavailableText}>
-              \uC54C\uB9BC \uC9C0\uC5ED: {(gpsRegion ?? selectedRegion).city} {(gpsRegion ?? selectedRegion).region}{gpsRegion ? ' \u00B7 \uD604\uC7AC \uC704\uCE58' : ''}
+              알림 지역: {(gpsRegion ?? selectedRegion).city} {(gpsRegion ?? selectedRegion).region}{gpsRegion ? ' · 현재 위치' : ''}
             </Text>
           </View>
           {isSavingNotificationSettings && <ActivityIndicator color={accentTone} />}
@@ -176,21 +176,21 @@ export function RegionPanel({
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable}
           description="앱의 모든 알림을 켜고 꺼요"
-          label={'\uC54C\uB9BC \uBC1B\uAE30'}
+          label={'알림 받기'}
           value={notificationSettings.enabled}
           onValueChange={(value) => onToggleNotificationSetting('enabled', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
           description="일정 전에 그 시간 날씨와 함께 알려 줘요"
-          label={'\uC77C\uC815 \uC54C\uB9BC'}
+          label={'일정 알림'}
           value={notificationSettings.calendarReminders}
           onValueChange={(value) => onToggleNotificationSetting('calendarReminders', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
           description="매일 아침 7시에 오늘 날씨를 알려 줘요"
-          label={'\uC544\uCE68 \uB0A0\uC528 \uC54C\uB9BC'}
+          label={'아침 날씨 알림'}
           value={notificationSettings.weatherMorningAlerts}
           onValueChange={(value) => onToggleNotificationSetting('weatherMorningAlerts', value)}
         />
@@ -216,13 +216,13 @@ export function RegionPanel({
             <AppActionIcon name="favorite" size={25} />
           </View>
           <View style={styles.settingsSectionTitleGroup}>
-            <Text style={styles.settingsSectionTitle}>{'\uC990\uACA8\uCC3E\uAE30 \uC9C0\uC5ED'}</Text>
+            <Text style={styles.settingsSectionTitle}>{'즐겨찾기 지역'}</Text>
           </View>
         </View>
 
         {favoriteRegions.length === 0 ? (
           <View style={styles.emptyFavoriteBox}>
-            <Text style={styles.mutedText}>{'\uC800\uC7A5\uB41C \uC9C0\uC5ED\uC774 \uC5C6\uC5B4\uC694.'}</Text>
+            <Text style={styles.mutedText}>{'저장된 지역이 없어요.'}</Text>
           </View>
         ) : (
           <>
@@ -236,7 +236,7 @@ export function RegionPanel({
                         {selected && <View style={[styles.settingsFavoriteActiveDot, { backgroundColor: accentTone }]} />}
                         <Text style={[styles.favoriteTitle, selected && { color: accentTone }]}>{region.city} {region.region}</Text>
                       </View>
-                      <Text style={styles.favoriteMeta}>{region.label ? `${region.label} ${'\uCE21\uC815\uC18C \uAE30\uC900'}` : '\uC800\uC7A5\uB41C \uC9C0\uC5ED'}</Text>
+                      <Text style={styles.favoriteMeta}>{region.label ? `${region.label} ${'측정소 기준'}` : '저장된 지역'}</Text>
                     </View>
                     <Pressable accessibilityLabel={`${region.city} ${region.region} 즐겨찾기 삭제`} onPress={() => onRemoveFavorite(region)} style={({ pressed }) => [styles.settingsFavoriteRemoveButton, pressed && styles.pressedFeedback]}>
                       <AppActionIcon name="delete" size={21} />
