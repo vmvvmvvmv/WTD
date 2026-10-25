@@ -55,16 +55,11 @@ export function parseStoredMapRecentSearches(value: string | null): StationDustI
   }
 }
 
-// 알림 설정. 빠진 값은 기본값으로 채웁니다.
+// 알림 설정. 사용자가 끈 값은 그대로 두고, 저장된 적 없는 값만 기본값으로 채웁니다.
 export function parseStoredNotificationSettings(value: string | null): NotificationSettings {
   if (!value) return DEFAULT_NOTIFICATION_SETTINGS;
   try {
     const parsed = JSON.parse(value) as Partial<NotificationSettings>;
-    const isLegacyDisabledDefault = parsed.enabled === false
-      && parsed.calendarReminders !== false
-      && parsed.weatherMorningAlerts !== true
-      && parsed.includeFavorites !== false;
-    if (isLegacyDisabledDefault) return DEFAULT_NOTIFICATION_SETTINGS;
     return {
       enabled: parsed.enabled !== false,
       calendarReminders: parsed.calendarReminders !== false,

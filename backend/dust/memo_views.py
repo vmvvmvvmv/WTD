@@ -21,7 +21,7 @@ def _client_ip(request) -> str:
 
 
 def _client_key(request) -> str:
-    # IP 원문은 저장하거나 로그로 남기지 않고 호출 상한 키를 만드는 데만 사용한다.
+    # IP 원문은 이 요청 안에서만 쓰고 저장하지 않는다. 저장되는 값은 memo_events._digest의 비밀키 해시뿐이다.
     return hashlib.sha256(_client_ip(request).encode('utf-8')).hexdigest()
 
 

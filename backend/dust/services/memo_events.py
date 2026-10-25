@@ -3,6 +3,7 @@
 메모 원문은 저장하거나 로그로 남기지 않는다. 앱은 결과를 미리보기로 보여 주고, 사용자가 확인해야 저장한다.
 """
 import hashlib
+import hmac
 import json
 import logging
 import os
@@ -13,6 +14,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import requests
+from django.conf import settings
 from django.db import transaction
 from django.db.models import F
 from django.utils import timezone
@@ -152,7 +154,8 @@ def _ask_gemini(config: dict, now: datetime, text: str) -> dict:
 
 
 def _digest(kind: str, value: str) -> str:
-    return hashlib.sha256(f"{kind}:{value}".encode("utf-8")).hexdigest()[:24]
+    # 서버 비밀키를 섞은 해시(HMAC). IP처럼 경우의 수가 적은 값도 비밀키 없이는 모든 값을 대입해 되찾을 수 없다.
+    return hmac.new(settings.SECRET_KEY.encode("utf-8"), f"{kind}:{value}".encode("utf-8"), hashlib.sha256).hexdigest()[:24]
 
 
 def _global_daily_limit() -> int:
