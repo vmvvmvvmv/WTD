@@ -1,9 +1,10 @@
 import type { CalendarEvent } from '../../types/calendar';
 import { type CalendarRiskLevel, type CalendarRiskResult, rainFreeSuggestionText } from '../../components/calendar/calendarRiskEvaluator';
 import { semanticColors, type SemanticTone } from '../../theme/semanticColors';
+import { isThunderWeather } from '../outing/outingIndex';
 import { getWeatherVisualKind } from '../../utils/weather';
 
-export type ActivityWeatherKind = 'clear' | 'cloudy' | 'rain' | 'snow' | 'wind' | 'unknown';
+export type ActivityWeatherKind = 'clear' | 'cloudy' | 'rain' | 'snow' | 'thunder' | 'wind' | 'unknown';
 
 export type HomeActivityGuideItem = {
   activityType: CalendarEvent['activityType'];
@@ -40,9 +41,8 @@ function buildAdvice(event: CalendarEvent, risk: CalendarRiskResult, sensitiveMo
   if (!hasWeatherForecast(risk)) return '예보가 들어오면 여기에 바로 반영돼요.';
 
   const hasSnow = includesWeather(risk.weatherLabel, ['눈', 'snow']);
-  if (hasSnow || (risk.temperature !== undefined && risk.temperature <= 0)) {
-    return '눈길이 미끄러울 수 있어요. 따뜻하게 입고 조심히 이동하세요.';
-  }
+  if (hasSnow) return '눈길이 미끄러울 수 있어요. 따뜻하게 입고 조심히 이동하세요.';
+  if (risk.temperature !== undefined && risk.temperature <= 0) return '영하로 추워요. 따뜻하게 입고 나가세요.';
 
   if (risk.rainFreeSuggestion) return rainFreeSuggestionText(risk.rainFreeSuggestion);
   if (hasRainRisk(risk)) return '우산 챙기셨나요? 이동 시간도 조금 여유 있게 잡으세요.';
@@ -69,6 +69,7 @@ function hasWeatherForecast(risk: CalendarRiskResult) {
 
 export function activityWeatherKind(risk: CalendarRiskResult): ActivityWeatherKind {
   if (risk.level === 'unknown' || !hasWeatherForecast(risk)) return 'unknown';
+  if (isThunderWeather(risk.weatherLabel)) return 'thunder'; // 가장 위험해서 비·눈보다 먼저 보여 준다.
   if (includesWeather(risk.weatherLabel, ['눈', 'snow'])) return 'snow';
   if (hasRainRisk(risk)) return 'rain';
   if ((risk.windSpeed ?? 0) >= 8) return 'wind';
@@ -80,6 +81,7 @@ export function activityForecastLabel(risk: CalendarRiskResult): string {
   const range = risk.rainTimeRange && risk.rainTimeRange !== '일정 시간대' ? risk.rainTimeRange : '';
   const probability = typeof risk.rainProbability === 'number' ? ` · 강수 ${Math.round(risk.rainProbability)}%` : '';
   if (kind === 'unknown') return risk.level === 'unknown' ? '' : '이 시간대 날씨 예보를 아직 받지 못했어요';
+  if (kind === 'thunder') return `${range ? `${range} ` : ''}천둥번개 예보`;
   if (kind === 'snow') return `${range ? `${range} ` : '일정 중 '}눈 예보${probability}`;
   if (kind === 'rain') return `${range ? `${range} ` : '일정 중 '}비 예보${probability}`;
   if (kind === 'wind') {
@@ -89,10 +91,18 @@ export function activityForecastLabel(risk: CalendarRiskResult): string {
   return `${risk.weatherLabel || (kind === 'cloudy' ? '흐림' : '맑음')}${temperature}`;
 }
 
+// 여러 날 일정은 날짜를 붙인다(비 시간대 문구와 같은 형식: 10-24 09:00~10-26 18:00).
+function timeLabel(event: CalendarEvent) {
+  const endDate = event.endDate ?? event.date;
+  if (endDate === event.date) return event.endTime ? `${event.time}~${event.endTime}` : event.time;
+  return `${event.date.slice(5)} ${event.time}~${endDate.slice(5)} ${event.endTime ?? ''}`.trim();
+}
+
 function isEventCompleted(event: CalendarEvent, currentDate: string, currentTime: string) {
   const spansMultipleDays = Boolean(event.endDate && event.endDate !== event.date);
   const completionDate = spansMultipleDays ? event.endDate! : event.date;
-  const completionTime = spansMultipleDays ? event.endTime ?? '23:59' : event.time;
+  // 끝나는 시각이 지나야 완료다. 진행 중에는 날씨 위험 표시를 계속 보여 준다.
+  const completionTime = event.endTime ?? (spansMultipleDays ? '23:59' : event.time);
   if (completionDate < currentDate) return true;
   if (completionDate > currentDate) return false;
   return completionTime.slice(0, 5) <= currentTime;
@@ -122,7 +132,7 @@ export function buildHomeActivityGuideItems(
       riskLabel: presentation.label,
       riskSoftTone: presentation.tone.soft,
       riskTone: presentation.tone.tone,
-      timeLabel: event.endTime ? `${event.time}~${event.endTime}` : event.time,
+      timeLabel: timeLabel(event),
       title: event.title,
       weatherKind: activityWeatherKind(risk),
     }];

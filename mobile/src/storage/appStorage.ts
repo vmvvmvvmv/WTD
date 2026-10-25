@@ -4,8 +4,11 @@ import * as SecureStore from 'expo-secure-store';
 import { parseStoredCalendarEvents } from '../components/calendar/calendarStorage';
 import {
   CALENDAR_EVENTS_STORAGE_KEY,
+  CALENDAR_TIP_SEEN_STORAGE_KEY,
   CALENDAR_NOTIFICATION_IDS_STORAGE_KEY,
   DEFAULT_OUTFIT_SETTINGS,
+  DEVICE_ID_STORAGE_KEY,
+  MEMO_HISTORY_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
   MAP_RECENT_SEARCHES_STORAGE_KEY,
@@ -13,6 +16,7 @@ import {
   NOTIFICATION_TOKEN_STORAGE_KEY,
   OUTFIT_SETTINGS_STORAGE_KEY,
   SELECTED_REGION_STORAGE_KEY,
+  TUTORIAL_SEEN_STORAGE_KEY,
 } from '../constants/dust';
 import type { CalendarEvent } from '../types/calendar';
 import type { StationDustItem } from '../types/dust';
@@ -30,6 +34,8 @@ export type StoredAppState = {
   notificationToken: string | null;
   outfitSettings: OutfitSettings;
   selectedRegion: RegionState | null;
+  tutorialSeen: boolean;
+  calendarTipSeen: boolean;
 };
 
 // 보안 저장소(SecureStore)는 토큰 같은 작은 비밀값용입니다(값 하나 2KB 제한).
@@ -94,13 +100,40 @@ function saveString(key: string, value: string) {
   return next;
 }
 
+let deviceIdPromise: Promise<string> | null = null;
+
+// 메모로 일정 추가의 하루 사용 횟수를 기기별로 세는 데만 쓰는 임의 값입니다(서버에는 해시로만 남습니다).
+export function loadDeviceId() {
+  deviceIdPromise ??= safeGet(DEVICE_ID_STORAGE_KEY).then(async (stored) => {
+    if (stored && /^[0-9a-f]{32}$/.test(stored)) return stored;
+    const id = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    await saveString(DEVICE_ID_STORAGE_KEY, id);
+    return id;
+  });
+  return deviceIdPromise;
+}
+
+// AI 일정 등록에 전에 적은 메모들(최근 것부터). 이 휴대폰에만 저장합니다.
+export async function loadMemoHistory(): Promise<string[]> {
+  try {
+    const parsed = JSON.parse((await safeGet(MEMO_HISTORY_STORAGE_KEY)) ?? '[]');
+    return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string' && !!item.trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveMemoHistory(history: string[]) {
+  return saveString(MEMO_HISTORY_STORAGE_KEY, JSON.stringify(history));
+}
+
 function saveJson(key: string, value: unknown) {
   return saveString(key, JSON.stringify(value));
 }
 
 // One loader owns the storage keys and recovery rules for app startup.
 export async function loadStoredAppState(): Promise<StoredAppState> {
-  const [storedRegion, storedGpsRegion, storedFavorites, storedMapRecentSearches, storedNotificationSettings, storedCalendarEvents, notificationToken, storedOutfitSettings] = await Promise.all([
+  const [storedRegion, storedGpsRegion, storedFavorites, storedMapRecentSearches, storedNotificationSettings, storedCalendarEvents, notificationToken, storedOutfitSettings, storedTutorialSeen, storedCalendarTipSeen] = await Promise.all([
     safeGet(SELECTED_REGION_STORAGE_KEY),
     safeGet(GPS_REGION_STORAGE_KEY),
     safeGet(FAVORITE_REGIONS_STORAGE_KEY),
@@ -109,6 +142,8 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     safeGet(CALENDAR_EVENTS_STORAGE_KEY),
     safeGet(NOTIFICATION_TOKEN_STORAGE_KEY),
     safeGet(OUTFIT_SETTINGS_STORAGE_KEY),
+    safeGet(TUTORIAL_SEEN_STORAGE_KEY),
+    safeGet(CALENDAR_TIP_SEEN_STORAGE_KEY),
   ]);
 
   let outfitSettings = DEFAULT_OUTFIT_SETTINGS;
@@ -133,7 +168,29 @@ export async function loadStoredAppState(): Promise<StoredAppState> {
     notificationToken,
     outfitSettings,
     selectedRegion: parseStoredRegion(storedRegion),
+    tutorialSeen: await loadTutorialSeen(storedTutorialSeen, storedRegion),
+    // 캘린더 첫 방문 말풍선도 튜토리얼이 생기기 전부터 쓰던 사람에게는 띄우지 않는다.
+    calendarTipSeen: storedCalendarTipSeen === 'true' || (storedTutorialSeen === null && storedRegion !== null),
   };
+}
+
+export function saveCalendarTipSeen() {
+  return saveString(CALENDAR_TIP_SEEN_STORAGE_KEY, 'true');
+}
+
+// 'true'는 다 봄, 'pending'은 새로 설치했고 아직 다 보지 않음.
+// 값이 없는데 저장된 지역이 있으면 튜토리얼이 생기기 전부터 쓰던 사람이라 본 것으로 친다.
+// 새로 설치한 사람은 첫 실행에서 바로 'pending'을 남겨서, 튜토리얼 중간에 앱을 꺼도(지역은 이미 저장됨) 다음에 다시 뜨게 한다.
+async function loadTutorialSeen(stored: string | null, storedRegion: string | null) {
+  if (stored === 'true') return true;
+  if (stored === 'pending') return false;
+  if (storedRegion !== null) return true;
+  await saveString(TUTORIAL_SEEN_STORAGE_KEY, 'pending');
+  return false;
+}
+
+export function saveTutorialSeen() {
+  return saveString(TUTORIAL_SEEN_STORAGE_KEY, 'true');
 }
 
 export function saveSelectedRegion(region: RegionState) {

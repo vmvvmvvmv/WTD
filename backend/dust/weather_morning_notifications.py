@@ -7,12 +7,13 @@ from typing import Callable
 import requests
 from django.utils import timezone
 
-from dust.models import AirQualityStation, DustNotificationLog, NotificationDevice, WeatherHourlyMeasurement
+from dust.models import AirQualityStation, DustNotificationLog, ExpoPushTicket, NotificationDevice, WeatherHourlyMeasurement
 from dust.services.common import _dfs_grid_from_lat_lng
 from dust.services.stations import _current_station_location, _find_air_quality_station, _resolve_station_name
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
+LATE_MORNING_HOUR = 10
 RAIN_PROBABILITY_THRESHOLD = 60
 LOW_TEMPERATURE_THRESHOLD = 0
 HIGH_TEMPERATURE_THRESHOLD = 30
@@ -132,6 +133,9 @@ def hour_blocks_text(hours: list[int], limit: int = 2) -> str:
     return ", ".join(texts) + (" 등" if len(blocks) > limit else "")
 
 
+MAX_EVENT_LINES = 3
+
+
 def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasurement], events: list[dict]) -> tuple[str, str]:
     """(제목, 본문). 핵심만 짧게: 남은 시간의 비·눈·천둥·강풍과 시간대, 기온, 날씨가 겹치는 일정, 챙길 것."""
     rain = [_hour(point) for point in points if _is_rain(point)]
@@ -147,11 +151,14 @@ def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasure
     if low is not None and high is not None:
         lines.append(f"기온 {low}°" if low == high else f"기온 {low}~{high}°")
 
-    for time_text in (_event_label(event) for event in events):
+    # 날씨가 겹치는 일정은 같은 시각을 한 줄로 합치고, 알림이 길어지지 않게 앞의 3줄만 보여 준다.
+    event_lines = []
+    for time_text in dict.fromkeys(_event_label(event) for event in events):
         hour = int(time_text[:2]) if time_text[:2].isdigit() else None
         kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", wind)) if hour in hours]
         if kinds:
-            lines.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
+            event_lines.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
+    lines.extend(event_lines[:MAX_EVENT_LINES])
 
     bring = [item for item, needed in (
         ("우산", bool(rain)),
@@ -192,10 +199,17 @@ def send_expo_push(token: str, title: str, body: str, data: dict) -> None:
         if isinstance(details, dict) and details.get("error") == "DeviceNotRegistered":
             raise ExpoDeviceNotRegistered(f"Expo push failed: {response_data}")
         raise RuntimeError(f"Expo push failed: {response_data}")
+    # 접수됐다는 뜻일 뿐이다. 실제 전달 여부는 check_push_receipts가 영수증으로 확인한다.
+    if ticket.get("id"):
+        ExpoPushTicket.objects.get_or_create(ticket_id=ticket["id"], defaults={"expo_push_token": token})
 
 
 def send_weather_morning_notifications(target_date: date, dry_run: bool = False, force: bool = False, write: Callable[[str], None] | None = None) -> WeatherMorningResult:
     write = write or (lambda _message: None)
+    # 서버가 꺼져 있다가 늦게 켜지면 타이머가 놓친 실행을 따라잡는다. 오후에 "아침 날씨"가 가지 않게 막는다.
+    if not force and target_date == timezone.localdate() and timezone.localtime().hour >= LATE_MORNING_HOUR:
+        write(f"Past {LATE_MORNING_HOUR}:00; morning notifications skipped.")
+        return WeatherMorningResult()
     sent = 0
     skipped = 0
     failed = 0
@@ -264,4 +278,75 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
         device.save(update_fields=["last_sent_at", "updated_at"])
         sent += 1
 
+    return WeatherMorningResult(sent=sent, failed=failed, skipped=skipped)
+
+
+EARLY_EVENT_NOTIFICATION_TYPE = "weather_early_event"
+EARLY_EVENT_BEFORE_HOUR = 7  # 아침 7시 알림보다 먼저 시작하는 일정만 따로 알린다.
+# 날씨 수집(매시 45분)과 함께 돈다. 지금부터 45분~1시간 45분 뒤 시작하는 일정을 고르면, 매시간 한 번씩 돌 때 일정마다 약 1시간 전에 한 번 걸린다.
+EARLY_EVENT_WINDOW = (timedelta(minutes=45), timedelta(minutes=105))
+
+
+def _event_start(event: dict) -> datetime | None:
+    try:
+        start = datetime.strptime(f"{str(event.get('date') or '')[:10]} {str(event.get('time') or '')[:5]}", "%Y-%m-%d %H:%M")
+    except ValueError:
+        return None
+    return timezone.make_aware(start, timezone.get_current_timezone())
+
+
+def send_early_event_weather_notifications(now: datetime | None = None, dry_run: bool = False, force: bool = False, write: Callable[[str], None] | None = None) -> WeatherMorningResult:
+    """7시 전에 시작하는 일정마다, 시작 약 1시간 전에 그 시간 날씨를 한 번 보낸다."""
+    write = write or (lambda _message: None)
+    now = now or timezone.now()
+    sent = skipped = failed = 0
+    for device in NotificationDevice.objects.filter(enabled=True, weather_morning_alerts=True):
+        if not device.city or not device.region:
+            continue
+        for event in device.calendar_events or []:
+            start = _event_start(event) if isinstance(event, dict) else None
+            if not start or timezone.localtime(start).hour >= EARLY_EVENT_BEFORE_HOUR:
+                continue
+            if not (now + EARLY_EVENT_WINDOW[0] <= start < now + EARLY_EVENT_WINDOW[1]):
+                continue
+            local_start = timezone.localtime(start)
+            basis_key = local_start.strftime("%Y%m%d%H%M")
+            if not force and DustNotificationLog.objects.filter(
+                device=device, notification_type=EARLY_EVENT_NOTIFICATION_TYPE, city=device.city, region=device.region, basis_key=basis_key,
+            ).exists():
+                skipped += 1
+                continue
+            points = [
+                point for point in (weather_points_for_region(device.city, device.region, local_start.date()) or [])
+                if _hour(point) == local_start.hour
+            ]
+            if not points:
+                skipped += 1
+                continue
+            _title, body = build_weather_morning_message(device.region, points, [event])
+            title = f"{local_start:%H:%M} 일정 날씨"
+            if dry_run:
+                write(f"[dry-run] {title} - {body}")
+                sent += 1
+                continue
+            try:
+                send_expo_push(device.expo_push_token, title, body, {
+                    "type": EARLY_EVENT_NOTIFICATION_TYPE, "city": device.city, "region": device.region, "date": local_start.date().isoformat(),
+                })
+            except ExpoDeviceNotRegistered:
+                failed += 1
+                device.enabled = False
+                device.calendar_events = []
+                device.save(update_fields=["enabled", "calendar_events", "updated_at"])
+                write(f"Expo device is no longer registered; disabled device for {device.city} {device.region}.")
+                break
+            except Exception as exc:
+                failed += 1
+                write(f"Expo push request failed for {device.city} {device.region}: {exc}")
+                continue
+            DustNotificationLog.objects.update_or_create(
+                device=device, notification_type=EARLY_EVENT_NOTIFICATION_TYPE, city=device.city, region=device.region, basis_key=basis_key,
+                defaults={"pm10_value": None},
+            )
+            sent += 1
     return WeatherMorningResult(sent=sent, failed=failed, skipped=skipped)

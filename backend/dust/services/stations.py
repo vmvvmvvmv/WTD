@@ -1,18 +1,23 @@
-"""측정소 찾기와 AirKorea 실시간 미세먼지 수집·저장·조회."""
-import xml.etree.ElementTree as ET
+"""측정소 찾기, 측정소 목록·실시간 미세먼지의 DB 저장과 조회(캐시 포함).
+
+에어코리아 API 호출·해석은 airkorea_client, 튄 값 걸러내기 규칙은 dust_quality에 있다."""
 from concurrent.futures import as_completed, ThreadPoolExecutor
-from datetime import datetime, timedelta
+from datetime import timedelta
 from django.core.cache import cache
 from django.utils import timezone
-from dust.config import AIRKOREA_REQUEST_WORKERS, AIRKOREA_SERVICE_KEY, API_KEY, REALTIME_DUST_URL, SIDO_NAMES, SIDO_STATION_ADDR_ALIASES, STATION_INFO_URL, STATION_MAPPING
+from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES, STATION_MAPPING
 from dust.current_dust_service import canonical_sido_name, has_usable_realtime_values as _has_usable_realtime_values
-from dust.external_api import public_api_get
 from dust.models import AirQualityStation, DustMeasurement, RealtimeDustMeasurement
-from dust.services.common import _first_valid_value, _haversine_km, _median, _to_float
-
-
-def _clean_station_name(value):
-    return (value or '').strip()
+from dust.services.airkorea_client import _clean_station_name, _fetch_realtime_station_values_for_sido, _fetch_station_locations_for_sido, _parse_airkorea_datetime
+from dust.services.common import _haversine_km, _to_float
+from dust.services.dust_quality import (
+    NEIGHBOR_SPIKE_RULES,
+    _is_single_sample_spike,
+    _neighbor_spike_fields,
+    _previous_measurement,
+    _restore_cleared_previous,
+    _sustained_high_fields,
+)
 
 
 def _station_lookup_name(value):
@@ -48,7 +53,17 @@ def _candidate_stations_for_region(city, region):
     unique = {}
     for station in candidates:
         unique[station.id] = station
-    return list(unique.values())
+    # 지역 이름 안에 이름이 들어 있는 측정소 중 가장 긴(구체적인) 것을 앞에 둔다.
+    # 예: '공주시 탄천면' → '공주'보다 '탄천면'. 지정 매핑은 그대로 맨 앞에 둔다.
+    compact_region = _station_lookup_name(region)
+
+    def specificity(station):
+        if mapping_name and station.name == mapping_name:
+            return (2, 0)
+        lookup_name = _station_lookup_name(station.name)
+        return (1, len(lookup_name)) if lookup_name and lookup_name in compact_region else (0, 0)
+
+    return sorted(unique.values(), key=specificity, reverse=True)
 
 
 def _resolve_station_name(city, region):
@@ -59,134 +74,6 @@ def _resolve_station_name(city, region):
     candidates = _candidate_stations_for_region(city, region)
     return candidates[0].name if candidates else region
 
-
-def _normalize_wgs84_coordinates(dm_x, dm_y):
-    x = _to_float(dm_x)
-    y = _to_float(dm_y)
-    if x is None or y is None:
-        return None, None
-
-    if abs(x) > 90 and abs(y) <= 90:
-        return y, x
-    return x, y
-
-
-def _extract_airkorea_items(data):
-    items = data.get("response", {}).get("body", {}).get("items", [])
-    if isinstance(items, dict):
-        items = items.get("item", [])
-    return items if isinstance(items, list) else []
-
-
-def _airkorea_result(data):
-    header = data.get("response", {}).get("header", {})
-    return {
-        "resultCode": header.get("resultCode"),
-        "resultMsg": header.get("resultMsg"),
-    }
-
-
-def _parse_airkorea_response(response):
-    try:
-        data = response.json()
-        return _extract_airkorea_items(data), _airkorea_result(data), None
-    except ValueError:
-        pass
-
-    text = response.text.strip()
-    try:
-        root = ET.fromstring(text)
-    except ET.ParseError:
-        return [], {}, text[:120]
-
-    result = {
-        "resultCode": root.findtext(".//resultCode"),
-        "resultMsg": root.findtext(".//resultMsg") or root.findtext(".//returnAuthMsg"),
-    }
-    items = []
-    for item in root.findall(".//item"):
-        items.append({child.tag: child.text for child in item})
-
-    return items, result, None
-
-
-def _station_request_variants(addr):
-    key_variants = []
-    for key in (AIRKOREA_SERVICE_KEY, API_KEY):
-        if key and key not in key_variants:
-            key_variants.append(key)
-
-    base_params = {
-        "returnType": "json",
-        "numOfRows": "1000",
-        "pageNo": "1",
-        "addr": addr,
-    }
-    variants = []
-    for key in key_variants:
-        variants.append({
-            "label": "serviceKey/json/ver1.1",
-            "params": {**base_params, "serviceKey": key, "stationName": "", "ver": "1.1"},
-        })
-    return variants
-
-
-def _fetch_station_locations_for_sido(sido):
-    stations = {}
-    debug = []
-    found_for_sido = False
-    for addr in SIDO_STATION_ADDR_ALIASES.get(sido, [sido]):
-        items = []
-        for variant in _station_request_variants(addr):
-            raw_error = None
-            try:
-                response = public_api_get(STATION_INFO_URL, params=variant["params"])
-                items, result, raw_error = _parse_airkorea_response(response)
-                debug.append({
-                    "sido": sido,
-                    "addr": addr,
-                    "variant": variant["label"],
-                    "status": response.status_code,
-                    "items": len(items),
-                    **({"raw_error": raw_error} if raw_error else {}),
-                    **result,
-                })
-            except Exception as exc:
-                items = []
-                debug.append({
-                    "sido": sido,
-                    "addr": addr,
-                    "variant": variant["label"],
-                    "status": "request_failed",
-                    "items": 0,
-                    "error": str(exc)[:120],
-                })
-
-            if items:
-                break
-            if raw_error and "quota exceeded" in raw_error.lower():
-                break
-
-        for item in items:
-            name = _clean_station_name(item.get('stationName'))
-            lat, lng = _normalize_wgs84_coordinates(item.get('dmX'), item.get('dmY'))
-            if not name or lat is None or lng is None:
-                continue
-            stations[f'{sido}:{name}'] = {
-                "name": name,
-                "sido": sido,
-                "addr": item.get('addr') or '',
-                "lat": lat,
-                "lng": lng,
-            }
-
-        if items:
-            found_for_sido = True
-            break
-
-    if not found_for_sido:
-        debug.append({"sido": sido, "items": 0, "message": "No station location rows returned for this sido."})
-    return stations, debug
 
 
 def _load_station_locations(allow_api=False):
@@ -246,78 +133,25 @@ def _store_station_locations_to_db(stations):
         )
 
 
-def _fetch_realtime_station_values_for_sido(sido):
-    key_variants = []
-    for key in (AIRKOREA_SERVICE_KEY, API_KEY):
-        if key and key not in key_variants:
-            key_variants.append(key)
 
-    request_variants = []
-    for key in key_variants:
-        request_variants.append(("serviceKey/json/ver1.0", {
-            "serviceKey": key,
-            "returnType": "json",
-            "numOfRows": "1000",
-            "pageNo": "1",
-            "sidoName": sido,
-            "ver": "1.0",
-        }))
+DUST_CACHE_VERSION_KEY = 'dust_data_version'
 
-    active_stations = list(AirQualityStation.objects.filter(is_active=True))
-    items = []
-    debug = []
-    if not request_variants:
-        debug.append({"sido": sido, "items": 0, "error": "AirKorea service key is not configured."})
-    for label, params in request_variants:
-        raw_error = None
-        try:
-            response = public_api_get(REALTIME_DUST_URL, params=params)
-            items, result, raw_error = _parse_airkorea_response(response)
-            debug.append({
-                "sido": sido,
-                "variant": label,
-                "status": response.status_code,
-                "items": len(items),
-                **({"raw_error": raw_error} if raw_error else {}),
-                **result,
-            })
-        except Exception as exc:
-            items = []
-            debug.append({
-                "sido": sido,
-                "variant": label,
-                "status": "request_failed",
-                "items": 0,
-                "error": str(exc)[:120],
-            })
-        if items:
-            break
-        if raw_error and "quota exceeded" in raw_error.lower():
-            break
 
-    values = {}
-    for item in items:
-        name = _clean_station_name(item.get('stationName'))
-        if not name:
-            continue
-        aqi = _first_valid_value(item.get('khaiValue'), item.get('pm10Value'), item.get('pm25Value'))
-        values[f'{sido}:{name}'] = {
-            "name": name,
-            "sido": sido,
-            "aqi": aqi,
-            "pm10": item.get('pm10Value'),
-            "pm25": item.get('pm25Value'),
-            "no2": item.get('no2Value'),
-            "o3": item.get('o3Value'),
-            "temp": '-',
-            "humidity": '-',
-            "time": item.get('dataTime') or '',
-        }
-    return values, debug
+def dust_cache_version():
+    """측정값 캐시 버전. 함수 처음에 한 번 읽어 키에 넣으면, 읽는 사이 수집이 끝나 버전이 올라도
+    늦게 넣은 옛 결과는 옛 버전 키에 들어가 아무도 읽지 않는다(지운 뒤 다시 채워지는 경쟁을 막는다)."""
+    return cache.get_or_set(DUST_CACHE_VERSION_KEY, 1, None)
+
+
+def bump_dust_cache_version():
+    try:
+        cache.incr(DUST_CACHE_VERSION_KEY)
+    except ValueError:
+        cache.set(DUST_CACHE_VERSION_KEY, 2, None)
 
 
 def _load_realtime_station_values(with_debug=False, allow_api=False):
-    cache_key = 'airkorea_realtime_station_values_v5'
+    cache_key = f'airkorea_realtime_station_values_v5:{dust_cache_version()}'
     cached = cache.get(cache_key)
     if cached:
         if with_debug:
@@ -350,58 +184,6 @@ def _load_realtime_station_values(with_debug=False, allow_api=False):
     if with_debug:
         return values, debug
     return values
-
-
-def _parse_airkorea_datetime(value):
-    if not value:
-        return None
-    text = str(value)
-    try:
-        parsed = datetime.fromisoformat(text)
-        if timezone.is_naive(parsed):
-            return timezone.make_aware(parsed, timezone.get_current_timezone())
-        return parsed
-    except ValueError:
-        pass
-    for fmt in ('%Y-%m-%d %H:%M', '%Y-%m-%d %H:%M:%S', '%Y%m%d%H%M'):
-        try:
-            parsed = datetime.strptime(text, fmt)
-            if timezone.is_naive(parsed):
-                return timezone.make_aware(parsed, timezone.get_current_timezone())
-            return parsed
-        except ValueError:
-            continue
-    return None
-
-
-def _apply_realtime_spike_guard(values, history_by_key):
-    rules = {
-        "pm10": {"min_value": 120, "min_delta": 70, "ratio": 2.5},
-        "pm25": {"min_value": 70, "min_delta": 35, "ratio": 2.5},
-    }
-    for key, item in values.items():
-        history = history_by_key.get(key) or []
-        if len(history) < 3:
-            continue
-        for field, rule in rules.items():
-            latest = _to_float(item.get(field))
-            previous = [_to_float(row.get(field)) for row in history[1:5]]
-            baseline = _median(previous)
-            if latest is None or baseline is None or baseline <= 0:
-                continue
-            if latest >= rule["min_value"] and latest - baseline >= rule["min_delta"] and latest / baseline >= rule["ratio"]:
-                item[f"raw{field.upper()}"] = latest
-                item[field] = round(baseline, 1)
-                item[f"{field}SpikeAdjusted"] = True
-                item["qualityNote"] = "single_sample_spike_adjusted"
-    return values
-
-
-def _is_single_sample_spike(latest, previous_values, rule):
-    baseline = _median(previous_values)
-    if latest is None or baseline is None or baseline <= 0:
-        return False
-    return latest >= rule["min_value"] and latest - baseline >= rule["min_delta"] and latest / baseline >= rule["ratio"]
 
 
 def _sidos_with_realtime_spikes(values):
@@ -440,15 +222,9 @@ def _load_latest_realtime_values_from_db(max_age_hours=24):
         .order_by('station_id', '-measured_at')
     )
     values = {}
-    history_by_key = {}
     for measurement in measurements:
         station = measurement.station
         key = f'{station.sido}:{station.name}'
-        history_by_key.setdefault(key, []).append({
-            "pm10": measurement.pm10_value,
-            "pm25": measurement.pm25_value,
-            "measured_at": measurement.measured_at,
-        })
         existing = values.get(key)
         if not existing:
             existing = {
@@ -472,19 +248,14 @@ def _load_latest_realtime_values_from_db(max_age_hours=24):
 
         if existing["aqi"] is None and measurement.aqi_value is not None:
             existing["aqi"] = measurement.aqi_value
-        if existing["pm10"] is None and measurement.pm10_value is not None:
-            existing["pm10"] = measurement.pm10_value
-            existing["pm10_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
-        if existing["pm25"] is None and measurement.pm25_value is not None:
-            existing["pm25"] = measurement.pm25_value
-            existing["pm25_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
-        if existing["no2"] is None and measurement.no2_value is not None:
-            existing["no2"] = measurement.no2_value
-            existing["no2_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
-        if existing["o3"] is None and measurement.o3_value is not None:
-            existing["o3"] = measurement.o3_value
-            existing["o3_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
-    return _apply_realtime_spike_guard(values, history_by_key)
+        # 최근 행부터 보면서, 항목마다 비어 있지 않은 가장 최근 값과 그 시각을 쓴다.
+        for field in ("pm10", "pm25", "no2", "o3"):
+            value = getattr(measurement, f"{field}_value")
+            if existing[field] is None and value is not None:
+                existing[field] = value
+                existing[f"{field}_time"] = timezone.localtime(measurement.measured_at).strftime('%Y-%m-%d %H:%M')
+    # 튄 값은 저장할 때 걸러진다(_neighbor_spike_fields). 여기서 측정된 적 없는 값으로 바꾸지 않는다.
+    return values
 
 
 def _find_station_for_realtime_value(value):
@@ -516,10 +287,23 @@ def _find_air_quality_station(sido, station_name):
 
 def _store_realtime_values_to_db(values):
     saved = 0
-    for key, value in values.items():
-        station = _find_station_for_realtime_value(value)
-        if not station:
-            continue
+    resolved = [(value, station) for value in values.values() for station in [_find_station_for_realtime_value(value)] if station]
+    # 같은 수집 회차의 주변 측정소보다 혼자 튄 값은 비워서 저장한다. 원래 값은 raw_data에 남는다.
+    for (value, station), fields in zip(resolved, _neighbor_spike_fields([(station.lat, station.lng, value) for value, station in resolved])):
+        is_high = any((_to_float(value.get(field)) or 0) >= rule["min_value"] for field, rule in NEIGHBOR_SPIKE_RULES.items())
+        previous = _previous_measurement(station, value) if is_high else None
+        if fields:
+            fields = fields - _sustained_high_fields(previous)
+        for field in fields:
+            value[f"raw{field.upper()}"] = value.get(field)
+            value[field] = None
+            value["qualityNote"] = "neighbor_spike_removed"
+        if fields:
+            # 통합대기지수도 튄 값으로 계산돼 있어 비우고, 복원할 수 있게 원래 값은 남긴다.
+            value["rawAQI"] = value.get("aqi")
+            value["aqi"] = None
+        _restore_cleared_previous(previous, value)
+    for value, station in resolved:
         measured_at = _parse_airkorea_datetime(value.get("time")) or timezone.now().replace(minute=0, second=0, microsecond=0)
         _, created = RealtimeDustMeasurement.objects.update_or_create(
             station=station,
@@ -539,7 +323,7 @@ def _store_realtime_values_to_db(values):
 
 
 def _load_latest_daily_station_values():
-    cache_key = 'latest_daily_station_values_v1'
+    cache_key = f'latest_daily_station_values_v1:{dust_cache_version()}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached

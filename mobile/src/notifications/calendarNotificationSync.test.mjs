@@ -67,3 +67,29 @@ test('turning reminders off clears storage and cancels the old reminder', async 
   assert.deepEqual(savedIds, []);
   assert.deepEqual([...scheduled], []);
 });
+
+test('overlapping app and background syncs leave exactly one reminder per event', async () => {
+  const { runCalendarNotificationSyncExclusive } = await import('./calendarNotificationSync.ts');
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  for (let run = 0; run < 50; run += 1) {
+    const scheduled = new Set();
+    let stored = [];
+    let sequence = 0;
+    let savedEvents = [{ id: 'e1' }, { id: 'e2' }];
+    const sync = (loadEvents, delay) => runCalendarNotificationSyncExclusive(async () => {
+      await sleep(delay);
+      const events = await loadEvents();
+      await replaceCalendarNotifications(stored, events, {
+        cancel: async (ids) => { await sleep(Math.random() * 3); ids.forEach((id) => scheduled.delete(id)); },
+        isCurrent: () => true,
+        save: async (ids) => { await sleep(Math.random() * 3); stored = ids; },
+        schedule: async (event) => { await sleep(Math.random() * 3); const id = `${event.id}-${sequence++}`; scheduled.add(id); return [id]; },
+      });
+    });
+    // 화면은 새 일정 e3를 저장하고 예약하고, 같은 때 백그라운드도 저장된 일정을 다시 읽어 예약한다.
+    savedEvents = [...savedEvents, { id: 'e3' }];
+    await Promise.all([sync(async () => savedEvents, Math.random() * 5), sync(async () => savedEvents, Math.random() * 5)]);
+    assert.deepEqual([...scheduled].sort(), [...stored].sort());
+    assert.deepEqual([...scheduled].map((id) => id.split('-')[0]).sort(), ['e1', 'e2', 'e3']);
+  }
+});

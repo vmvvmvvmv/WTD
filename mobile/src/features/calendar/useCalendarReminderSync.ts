@@ -1,11 +1,12 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 
-import { buildCalendarRiskByEvent } from '../../components/calendar/calendarForecast';
 import type { CalendarForecastContext } from '../../components/calendar/calendarForecast';
-import { cancelCalendarEventNotifications, configureDustNotifications, scheduleCalendarEventNotifications } from '../../notifications/expoPush';
-import { replaceCalendarNotifications } from '../../notifications/calendarNotificationSync';
-import { loadCalendarNotificationIds, saveCalendarNotificationIds } from '../../storage/appStorage';
+import { canScheduleExactAlarms } from '../../notifications/exactAlarm';
+import { configureDustNotifications } from '../../notifications/expoPush';
 import type { CalendarEvent } from '../../types/calendar';
+import { setCalendarReminderBackgroundTask } from './calendarReminderBackground';
+import { syncCalendarReminders } from './calendarReminderSchedule';
 
 export function useCalendarReminderSync(
   events: CalendarEvent[],
@@ -24,27 +25,35 @@ export function useCalendarReminderSync(
     void configureDustNotifications().catch(() => {});
   }, []);
 
+  // '알람 및 리마인더'를 허용하고 돌아오면 이미 예약된 알림도 정확한 알람으로 다시 예약한다(아래 동기화가 다시 돈다).
+  const [exactAlarmAllowed, setExactAlarmAllowed] = useState(canScheduleExactAlarms);
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setExactAlarmAllowed(canScheduleExactAlarms());
+    });
+    return () => subscription.remove();
+  }, []);
+
+  // 앱이 꺼져 있어도 휴대폰이 가끔 앱을 깨워 일정 알림을 최신 예보로 다시 씁니다(일정 알림을 켠 동안만).
+  useEffect(() => {
+    if (!hasLoadedStore) return;
+    void setCalendarReminderBackgroundTask(remindersEnabled).catch((error) => console.warn('백그라운드 갱신을 설정하지 못했습니다.', error));
+  }, [hasLoadedStore, remindersEnabled]);
+
   useEffect(() => {
     if (!hasLoadedStore) return;
     let cancelled = false;
     const syncVersion = ++syncVersionRef.current;
+    const isCurrent = () => !cancelled && syncVersionRef.current === syncVersion;
 
     const sync = async () => {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      if (cancelled || syncVersionRef.current !== syncVersion) return;
-      const previousIds = await loadCalendarNotificationIds();
-      if (cancelled || syncVersionRef.current !== syncVersion) return;
-
-      const eventsToSchedule = remindersEnabled ? events : [];
-      const riskByEvent = remindersEnabled ? buildCalendarRiskByEvent(eventsToSchedule, {
-        currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode,
-        todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems,
-      }) : null;
-      await replaceCalendarNotifications(previousIds, eventsToSchedule, {
-        cancel: cancelCalendarEventNotifications,
-        isCurrent: () => !cancelled && syncVersionRef.current === syncVersion,
-        save: saveCalendarNotificationIds,
-        schedule: (event) => scheduleCalendarEventNotifications(event, riskByEvent?.[event.id]),
+      if (!isCurrent()) return;
+      await syncCalendarReminders({
+        events,
+        forecast: { currentPm10, eventLocationForecasts, hourlyItems, prediction, sensitiveMode, todayDateLabel, weather, weatherHourlyItems, weatherMidTermItems },
+        isCurrent,
+        remindersEnabled,
       });
     };
 
@@ -65,5 +74,6 @@ export function useCalendarReminderSync(
     weatherMidTermItems,
     hasLoadedStore,
     remindersEnabled,
+    exactAlarmAllowed,
   ]);
 }

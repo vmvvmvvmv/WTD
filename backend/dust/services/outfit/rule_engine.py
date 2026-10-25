@@ -62,6 +62,10 @@ def _must_have(snapshot: dict, weather_condition: str, activity_type: str) -> li
     wind, feels_min = snapshot.get("wind_max"), snapshot.get("feels_min")
     if weather_condition == "snow":
         result.append({"type": "waterproof_shoes", "label": "미끄럼 방지 방수 신발", "level": "required", "reason": "젖거나 미끄러운 눈길에 대비해요"})
+        # 비와 눈이 섞여 오면 우산도 챙긴다. 눈만 오면 넣지 않는다(강수량·확률은 눈에도 높게 나와 강수형태로만 본다).
+        if snapshot.get("has_mixed_precipitation"):
+            window = rain_window_label(snapshot)
+            result.append({"type": "umbrella", "label": "우산", "level": "required", "reason": f"{window}에 비와 눈이 섞여 와요" if window else "비와 눈이 섞여 와요"})
     elif (rain_probability is not None and rain_probability >= 60) or (rain_mm is not None and rain_mm >= 1) or weather_condition in {"rain", "showers"} or snapshot.get("has_rain"):
         # 잠깐 오는 비라도 확실하면 우산은 필수다. 비의 길이는 겉옷에만 반영한다.
         window = rain_window_label(snapshot)

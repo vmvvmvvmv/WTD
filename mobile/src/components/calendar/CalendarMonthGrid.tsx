@@ -7,9 +7,10 @@ import { CalendarDayCell } from './CalendarDayCell';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import type { CalendarMonthCell } from './calendarUtils';
 import { useCalendarSlide } from './useCalendarSlide';
-import type { CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import type { CalendarDailyWeather, CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 
 type Props = {
+  dailyWeatherByDate?: Record<string, CalendarDailyWeather | undefined>;
   eventCountByDate: Record<string, number>;
   eventItemsByDate: Record<string, Array<CalendarEvent | null>>;
   getEventTone: (event: CalendarEvent) => string;
@@ -29,6 +30,7 @@ type Props = {
 const weekDays = ['\uC77C', '\uC6D4', '\uD654', '\uC218', '\uBAA9', '\uAE08', '\uD1A0'];
 
 export function CalendarMonthGrid({
+  dailyWeatherByDate,
   eventCountByDate,
   eventItemsByDate,
   getEventTone,
@@ -79,6 +81,7 @@ export function CalendarMonthGrid({
               return (
                 <CalendarDayCell
                   cellIndex={cellIndex}
+                  dailyWeather={dailyWeatherByDate?.[cell.date]}
                   date={cell.date}
                   day={cell.day}
                   eventCount={eventCountByDate[cell.date] ?? 0}

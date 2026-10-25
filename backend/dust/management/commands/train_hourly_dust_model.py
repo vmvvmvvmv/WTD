@@ -135,6 +135,8 @@ class Command(BaseCommand):
 
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         os.makedirs(os.path.dirname(report_path), exist_ok=True)
+        # 서버가 쓰는 도중의 파일을 읽지 않게, 임시 파일에 다 쓴 뒤 한 번에 바꾼다.
+        temporary_path = f"{output_path}.tmp"
         joblib.dump(
             {
                 "model": model,
@@ -142,8 +144,9 @@ class Command(BaseCommand):
                 "target_column": TARGET_COLUMN,
                 "report": report,
             },
-            output_path,
+            temporary_path,
         )
+        os.replace(temporary_path, output_path)
         with open(report_path, "w", encoding="utf-8") as report_file:
             json.dump(report, report_file, ensure_ascii=False, indent=2)
 

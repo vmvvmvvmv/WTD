@@ -61,6 +61,9 @@ KMA_VILAGE_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_
 
 
 KMA_ULTRA_SHORT_FORECAST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtFcst"
+KMA_ULTRA_SHORT_NCST_URL = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getUltraSrtNcst"
+# 기상특보 현황(시·도 단위 문장). 공공데이터포털 '기상청_기상특보 조회서비스' 활용 신청이 필요하다.
+KMA_WEATHER_WARNING_STATUS_URL = "http://apis.data.go.kr/1360000/WthrWrnInfoService/getPwnStatus"
 
 
 KMA_ASOS_DAILY_URL = "http://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList"

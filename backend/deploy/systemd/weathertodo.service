@@ -10,7 +10,8 @@ Group=www-data
 WorkingDirectory=/home/ubuntu/WTD/backend
 RuntimeDirectory=weathertodo
 # ponytail: 워커 2개는 메모리 1~2GB 서버 기준. 메모리를 늘리면 (CPU 수 x 2 + 1)까지 올린다.
-ExecStart=/home/ubuntu/WTD/backend/venv/bin/gunicorn config.wsgi:application --workers 2 --timeout 30 --bind unix:/run/weathertodo/gunicorn.sock --access-logfile -
+# 워커마다 스레드 4개(gthread): 외부 API(Gemini·AirKorea)를 기다리는 요청이 있어도 다른 요청을 받는다. 동시에 최대 8개.
+ExecStart=/home/ubuntu/WTD/backend/venv/bin/gunicorn config.wsgi:application --workers 2 --worker-class gthread --threads 4 --timeout 30 --bind unix:/run/weathertodo/gunicorn.sock --access-logfile -
 Restart=on-failure
 
 [Install]

@@ -1,13 +1,15 @@
 # 서버 배포 (Google Cloud · Ubuntu 24.04)
 
-구성: nginx(HTTPS) → gunicorn(Django) → MySQL, 같은 서버 한 대. 수집 작업은 systemd 타이머로 돌린다.
+구성: nginx(HTTPS) → gunicorn(Django) → MySQL + Redis, 같은 서버 한 대. 수집 작업은 systemd 타이머로 돌린다.
 Docker는 쓰지 않는다. 서버 한 대에 서비스 하나라 systemd로 충분하다.
 업체에 묶인 설정은 1단계뿐이다. 다른 클라우드로 옮기면 1단계만 그 업체 방식으로 하면 된다.
 
 ```
 deploy/
-├─ collect_hourly.sh          # 매시 5분 수집 (collect_hourly.bat과 같은 순서)
+├─ collect_hourly.sh          # 시간마다 수집: dust(매시 25분)·weather(매시 45분) (collect_hourly.bat과 같은 순서)
 ├─ morning_notifications.sh   # 07:00 아침 알림 + 30일 지난 기록 삭제
+├─ mysql/weathertodo.cnf      # MySQL 느린 쿼리 기록 설정
+├─ redis/weathertodo.conf     # Redis 캐시 메모리 제한 설정
 ├─ systemd/                   # gunicorn 서비스, 수집·알림 타이머
 └─ nginx/weathertodo.conf     # dust.vmv-lab.com → gunicorn 소켓
 ```
@@ -52,7 +54,9 @@ ssh -i $HOME/.ssh/wtd_gcp ubuntu@<고정IP>
 ```bash
 sudo timedatectl set-timezone Asia/Seoul
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3-venv python3-dev build-essential pkg-config default-libmysqlclient-dev mysql-server nginx certbot python3-certbot-nginx git
+sudo apt install -y python3-venv python3-dev build-essential pkg-config default-libmysqlclient-dev mysql-server redis-server nginx certbot python3-certbot-nginx git
+sudo systemctl enable --now redis-server
+redis-cli ping   # PONG이면 됨
 ```
 
 ## 3. 스왑 1GB
@@ -88,6 +92,7 @@ cp .env.example .env && nano .env
 `.env`에서 꼭 바꿀 값:
 - `DJANGO_SECRET_KEY`: `venv/bin/python -c "import secrets; print(secrets.token_urlsafe(50))"`로 만든 값
 - `DB_PASS`: 4번에서 정한 비밀번호
+- `REDIS_URL`: 기본값은 `redis://127.0.0.1:6379/0`임. Redis를 쓰지 않을 때는 비워 두면 로컬 메모리 캐시로 동작함
 - `PUBLIC_DATA_API_KEY`, `KMA_API_KEY`, `NAVER_*`, `LLM_API_KEY`: 로컬 `.env`의 값
 - `APP_TEST_TOKEN`: 앱 빌드에 넣을 값과 같게
 - `TRUSTED_PROXY_COUNT=1` (nginx 뒤라서. 0이면 AI 하루 제한을 모든 사용자가 나눠 씀)
@@ -106,16 +111,43 @@ chmod +x deploy/*.sh
 ```bash
 sudo cp deploy/systemd/* /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now weathertodo weathertodo-collect.timer weathertodo-morning.timer
+# 예전 매시 5분 타이머를 쓰던 서버라면 먼저 끈다: sudo systemctl disable --now weathertodo-collect.timer
+sudo systemctl enable --now weathertodo weathertodo-collect-dust.timer weathertodo-collect-weather.timer weathertodo-morning.timer
 systemctl list-timers 'weathertodo*'
 ```
+
+## 6-1. Redis 캐시 메모리 제한
+
+Redis는 캐시 전용이라 메모리가 계속 늘지 않도록 128MB로 제한한다. 공간이 부족하면 오래 사용하지 않은 캐시부터 지운다. Redis에 세션이나 영구 데이터를 넣을 때는 이 설정을 그대로 쓰면 안 된다.
+
+```bash
+sudo redis-cli CONFIG SET maxmemory 128mb
+sudo redis-cli CONFIG SET maxmemory-policy allkeys-lru
+sudo redis-cli CONFIG REWRITE
+redis-cli CONFIG GET maxmemory maxmemory-policy
+```
+
+출력에 `134217728`과 `allkeys-lru`가 보이면 됨. 설정을 두 번 붙이지 않도록 재적용할 때는 기존 WeatherToDo 블록을 먼저 지운다.
+
+## 6-2. MySQL 느린 쿼리 기록
+
+인덱스를 바로 추가하지 않고 실제로 0.5초 넘게 걸리는 쿼리를 먼저 확인한다. 로그가 쌓인 뒤 `mysqldumpslow`와 쿼리의 `EXPLAIN` 결과를 보고 인덱스나 코드 수정을 결정한다.
+
+```bash
+sudo cp deploy/mysql/weathertodo.cnf /etc/mysql/mysql.conf.d/weathertodo.cnf
+sudo systemctl restart mysql
+sudo mysql -e "SHOW VARIABLES LIKE 'slow_query%'; SHOW VARIABLES LIKE 'long_query_time';"
+sudo tail -f /var/log/mysql/weathertodo-slow.log
+```
+
+로그 파일이 생기지 않으면 `/var/log/mysql` 권한과 `sudo journalctl -u mysql -n 50`을 확인한다. `log_queries_not_using_indexes`는 로그가 폭증할 수 있어 기본으로 끄고, 필요한 경우에만 임시로 켠다.
 
 처음 한 번은 직접 수집해서 DB를 채운다(측정소 위치까지 받아서 몇 분 걸림):
 ```bash
 deploy/collect_hourly.sh
 ```
 
-## 6-1. 접속 기록 보관 기간 30일 (개인정보 처리방침 3번)
+## 6-3. 접속 기록 보관 기간 30일 (개인정보 처리방침 3번)
 
 gunicorn 접속 기록은 systemd 저널에 남는다. 30일이 지나면 지우게 한다.
 nginx 접속 기록은 Ubuntu 기본 logrotate가 14일 뒤 지운다.
@@ -188,6 +220,6 @@ sudo systemctl restart weathertodo
 | 증상 | 볼 곳 |
 |---|---|
 | 502 Bad Gateway | `sudo journalctl -u weathertodo -n 50` (gunicorn이 안 떴음. 대개 `.env` 값 문제) |
-| 데이터가 안 바뀜 | `journalctl -u weathertodo-collect -n 100`, `systemctl list-timers` |
+| 데이터가 안 바뀜 | `journalctl -u 'weathertodo-collect@*' -n 100`, `systemctl list-timers` |
 | 아침 알림이 안 옴 | `journalctl -u weathertodo-morning -n 50` |
 | 지도 아이콘이 안 뜸 | `collectstatic`을 했는지, `/home/ubuntu` 권한 |

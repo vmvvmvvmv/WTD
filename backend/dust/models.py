@@ -63,7 +63,6 @@ class AirQualityStation(models.Model):
         db_table = 'air_quality_station'
         unique_together = ('sido', 'name')
         indexes = [
-            models.Index(fields=['sido', 'name'], name='aq_station_sido_idx'),
             models.Index(fields=['is_active', 'sido'], name='aq_station_active_idx'),
         ]
 
@@ -86,7 +85,6 @@ class RealtimeDustMeasurement(models.Model):
         db_table = 'realtime_dust_measurement'
         unique_together = ('station', 'measured_at')
         indexes = [
-            models.Index(fields=['station', '-measured_at'], name='rt_dust_station_time_idx'),
             models.Index(fields=['measured_at'], name='rt_dust_time_idx'),
         ]
 
@@ -117,7 +115,6 @@ class HourlyDustPrediction(models.Model):
         db_table = 'hourly_dust_prediction'
         unique_together = ('station', 'target_at', 'predicted_at', 'model_name')
         indexes = [
-            models.Index(fields=['station', 'target_at'], name='hourly_pred_station_target_idx'),
             models.Index(fields=['city', 'region', 'target_at'], name='hourly_pred_region_target_idx'),
             models.Index(fields=['model_name', 'evaluated_at'], name='hourly_pred_eval_idx'),
         ]
@@ -147,7 +144,6 @@ class WeatherHourlyMeasurement(models.Model):
         db_table = 'weather_hourly_measurement'
         unique_together = ('nx', 'ny', 'measured_at')
         indexes = [
-            models.Index(fields=['nx', 'ny', '-measured_at'], name='weather_grid_time_idx'),
             models.Index(fields=['measured_at'], name='weather_time_idx'),
         ]
 
@@ -177,7 +173,6 @@ class WeatherMidTermForecast(models.Model):
         unique_together = ('land_reg_id', 'temp_reg_id', 'announced_at', 'forecast_date')
         indexes = [
             models.Index(fields=['region_key', 'forecast_date'], name='weather_mid_region_date_idx'),
-            models.Index(fields=['land_reg_id', 'temp_reg_id', '-announced_at'], name='weather_mid_code_time_idx'),
             models.Index(fields=['forecast_date'], name='weather_mid_date_idx'),
         ]
 
@@ -196,6 +191,8 @@ class NotificationDevice(models.Model):
     weather_morning_alerts = models.BooleanField(default=False)
     # 오늘 미세먼지가 나쁨 이상으로 바뀌면 하루 한 번 알림(send_dust_spike_notifications)
     dust_spike_alerts = models.BooleanField(default=False)
+    # 알림 지역에 기상특보가 발효되면 알림(send_weather_warning_notifications)
+    weather_warning_alerts = models.BooleanField(default=False)
     include_favorites = models.BooleanField(default=True)
     regions = models.JSONField(default=list, blank=True)
     calendar_events = models.JSONField(default=list, blank=True)
@@ -235,25 +232,8 @@ class DustNotificationLog(models.Model):
         return f'{self.notification_type} {self.city} {self.region} {self.basis_key}'
 
 
-class OutfitRecommendationCache(models.Model):
-    cache_key = models.CharField(max_length=160, unique=True)
-    response_json = models.JSONField(default=dict)
-    source = models.CharField(max_length=12, default='rule')
-    created_at = models.DateTimeField(auto_now_add=True)
-    valid_until = models.DateTimeField()
-
-    class Meta:
-        db_table = 'outfit_recommendation_cache'
-        indexes = [
-            models.Index(fields=['valid_until'], name='outfit_cache_valid_idx'),
-        ]
-
-    def __str__(self):
-        return f'{self.source} {self.valid_until:%Y-%m-%d %H:%M}'
-
-
-# 사용자(접속 주소를 알아볼 수 없게 바꾼 값)별 하루 AI 호출 수. 서버 프로세스가 여러 개여도 같은 값을 세도록 DB에 둔다.
-# ponytail: 지난 날짜 행은 지우지 않음(하루·사용자당 1행). 쌓인 양이 문제 되면 정리 명령을 추가.
+# 메모로 일정 추가(AI)의 하루 사용 횟수. 기기 ID·접속 주소는 되돌릴 수 없게 바꾼 값(client_digest)으로만 둔다.
+# 서버 프로세스가 여러 개여도 같은 값을 세도록 DB에 두고, 30일 지난 행은 purge_old_records가 지운다.
 class LlmDailyUsage(models.Model):
     day = models.DateField()
     client_digest = models.CharField(max_length=24)
@@ -262,3 +242,14 @@ class LlmDailyUsage(models.Model):
     class Meta:
         db_table = 'llm_daily_usage'
         unique_together = ('day', 'client_digest')
+
+
+# Expo가 푸시를 받았다는 접수 번호. 실제 전달 결과(영수증)는 몇 분 뒤에 나오므로 check_push_receipts가 확인하고 지운다.
+class ExpoPushTicket(models.Model):
+    ticket_id = models.CharField(max_length=64, unique=True)
+    expo_push_token = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'expo_push_ticket'
+        indexes = [models.Index(fields=['created_at'], name='push_ticket_time_idx')]

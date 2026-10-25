@@ -17,6 +17,7 @@ export type DashboardCacheSnapshot = {
   weather: WeatherState | null;
   weatherHourlyItems: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
+  yesterdayWeather?: WeatherState | null;
 };
 
 function cacheFilePath(region: RegionState) {

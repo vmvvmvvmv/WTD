@@ -2,14 +2,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 import re
 
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 from django.db import close_old_connections
 
 from dust.external_api import public_api_get
 from dust.models import AirQualityStation
 from dust.config import AIRKOREA_HEADERS, KMA_API_KEY, KMA_ULTRA_SHORT_FORECAST_URL
 from dust.services.common import _dfs_grid_from_lat_lng
-from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_weather_hourly_measurement
+from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_current_observation, _store_weather_hourly_measurement
 
 
 def env_int(name, default):
@@ -20,7 +20,9 @@ def env_int(name, default):
 
 
 # 앱은 72시간을 요청한다(홈·캘린더). 단기예보가 대략 3일 뒤까지라 그보다 길게 잡을 이유는 없다.
-DEFAULT_FORECAST_HOURS = env_int("KMA_FORECAST_HOURS", 72)
+# 단기예보는 글피 자정까지(발표 시각에 따라 최대 약 80시간) 온다. 72시간에서 자르면 사흘 뒤 하루가 비고,
+# 중기예보는 그다음 날부터라 그날 일정이 '확인 중'이 된다. 그래서 96시간 아래로는 줄이지 않는다.
+DEFAULT_FORECAST_HOURS = max(env_int("KMA_FORECAST_HOURS", 96), 96)
 DEFAULT_WORKERS = env_int("KMA_REQUEST_WORKERS", 2)
 DEFAULT_USE_STATION_ADDRESS_REGIONS = os.getenv("KMA_USE_STATION_ADDRESS_REGIONS", "true").strip().lower() not in ("0", "false", "no", "off")
 DEFAULT_ULTRA_SHORT_CANDIDATES = env_int("KMA_ULTRA_SHORT_CANDIDATES", 1)
@@ -169,6 +171,10 @@ def _collect_grid_weather(
             if saved >= forecast_hours:
                 break
 
+    # 예보를 다 저장한 뒤 지금 시각 한 행만 실측으로 덮는다(먼저 덮으면 예보가 다시 덮어쓴다).
+    if use_ultra_short:
+        _store_current_observation(grid)
+
     if saved:
         return saved, None
 
@@ -206,8 +212,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if not KMA_API_KEY:
-            self.stderr.write(self.style.ERROR("KMA_API_KEY is not configured."))
-            return
+            raise CommandError("KMA_API_KEY is not configured.")
 
         stations = list(AirQualityStation.objects.filter(is_active=True).only("sido", "name", "addr", "lat", "lng"))
         if DEFAULT_USE_STATION_ADDRESS_REGIONS and not options["all_station_grids"]:
@@ -277,3 +282,10 @@ class Command(BaseCommand):
             self.stdout.write(f"Weather grids skipped: {skipped}")
         for reason in skipped_reasons:
             self.stdout.write(f"Weather skipped sample: {reason}")
+
+        # 아무 값도 저장하지 못한 격자는 실패로 본다. 저장한 격자는 그대로 두고,
+        # 실패가 있으면 0이 아닌 종료 코드로 끝내서 수집 스크립트와 systemd 기록에 남긴다.
+        if not grid_values:
+            raise CommandError("No active station grids to collect weather for.")
+        if skipped:
+            raise CommandError(f"KMA weather collection failed for {skipped}/{len(grid_values)} grids.")

@@ -73,9 +73,11 @@ def _to_float(value):
     try:
         if value in (None, '', '-'):
             return None
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError):
         return None
+    # NaN·무한대는 측정값이 아니고, MySQL에 저장하면 그 회차 저장 전체가 실패한다.
+    return number if math.isfinite(number) else None
 
 
 def _parse_measure_date(value):

@@ -1,7 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, BackHandler, Keyboard, Linking, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
+import { Animated, AppState, BackHandler, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CalendarPanel } from '../components/calendar/CalendarPanel';
@@ -15,6 +15,7 @@ import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { BottomToast } from '../components/shared/BottomToast';
 import { LocationGate } from '../components/shared/LocationGate';
+import { CalendarTip, TutorialTour, WelcomeSheet } from '../components/shared/TutorialTour';
 import { ScreenTransition, WeatherBackdrop } from '../components/shared/ScreenChrome';
 import { IS_EXPO_GO } from '../config/runtime';
 import { DEFAULT_OUTFIT_SETTINGS } from '../constants/dust';
@@ -35,32 +36,36 @@ import type { OutfitSettings } from '../types/outfit';
 import type { RegionState } from '../types/region';
 import { isSameRegion } from '../features/region/regionUtils';
 import { toNumber } from '../utils/format';
-import { normalizeLatLng } from '../utils/geo';
-import { buildMobileMapUrl } from '../utils/mobileMapUrl';
 import { useTodayLabel } from '../utils/useTodayLabel';
+import { useAppMapUrls } from './useAppMapUrls';
+import { useAppNavigationEvents } from './useAppNavigationEvents';
+import { useAppTutorial } from './useAppTutorial';
+import { useToast } from './useToast';
 import { accentTone } from '../theme/appTheme';
 
 // 탭 이동, 화면 사이 연결(지역 전환·검색 패널·토스트), 저장된 설정 복원을 맡는 최상위 화면입니다.
 // 데이터와 상태는 기능별 훅이 관리합니다: 지역(useRegions), 측정소(useStations), 홈 데이터(useDashboardData),
 // 일정(useCalendarEvents), 알림(useNotificationSettings), 지도 검색(useMapSearch).
+
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
   const [homeRegionSearchText, setHomeRegionSearchText] = useState('');
   const [outfitSettings, setOutfitSettings] = useState<OutfitSettings>(DEFAULT_OUTFIT_SETTINGS);
-  const [notificationMessage, setNotificationMessage] = useState('');
+  const { showToast: setNotificationMessage, toast } = useToast();
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
-  // 홈 화면 위젯의 + 버튼(weathertodo://calendar)으로 열리면 캘린더 탭을 보여 줍니다.
+  const [openCalendarEditor, setOpenCalendarEditor] = useState(false);
+  const {
+    addFirstEvent, calendarTipSeen, continueTutorialInCalendar, dismissCalendarTip, finishTutorial,
+    hydrate: hydrateTutorial, setTutorialMode, skipTutorialForNow, tutorialMode,
+  } = useAppTutorial({ notify: setNotificationMessage, openCalendarEditor: () => setOpenCalendarEditor(true), switchTab: (tab) => switchTab(tab) });
+  // 캘린더를 떠나면 끕니다. 다시 와도 일정 추가 화면이 또 열리지 않게.
   useEffect(() => {
-    const openCalendar = (url: string | null) => {
-      if (url?.startsWith('weathertodo://calendar')) setActiveTab('calendar');
-    };
-    void Linking.getInitialURL().then(openCalendar);
-    const subscription = Linking.addEventListener('url', ({ url }) => openCalendar(url));
-    return () => subscription.remove();
-  }, []);
+    if (activeTab !== 'calendar') setOpenCalendarEditor(false);
+  }, [activeTab]);
+  useAppNavigationEvents(activeTab, setActiveTab, setNotificationMessage);
 
   const todayDateLabel = useTodayLabel();
   const regionTransition = useRegionTransition();
@@ -74,7 +79,7 @@ export function AppContent() {
     removeFollowingEvents: removeFollowingCalendarEvents,
     updateEvent: updateCalendarEvent,
     updateEventSeries: updateCalendarEventSeries,
-  } = useCalendarEvents(hasLoadedRegionStore);
+  } = useCalendarEvents(hasLoadedRegionStore, setNotificationMessage);
   const { ensureMapStations, isLoadingStations, loadStations, mapStations, setStationItems, stationItems } = useStations();
   const {
     favoriteRegions,
@@ -97,11 +102,11 @@ export function AppContent() {
     isRefreshingCurrent,
     loadCurrentDust,
     loadDashboard,
-    loadWeather,
     pastItems,
     prediction,
     weather,
     weatherHourlyItems,
+    weatherForecastResolved,
     weatherMidTermItems,
     yesterdayWeather,
   } = useDashboardData({
@@ -123,10 +128,20 @@ export function AppContent() {
     settings: notificationSettings,
     hydrate: hydrateNotificationSettings,
     isSaving: isSavingNotificationSettings,
-    isTesting: isSendingTestNotification,
     updateSetting: updateNotificationSetting,
-    sendTest: sendTestNotification,
-  } = useNotificationSettings(hasLoadedRegionStore, selectedRegion, calendarEvents, todayDateLabel, setNotificationMessage);
+  } = useNotificationSettings(hasLoadedRegionStore, gpsRegion ?? selectedRegion, calendarEvents, todayDateLabel, setNotificationMessage);
+
+  // 알림(특보·미세먼지·아침 날씨)은 현재 위치 기준이다. 시작할 때는 아래 첫 위치 찾기가 하고,
+  // 백그라운드에 있다가 돌아오면 권한이 이미 있을 때만 조용히 갱신한다. 화면의 선택 지역은 바꾸지 않는다.
+  // 10분 안에 알던 위치는 그대로 쓰고 같은 지역이면 다시 등록하지 않아서, 자주 돌아와도 비용이 거의 없다.
+  useEffect(() => {
+    if (!hasLoadedRegionStore) return;
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void locateNearestRegion({ ensureMapStations, silent: true });
+    });
+    return () => subscription.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLoadedRegionStore]);
   useCalendarReminderSync(calendarEvents, hasLoadedRegionStore, notificationSettings.enabled && notificationSettings.calendarReminders, {
     currentPm10,
     eventLocationForecasts: calendarLocationForecasts,
@@ -156,37 +171,9 @@ export function AppContent() {
     return findStationSuggestions(mapStations, homeRegionSearchText, 6);
   }, [homeRegionSearchText, mapStations]);
 
-  const calendarMapPickerStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
-  const calendarMapPickerCoords = normalizeLatLng(calendarMapPickerStation?.lat, calendarMapPickerStation?.lng);
-  const homeMapPreviewStation = findStationForRegion(gpsRegion) ?? findStationForRegion(selectedRegion);
-  const homeMapPreviewCoords = normalizeLatLng(homeMapPreviewStation?.lat, homeMapPreviewStation?.lng);
-  const homeMapPreviewUrl = homeMapPreviewCoords
-    ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: 'weather', zoom: 11, view: 'preview' })
-    : buildMobileMapUrl({ mode: 'weather', view: 'preview' });
-  // 지도 탭에 들어온 순간의 주소를 고정해, 머무는 동안 WebView가 다시 로드되지 않게 합니다.
-  const fullMapUrlRef = useRef<string | null>(null);
-  if (activeTab === 'map' && !fullMapUrlRef.current) {
-    fullMapUrlRef.current = homeMapPreviewCoords
-      ? buildMobileMapUrl({ lat: homeMapPreviewCoords.lat, lng: homeMapPreviewCoords.lng, mode: mapMarkerMode, zoom: 11, view: 'full' })
-      : buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
-  } else if (activeTab !== 'map') {
-    fullMapUrlRef.current = null;
-  }
-  const fullMapUrl = fullMapUrlRef.current ?? buildMobileMapUrl({ mode: mapMarkerMode, view: 'full' });
-  const calendarMapPickerUrl = calendarMapPickerCoords
-    ? buildMobileMapUrl({ lat: calendarMapPickerCoords.lat, lng: calendarMapPickerCoords.lng, zoom: 15, view: 'picker' })
-    : buildMobileMapUrl({ view: 'picker' });
-  const calendarDefaultLocation = calendarMapPickerStation && calendarMapPickerCoords
-    ? {
-      address: calendarMapPickerStation.addr,
-      city: calendarMapPickerStation.sido || gpsRegion?.city || selectedRegion?.city,
-      label: [calendarMapPickerStation.sido || gpsRegion?.city || selectedRegion?.city, calendarMapPickerStation.city || gpsRegion?.region || calendarMapPickerStation.name || selectedRegion?.region].filter(Boolean).join(' '),
-      lat: calendarMapPickerCoords.lat,
-      lng: calendarMapPickerCoords.lng,
-      region: calendarMapPickerStation.city || gpsRegion?.region || calendarMapPickerStation.name,
-      source: 'station',
-    }
-    : null;
+  const { calendarDefaultLocation, calendarMapPickerUrl, fullMapUrl, homeMapPreviewUrl } = useAppMapUrls({
+    activeTab, findStationForRegion, gpsRegion, mapMarkerMode, selectedRegion,
+  });
 
   const updateOutfitSetting = <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => {
     setOutfitSettings((current) => ({ ...current, [key]: value }));
@@ -275,6 +262,7 @@ export function AppContent() {
         hydrateNotificationSettings(storedState.notificationSettings, storedState.notificationToken);
         setOutfitSettings(storedState.outfitSettings);
         setCalendarEvents(storedState.calendarEvents);
+        hydrateTutorial(storedState);
         setHasLoadedRegionStore(true);
       })
       .catch(() => {
@@ -288,13 +276,6 @@ export function AppContent() {
   useEffect(() => {
     if (hasLoadedRegionStore) saveOutfitSettings(outfitSettings);
   }, [hasLoadedRegionStore, outfitSettings]);
-
-  // 선택 지역의 측정소 좌표로 현재 날씨를 불러옵니다.
-  useEffect(() => {
-    if (!selectedRegion || mapStations.length === 0) return;
-    const coords = normalizeLatLng(findStationForRegion(selectedRegion)?.lat, findStationForRegion(selectedRegion)?.lng);
-    if (coords) loadWeather(coords.lat, coords.lng);
-  }, [mapStations.length, selectedRegion]);
 
   // 저장값을 불러온 뒤 한 번, 현재 위치 기준 지역을 찾습니다.
   useEffect(() => {
@@ -373,7 +354,19 @@ export function AppContent() {
     return <LocationGate isLocating={isLocating} message={locationMessage} onRetry={applyNearestGpsRegion} />;
   }
 
-  const bottomToast = <BottomToast message={notificationMessage} />;
+  // 토스트와 튜토리얼은 어느 탭 화면에서든 맨 위에 겹쳐 그립니다. 투어는 홈에서만, 캘린더 말풍선은 캘린더를 처음 열 때만.
+  const bottomToast = (
+    <>
+      <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />
+      {activeTab === 'home' && tutorialMode === 'welcome' && (
+        <WelcomeSheet onAddEvent={addFirstEvent} onLater={skipTutorialForNow} onStart={() => setTutorialMode('tour')} />
+      )}
+      {activeTab === 'home' && tutorialMode === 'tour' && (
+        <TutorialTour hasHourlyForecast={weatherHourlyItems.length > 0 ? true : weatherForecastResolved ? false : undefined}onContinueCalendar={continueTutorialInCalendar} onFinish={finishTutorial} scrollHome={(y) => mainScrollRef.current?.scrollTo({ animated: true, y })} />
+      )}
+      {activeTab === 'calendar' && tutorialMode === 'none' && !calendarTipSeen && <CalendarTip onDone={dismissCalendarTip} />}
+    </>
+  );
 
   if (activeTab === 'map') {
     return (
@@ -437,6 +430,7 @@ export function AppContent() {
               currentPm10={currentPm10}
               hourlyItems={hourlyItems}
               mapPickerUrl={calendarMapPickerUrl}
+              openEditorOnMount={openCalendarEditor}
               onAddEvent={addCalendarEvent}
               onAddEvents={addCalendarEvents}
               onRemoveEvent={removeCalendarEvent}
@@ -457,6 +451,7 @@ export function AppContent() {
         </View>
         </ScreenTransition>
         {tabBar}
+        {bottomToast}
       </SafeAreaView>
     );
   }
@@ -557,17 +552,20 @@ export function AppContent() {
         {activeTab === 'account' && (
           <RegionPanel
             favoriteRegions={favoriteRegions}
+            gpsRegion={gpsRegion}
             isLocating={isLocating}
             isSavingNotificationSettings={isSavingNotificationSettings}
-            isSendingTestNotification={isSendingTestNotification}
             locationMessage={locationMessage}
             notificationsUnavailable={IS_EXPO_GO}
             notificationSettings={notificationSettings}
             outfitSettings={outfitSettings}
             onRemoveFavorite={removeFavoriteRegion}
-            onSendTestNotification={sendTestNotification}
             onToggleNotificationSetting={updateNotificationSetting}
             onUpdateOutfitSetting={updateOutfitSetting}
+            onOpenTutorial={() => {
+              setActiveTab('home');
+              setTutorialMode('tour');
+            }}
             onUseCurrentLocation={applyNearestGpsRegion}
             selectedRegion={selectedRegion}
           />

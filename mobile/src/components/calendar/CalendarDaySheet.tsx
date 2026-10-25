@@ -2,6 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Reanimated, {
+  cancelAnimation,
+  FadeIn,
   FadeInDown,
   FadeOut,
   LinearTransition,
@@ -10,8 +12,9 @@ import Reanimated, {
   useReducedMotion,
   useSharedValue,
   withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
-  ZoomIn,
 } from 'react-native-reanimated';
 
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
@@ -37,7 +40,6 @@ const TEXT = {
   indoor: '실내',
   move: '이동',
   outdoor: '실외',
-  today: '오늘',
 };
 
 type Props = {
@@ -96,7 +98,7 @@ function MetricChip({
   return (
     <View accessibilityLabel={`${label} ${value}`} accessible style={styles.calendarMetricChip}>
       {weatherKind ? <WeatherIcon kind={weatherKind} size={18} /> : !!icon && <Ionicons color={tone} name={icon} size={14} />}
-      <Text style={[styles.calendarMetricChipValue, { color: tone }]}>
+      <Text numberOfLines={1} style={[styles.calendarMetricChipValue, { color: tone }]}>
         <Text style={styles.calendarMetricChipLabel}>{label} </Text>
         {value}
       </Text>
@@ -109,10 +111,22 @@ function WeatherRiskPill({ index, risk }: { index: number; risk: CalendarWeather
   const reduceMotion = useReducedMotion();
   const [width, setWidth] = useState(0);
   const sweep = useSharedValue(0);
+  const glow = useSharedValue(0);
+  // 크기는 그대로 두고 빛만 낸다: 배경이 은은하게 밝아졌다 돌아오고, 반짝이는 띠가 가끔 지나간다(애니메이션 줄이기 설정이면 생략).
   useEffect(() => {
     if (reduceMotion || width === 0) return;
-    sweep.value = withDelay(260 + index * 70, withTiming(1, { duration: 700 }));
-  }, [index, reduceMotion, sweep, width]);
+    glow.value = withDelay(index * 70, withRepeat(withTiming(1, { duration: 1300 }), -1, true));
+    sweep.value = withDelay(260 + index * 70, withRepeat(withSequence(
+      withTiming(1, { duration: 900 }),
+      withTiming(1, { duration: 1800 }),
+      withTiming(0, { duration: 0 }),
+    ), -1));
+    return () => {
+      cancelAnimation(glow);
+      cancelAnimation(sweep);
+    };
+  }, [glow, index, reduceMotion, sweep, width]);
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value * 0.22 }));
   const bandWidth = Math.max(18, width * 0.45);
   const sweepStyle = useAnimatedStyle(() => ({
     opacity: sweep.value > 0 && sweep.value < 1 ? 1 : 0,
@@ -120,10 +134,11 @@ function WeatherRiskPill({ index, risk }: { index: number; risk: CalendarWeather
   }));
   return (
     <Reanimated.View
-      entering={ZoomIn.delay(index * 70).springify().damping(14).stiffness(200).reduceMotion(ReduceMotion.System)}
+      entering={FadeIn.delay(index * 70).duration(260).reduceMotion(ReduceMotion.System)}
       onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
       style={[styles.calendarWeatherRiskPill, { backgroundColor: `${risk.tone}14`, borderColor: `${risk.tone}55`, overflow: 'hidden' }]}
     >
+      {!reduceMotion && <Reanimated.View pointerEvents="none" style={[styles.calendarWeatherRiskGlow, { backgroundColor: risk.tone }, glowStyle]} />}
       {risk.imageKind ? <WeatherIcon kind={risk.imageKind} size={15} /> : <Ionicons color={risk.tone} name={risk.icon} size={13} />}
       <Text style={[styles.calendarWeatherRiskText, { color: risk.tone }]}>{risk.label}</Text>
       {width > 0 && !reduceMotion && (
@@ -169,7 +184,7 @@ export function CalendarDaySheet({
       <View style={styles.calendarSelectionTopRow}>
         <View style={styles.calendarSelectionTitleGroup}>
           <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
-            {selectedDate === todayDateLabel ? TEXT.today : formatSelectedDateTitle(selectedDate)}
+            {formatSelectedDateTitle(selectedDate)}
           </Text>
           <Text style={styles.calendarSelectionSubText}>{formatDateDisplay(selectedDate)}</Text>
         </View>
@@ -238,7 +253,7 @@ export function CalendarDaySheet({
               key={event.id}
               style={styles.calendarEventGroup}
             >
-              <View style={styles.calendarEventRow}>
+              <View style={[styles.calendarEventRow, index === 0 && { borderTopWidth: 0 }]}>
                 <View accessibilityLabel={forecastLabel || undefined} style={[styles.calendarEventIcon, { backgroundColor: weatherIconStyle.background }]}>
                   <WeatherIcon kind={weatherIconStyle.kind} size={30} />
                 </View>

@@ -21,30 +21,30 @@ const PRIVACY_POLICY_URL = `${API_URL.replace(/\/$/, '')}/privacy/`;
 // Manages location, notification options, and favorite regions on the settings screen.
 export function RegionPanel({
   favoriteRegions,
+  gpsRegion,
   isLocating,
   isSavingNotificationSettings,
-  isSendingTestNotification,
   locationMessage,
   notificationsUnavailable,
   notificationSettings,
   outfitSettings,
+  onOpenTutorial,
   onRemoveFavorite,
-  onSendTestNotification,
   onToggleNotificationSetting,
   onUpdateOutfitSetting,
   onUseCurrentLocation,
   selectedRegion,
 }: {
   favoriteRegions: RegionState[];
+  gpsRegion: RegionState | null;
   isLocating: boolean;
   isSavingNotificationSettings: boolean;
-  isSendingTestNotification: boolean;
   locationMessage: string;
   notificationsUnavailable: boolean;
   notificationSettings: NotificationSettings;
   outfitSettings: OutfitSettings;
+  onOpenTutorial: () => void;
   onRemoveFavorite: (region: RegionState) => void;
-  onSendTestNotification: () => void;
   onToggleNotificationSetting: (key: keyof NotificationSettings, value: boolean | number) => void;
   onUpdateOutfitSetting: <K extends keyof OutfitSettings>(key: K, value: OutfitSettings[K]) => void;
   onUseCurrentLocation: () => void;
@@ -78,7 +78,7 @@ export function RegionPanel({
           ) : (
             <>
               <AppActionIcon name="location" size={24} />
-              <Text style={[styles.locationButtonText, { color: accentTone }]}>{'\uD604\uC7AC \uC704\uCE58\uB85C \uC9C0\uC5ED \uC124\uC815'}</Text>
+              <Text style={[styles.locationButtonText, { color: accentTone }]}>{'현재 위치로 지역 설정'}</Text>
               <Ionicons color={accentTone} name="chevron-forward" size={17} />
             </>
           )}
@@ -96,7 +96,7 @@ export function RegionPanel({
           </View>
         </View>
         <NotificationToggleRow
-          description="홈은 오늘 하루 날씨, 캘린더는 일정 시간 날씨로 추천해요"
+          description="오늘 날씨와 일정 시간 날씨로 추천해요"
           label="옷차림 추천 보기"
           value={outfitSettings.enabled}
           onValueChange={(value) => onUpdateOutfitSetting('enabled', value)}
@@ -151,7 +151,7 @@ export function RegionPanel({
           </View>
         </View>
         <NotificationToggleRow
-          description="천식·호흡기 질환이 있거나 어린이·노약자라면 켜 주세요. 미세먼지 '보통'부터 조심하라고 알려 드려요"
+          description="미세먼지 '보통'부터 조심하라고 알려 드려요"
           label="민감군 모드"
           value={outfitSettings.sensitiveMode}
           onValueChange={(value) => onUpdateOutfitSetting('sensitiveMode', value)}
@@ -164,58 +164,61 @@ export function RegionPanel({
             <AppActionIcon name="notification" size={25} />
           </View>
           <View style={styles.settingsSectionTitleGroup}>
-            <Text style={styles.settingsSectionTitle}>{'\uC54C\uB9BC \uC124\uC815'}</Text>
-            {notificationsUnavailable && <Text style={styles.settingsUnavailableText}>{'\uAC1C\uBC1C \uBE4C\uB4DC\uC5D0\uC11C \uC54C\uB9BC\uC744 \uC0AC\uC6A9\uD560 \uC218 \uC788\uC5B4\uC694.'}</Text>}
+            <Text style={styles.settingsSectionTitle}>{'알림 설정'}</Text>
+            {notificationsUnavailable && <Text style={styles.settingsUnavailableText}>{'개발 빌드에서 알림을 사용할 수 있어요.'}</Text>}
+            {/* 알림은 현재 위치 지역 기준이라, 홈에서 다른 지역을 보고 있어도 헷갈리지 않게 보여 준다. */}
+            <Text style={styles.settingsUnavailableText}>
+              알림 지역: {(gpsRegion ?? selectedRegion).city} {(gpsRegion ?? selectedRegion).region}{gpsRegion ? ' · 현재 위치' : ''}
+            </Text>
           </View>
           {isSavingNotificationSettings && <ActivityIndicator color={accentTone} />}
         </View>
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable}
           description="앱의 모든 알림을 켜고 꺼요"
-          label={'\uC54C\uB9BC \uBC1B\uAE30'}
+          label={'알림 받기'}
           value={notificationSettings.enabled}
           onValueChange={(value) => onToggleNotificationSetting('enabled', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="일정마다 정한 시간 전에 그 시간대 날씨와 함께 알려 줘요"
-          label={'\uC77C\uC815 \uC54C\uB9BC'}
+          description="일정 전에 그 시간 날씨와 함께 알려 줘요"
+          label={'일정 알림'}
           value={notificationSettings.calendarReminders}
           onValueChange={(value) => onToggleNotificationSetting('calendarReminders', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="매일 아침 7시에 오늘 날씨를 알려 줘요. 일정 제목은 보내지 않고 날짜와 시간만 서버로 보내요"
-          label={'\uC544\uCE68 \uB0A0\uC528 \uC54C\uB9BC'}
+          description="매일 아침 7시에 오늘 날씨를 알려 줘요"
+          label={'아침 날씨 알림'}
           value={notificationSettings.weatherMorningAlerts}
           onValueChange={(value) => onToggleNotificationSetting('weatherMorningAlerts', value)}
         />
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
-          description="미세먼지·초미세먼지가 나쁨이거나 오늘 예보가 나쁨이면 하루 한 번 알려 줘요"
+          description="미세먼지가 나쁜 날 한 번 알려 줘요"
           label="미세먼지 나쁨 알림"
           value={notificationSettings.dustSpikeAlerts}
           onValueChange={(value) => onToggleNotificationSetting('dustSpikeAlerts', value)}
         />
-        <Pressable
-          accessibilityLabel="3초 뒤 테스트 알림 받기"
-          disabled={isSendingTestNotification || notificationsUnavailable || !notificationSettings.enabled}
-          onPress={onSendTestNotification}
-          style={({ pressed }) => [
-            styles.notificationTestButton,
-            (isSendingTestNotification || notificationsUnavailable || !notificationSettings.enabled) && styles.notificationRowDisabled,
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          {isSendingTestNotification
-            ? <ActivityIndicator color={accentTone} size="small" />
-            : <Ionicons color={accentTone} name="notifications-outline" size={18} />}
-          <View style={styles.notificationTestTextGroup}>
-            <Text style={[styles.notificationTestTitle, { color: accentTone }]}>테스트 알림 보내기</Text>
-            <Text style={styles.notificationTestHint}>3초 뒤 알림이 오는지 확인해요</Text>
-          </View>
-          <Ionicons color={accentTone} name="chevron-forward" size={17} />
-        </Pressable>
+        <NotificationToggleRow
+          disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
+          description="내 지역에 호우·대설·강풍 같은 특보가 나오면 알려 줘요"
+          label="기상특보 알림"
+          value={notificationSettings.weatherWarningAlerts}
+          onValueChange={(value) => onToggleNotificationSetting('weatherWarningAlerts', value)}
+        />
+        {/* 아침 날씨·미세먼지·기상특보는 서버가 보내는 알림이라, 서버에 저장하는 정보를 토글 바로 아래에 알린다. */}
+        <Text style={styles.settingsUnavailableText}>
+          아침 날씨·미세먼지·특보 알림을 보내려고 알림 주소·지역·일정 날짜/시간을 서버에 저장해요.{' '}
+          <Text
+            accessibilityRole="link"
+            onPress={() => { Linking.openURL(PRIVACY_POLICY_URL).catch(() => {}); }}
+            style={{ color: accentTone, fontWeight: '700' }}
+          >
+            처리방침 보기
+          </Text>
+        </Text>
       </View>
 
       <View style={styles.settingsSection}>
@@ -224,14 +227,13 @@ export function RegionPanel({
             <AppActionIcon name="favorite" size={25} />
           </View>
           <View style={styles.settingsSectionTitleGroup}>
-            <Text style={styles.settingsSectionTitle}>{'\uC990\uACA8\uCC3E\uAE30 \uC9C0\uC5ED'}</Text>
+            <Text style={styles.settingsSectionTitle}>{'즐겨찾기 지역'}</Text>
           </View>
         </View>
 
         {favoriteRegions.length === 0 ? (
           <View style={styles.emptyFavoriteBox}>
-            <AppActionIcon name="favorite" size={30} />
-            <Text style={styles.mutedText}>{'\uC800\uC7A5\uB41C \uC9C0\uC5ED\uC774 \uC5C6\uC5B4\uC694.'}</Text>
+            <Text style={styles.mutedText}>{'저장된 지역이 없어요.'}</Text>
           </View>
         ) : (
           <>
@@ -245,7 +247,7 @@ export function RegionPanel({
                         {selected && <View style={[styles.settingsFavoriteActiveDot, { backgroundColor: accentTone }]} />}
                         <Text style={[styles.favoriteTitle, selected && { color: accentTone }]}>{region.city} {region.region}</Text>
                       </View>
-                      <Text style={styles.favoriteMeta}>{region.label ? `${region.label} ${'\uCE21\uC815\uC18C \uAE30\uC900'}` : '\uC800\uC7A5\uB41C \uC9C0\uC5ED'}</Text>
+                      <Text style={styles.favoriteMeta}>{region.label ? `${region.label} ${'측정소 기준'}` : '저장된 지역'}</Text>
                     </View>
                     <Pressable accessibilityLabel={`${region.city} ${region.region} 즐겨찾기 삭제`} onPress={() => onRemoveFavorite(region)} style={({ pressed }) => [styles.settingsFavoriteRemoveButton, pressed && styles.pressedFeedback]}>
                       <AppActionIcon name="delete" size={21} />
@@ -290,14 +292,6 @@ export function RegionPanel({
           <Text style={styles.settingsInfoLabel}>데이터 출처</Text>
           <Text style={styles.settingsInfoValue}>대기질: 한국환경공단 에어코리아{'\n'}날씨: 기상청 단기·중기예보{'\n'}제공: 공공데이터포털(data.go.kr)</Text>
         </View>
-        <View style={styles.settingsInfoRow}>
-          <Text style={styles.settingsInfoLabel}>개인정보</Text>
-          <Text style={styles.settingsInfoValue}>일정 제목·메모는 이 휴대폰에만 저장{'\n'}아침 날씨 알림 사용 시 일정 날짜·시간만 서버로 전송</Text>
-        </View>
-        <View style={styles.settingsInfoRow}>
-          <Text style={styles.settingsInfoLabel}>위치 권한 (선택)</Text>
-          <Text style={styles.settingsInfoValue}>가까운 측정소 찾기에만 사용{'\n'}위치는 휴대폰 안에서만 쓰고 서버로 전송 안 함{'\n'}휴대폰 설정 &gt; 애플리케이션 &gt; 권한에서 끄기 가능</Text>
-        </View>
         <Pressable
           accessibilityLabel="개인정보 처리방침 열기"
           accessibilityRole="link"
@@ -306,6 +300,15 @@ export function RegionPanel({
         >
           <Text style={styles.settingsInfoLabel}>개인정보 처리방침</Text>
           <Text style={[styles.settingsInfoValue, { color: accentTone }]}>전문 보기 ›</Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="튜토리얼 다시 보기"
+          accessibilityRole="button"
+          onPress={onOpenTutorial}
+          style={({ pressed }) => [styles.settingsInfoRow, pressed && styles.pressedFeedback]}
+        >
+          <Text style={styles.settingsInfoLabel}>튜토리얼</Text>
+          <Text style={[styles.settingsInfoValue, { color: accentTone }]}>다시 보기 ›</Text>
         </Pressable>
         <View style={[styles.settingsInfoRow, styles.settingsInfoRowLast]}>
           <Text style={styles.settingsInfoLabel}>버전</Text>

@@ -10,6 +10,7 @@ import { formatCurrentBasis } from '../../features/dashboard/currentBasis';
 import { isSameRegion } from '../../features/region/regionUtils';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
+import { tutorialTarget } from '../shared/TutorialTour';
 import { accentTone } from '../../theme/appTheme';
 
 type PanelAnimation = { opacity: Animated.Value; translateY: Animated.Value };
@@ -50,7 +51,7 @@ export function HomeHeader({
 }: Props) {
   return (
     <View style={styles.homeHeader}>
-      <View style={styles.homeTitleRow}>
+      <View ref={tutorialTarget('homeRegion')} style={styles.homeTitleRow}>
         <Pressable
           accessibilityLabel={favoriteRegions.length === 0 ? '지역 검색 열기' : '즐겨찾기 지역 선택'}
           onPress={favoriteRegions.length === 0 ? onOpenSearch : onToggleFavoritePicker}

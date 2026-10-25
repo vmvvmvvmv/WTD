@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
+import { tutorialTarget } from '../components/shared/TutorialTour';
 import { styles } from '../styles/appStyles';
 import type { TabKey } from '../types/navigation';
 import { tabRoutes } from './routes';
@@ -26,6 +27,7 @@ export function AppTabBar({
             accessibilityRole="tab"
             accessibilityState={{ selected: isActive }}
             onPress={() => onNavigate(route.key)}
+            ref={route.key === 'calendar' ? tutorialTarget('tabCalendar') : undefined}
             style={({ pressed }) => [
               styles.tabItem,
               isActive && { borderTopColor: accentTone },

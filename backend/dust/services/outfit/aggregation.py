@@ -81,6 +81,8 @@ def aggregate_schedule_window(
     precipitation_flags = [_precipitation_flags(point) for point in weather_points]
     has_snow = any(snow for snow, _rain in precipitation_flags)
     has_rain = any(rain for _snow, rain in precipitation_flags)
+    # 비와 눈이 섞여 오는 시간(기상청 강수형태 2 비/눈, 6 빗방울눈날림). 눈 예보여도 우산이 필요하다.
+    has_mixed_precipitation = any(str(point.precipitation_type or "").strip() in {"2", "6"} for point in weather_points)
     # 비 시간 비율은 일정 시간대에 걸친 시각만 센다(앞뒤 1시간 여유분은 기온 집계에만 쓴다).
     in_window = [
         (point, rain)
@@ -127,6 +129,7 @@ def aggregate_schedule_window(
         "wind_max": round(wind_max, 1) if wind_max is not None else None,
         "has_snow": has_snow,
         "has_rain": has_rain,
+        "has_mixed_precipitation": has_mixed_precipitation,
         "rain_hours": rain_hours,
         "total_hours": len(in_window),
         "rain_start": _hour_label(rainy_times[0]) if rainy_times else None,

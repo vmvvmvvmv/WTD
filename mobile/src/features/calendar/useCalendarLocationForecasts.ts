@@ -11,7 +11,7 @@ import { toNumber } from '../../utils/format';
 import { buildDashboardHourlyItems, buildDashboardWeatherHourlyItems } from '../dashboard/dashboardData';
 import { weatherStateFromHourlyItem } from '../weather/weatherData';
 
-async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel: string): Promise<[string, CalendarLocationForecast] | null> {
+export async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel: string): Promise<[string, CalendarLocationForecast] | null> {
   const key = calendarEventLocationKey(event);
   if (!key || typeof event.locationLat !== 'number' || typeof event.locationLng !== 'number') return null;
 
@@ -21,13 +21,22 @@ async function loadCalendarLocationForecast(event: CalendarEvent, todayDateLabel
     ? { city: event.locationCity, label: event.location, region: event.locationRegion }
     : null;
 
-  const [weatherHourlyData, midTermData, hourlyDustData, predictionData, currentDustData] = await Promise.all([
-    getHourlyWeather({ date: todayCompact, forecastHours: 72, lat: event.locationLat, lng: event.locationLng }),
+  // 요청마다 따로 실패를 처리한다. 미세먼지 하나가 실패해도 받은 날씨 예보는 쓴다. 전부 실패하면 예보 없음.
+  const settled = await Promise.allSettled([
+    getHourlyWeather({ date: todayCompact, forecastHours: 96, lat: event.locationLat, lng: event.locationLng }),
     getMidTermWeather({ endDate: midTermEndCompact, lat: event.locationLat, lng: event.locationLng, startDate: todayCompact }),
     region ? getHourlyDust({ date: todayCompact, region }) : Promise.resolve(null),
-    region ? getPrediction(region).catch(() => null) : Promise.resolve(null),
+    region ? getPrediction(region) : Promise.resolve(null),
     region ? getOptionalCurrentDust(region) : Promise.resolve(null),
   ]);
+  if (settled.every((result) => result.status === 'rejected')) return null;
+  const [weatherHourlyData, midTermData, hourlyDustData, predictionData, currentDustData] = settled.map((result) => (result.status === 'fulfilled' ? result.value : null)) as [
+    Awaited<ReturnType<typeof getHourlyWeather>> | null,
+    Awaited<ReturnType<typeof getMidTermWeather>> | null,
+    Awaited<ReturnType<typeof getHourlyDust>> | null,
+    Awaited<ReturnType<typeof getPrediction>> | null,
+    Awaited<ReturnType<typeof getOptionalCurrentDust>> | null,
+  ];
 
   const weatherStoredItems = Array.isArray(weatherHourlyData?.items) ? weatherHourlyData.items as WeatherHourlyItem[] : [];
   const currentWeather = weatherStateFromHourlyItem(weatherStoredItems[weatherStoredItems.length - 1]);
@@ -62,7 +71,8 @@ export function useCalendarLocationForecasts(
   useEffect(() => {
     if (!hasLoadedRegionStore) return;
     let cancelled = false;
-    const eventsWithLocation = calendarEvents.filter((event) => !!calendarEventLocationKey(event));
+    // 끝난 일정은 예보가 필요 없어서 오늘 이후(오늘 포함) 일정의 장소만 조회한다.
+    const eventsWithLocation = calendarEvents.filter((event) => (event.endDate ?? event.date) >= todayDateLabel && !!calendarEventLocationKey(event));
     const uniqueEvents = Array.from(new Map(eventsWithLocation.map((event) => [calendarEventLocationKey(event), event])).values());
     const activeKeys = new Set(uniqueEvents.map((event) => calendarEventLocationKey(event)));
     // 더 이상 없는 장소만 지우고, 남은 장소는 새 예보가 올 때까지 이전 값을 유지합니다.

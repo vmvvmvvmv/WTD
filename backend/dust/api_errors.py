@@ -10,13 +10,14 @@ from rest_framework.views import exception_handler
 
 logger = logging.getLogger(__name__)
 
-# 400 잘못된 요청 값 · 403 접근 토큰 없음 · 404 대상 없음 · 500 서버 내부 오류 · 502 바깥 API 실패 · 503 지금 쓸 수 없는 기능
+# 400 잘못된 요청 값 · 403 접근 토큰 없음 · 404 대상 없음 · 429 하루 사용량 초과 · 500 서버 내부 오류 · 502 바깥 API 실패 · 503 지금 쓸 수 없는 기능
 DEFAULT_CODES = {
     400: "invalid_parameter",
     403: "forbidden",
     404: "not_found",
     405: "method_not_allowed",
     415: "unsupported_media_type",
+    429: "too_many_requests",
     500: "internal_error",
     502: "upstream_failed",
     503: "service_unavailable",
