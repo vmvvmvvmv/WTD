@@ -923,3 +923,18 @@ class AdminAlertTests(SimpleTestCase):
             self.assertEqual(admin_alerts.alert_admins('freshness:x', 't', 'b'), 0)
         push.assert_called_once()
         cache.delete('admin_alert:freshness:x')
+
+
+class ExpoAccessTokenTests(SimpleTestCase):
+    def test_push_sends_access_token_only_when_configured(self):
+        from unittest.mock import MagicMock
+        from dust import weather_morning_notifications as module
+        response = MagicMock()
+        response.json.return_value = {'data': {'status': 'ok'}}
+        with patch.object(module.requests, 'post', return_value=response) as post:
+            with patch.dict('os.environ', {'EXPO_ACCESS_TOKEN': 'secret'}):
+                module.send_expo_push('ExponentPushToken[a]', 't', 'b', {})
+            self.assertEqual(post.call_args.kwargs['headers'], {'Authorization': 'Bearer secret'})
+            with patch.dict('os.environ', {'EXPO_ACCESS_TOKEN': ''}):
+                module.send_expo_push('ExponentPushToken[a]', 't', 'b', {})
+            self.assertEqual(post.call_args.kwargs['headers'], {})
