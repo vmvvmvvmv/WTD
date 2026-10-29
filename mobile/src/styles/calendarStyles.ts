@@ -200,6 +200,7 @@ export const calendarStyles = StyleSheet.create({
   calendarSelectionTopRow: { alignItems: 'center', flexDirection: 'row', gap: 10, justifyContent: 'space-between' },
   calendarSelectionTopRowCompact: { alignItems: 'stretch', flexDirection: 'column', gap: 2 },
   calendarSelectionTitleGroup: { flexShrink: 0 },
+  calendarSelectionDateRow: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'space-between' },
   calendarSelectionDateText: { color: textColors.primary, fontSize: 20, fontWeight: '900' },
   calendarSelectionSubText: { color: textColors.muted, fontSize: 12, fontWeight: '600', marginTop: 3 },
   calendarSelectionWeatherRow: { alignItems: 'center', columnGap: 8, flexDirection: 'row', flexShrink: 1, justifyContent: 'flex-end' },

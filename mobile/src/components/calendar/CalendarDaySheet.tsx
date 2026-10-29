@@ -185,9 +185,23 @@ export function CalendarDaySheet({
       </View>
       <View style={[styles.calendarSelectionTopRow, isCompact && styles.calendarSelectionTopRowCompact]}>
         <View style={styles.calendarSelectionTitleGroup}>
-          <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
-            {formatSelectedDateTitle(selectedDate)}
-          </Text>
+          {/* 시트가 열려 있을 때는 떠 있는 추가 버튼을 숨기고(날짜 칸을 가려서) 여기 날짜 옆 버튼으로 추가합니다. */}
+          <View style={styles.calendarSelectionDateRow}>
+            <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
+              {formatSelectedDateTitle(selectedDate)}
+            </Text>
+            {onAddEvent && (
+              <Pressable
+                accessibilityLabel="이 날짜에 일정 추가"
+                accessibilityRole="button"
+                onPress={onAddEvent}
+                style={({ pressed }) => [styles.calendarEmptyAddButton, pressed && styles.pressedFeedback]}
+              >
+                <Ionicons color={accentTone} name="add" size={17} />
+                <Text style={[styles.calendarEmptyAddText, { color: accentTone }]}>일정 추가</Text>
+              </Pressable>
+            )}
+          </View>
           <Text style={styles.calendarSelectionSubText}>{formatDateDisplay(selectedDate)}</Text>
         </View>
         <View style={[styles.calendarSelectionWeatherRow, isCompact && styles.calendarSelectionWeatherRowCompact]}>
@@ -227,17 +241,6 @@ export function CalendarDaySheet({
             <View style={styles.calendarEventBody}>
               <Text style={styles.calendarSelectionEmptyTitle}>{TEXT.emptyTitle}</Text>
             </View>
-            {onAddEvent && (
-              <Pressable
-                accessibilityLabel="이 날짜에 일정 추가"
-                accessibilityRole="button"
-                onPress={onAddEvent}
-                style={({ pressed }) => [styles.calendarEmptyAddButton, pressed && styles.pressedFeedback]}
-              >
-                <Ionicons color={accentTone} name="add" size={17} />
-                <Text style={[styles.calendarEmptyAddText, { color: accentTone }]}>일정 추가</Text>
-              </Pressable>
-            )}
           </View>
         ) : events.map((event, index) => {
           const risk = riskByEvent?.[event.id];
