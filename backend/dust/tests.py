@@ -43,7 +43,7 @@ class NotificationCalendarPrivacyTests(SimpleTestCase):
             'city': '서울',
             'region': '송파구',
             'weatherMorningAlerts': morning_alerts,
-            'calendarEvents': [{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00'}],
+            'calendarEvents': [{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00', 'endTime': '10:30'}],
         }
         with patch('dust.notification_registry.NotificationDevice.objects.update_or_create', return_value=(object(), True)) as save:
             upsert_notification_device(payload)
@@ -53,8 +53,8 @@ class NotificationCalendarPrivacyTests(SimpleTestCase):
         self.assertEqual(self._saved_calendar_events(False), [])
 
     def test_only_date_and_time_are_stored_when_morning_alerts_are_on(self):
-        # 예전 앱 버전이 제목을 보내도 서버는 날짜·시간만 저장한다.
-        self.assertEqual(self._saved_calendar_events(True), [{'date': '2026-10-09', 'time': '09:00'}])
+        # 예전 앱 버전이 제목을 보내도 서버는 날짜·시작·끝 시간만 저장한다.
+        self.assertEqual(self._saved_calendar_events(True), [{'date': '2026-10-09', 'time': '09:00', 'endTime': '10:30'}])
 
 
 class OutfitClientKeyTests(SimpleTestCase):
@@ -705,7 +705,7 @@ class MorningEventLinesTests(SimpleTestCase):
         points = [WeatherHourlyMeasurement(measured_at=dj_timezone.make_aware(datetime(2026, 10, 24, hour), tz), temperature=15, rain_mm=2, rain_probability=90, label='비', precipitation_type='1') for hour in range(8, 20)]
         events = [{'date': '2026-10-24', 'time': time} for time in ('09:00', '09:00', '09:00', '10:00', '11:00', '12:00', '13:00')]
         _title, body = build_weather_morning_message('대신동', points, events)
-        lines = [line for line in body.splitlines() if '일정 때' in line]
+        lines = [line for line in body.splitlines() if ' 일정 ' in line]
         self.assertEqual(len(lines), 3)
         self.assertEqual(len(set(lines)), 3)
 

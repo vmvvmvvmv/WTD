@@ -88,10 +88,15 @@ export function useNotificationSettings(
         if (!isLatest()) return;
       }
 
-      // 아침 알림은 날짜·시간만 서버로 보냅니다. 일정 제목은 보내지 않습니다.
+      // 아침 알림은 날짜·시작·끝 시간만 서버로 보냅니다. 일정 제목은 보내지 않습니다.
+      // 끝 시각은 하루 안에 끝나는 일정만 보냅니다(서버가 그 시간대까지 날씨를 봅니다).
       const calendarEventSummary = settings.weatherMorningAlerts
         ? events.filter((event) => event.date >= todayDateLabel).slice(0, 30)
-          .map((event) => ({ date: event.date, time: event.time }))
+          .map((event) => ({
+            date: event.date,
+            time: event.time,
+            ...(event.endTime && (!event.endDate || event.endDate === event.date) ? { endTime: event.endTime } : {}),
+          }))
         : [];
       await registerInOrder({
         calendarEvents: calendarEventSummary,
