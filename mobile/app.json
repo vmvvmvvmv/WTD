@@ -4,11 +4,11 @@
     "slug": "Dust-health-AI-Mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/WeatherToDoIcon.png",
+    "icon": "./assets/weather-todo-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/WeatherToDoIcon.png",
+      "image": "./assets/weather-todo-adaptive.png",
       "resizeMode": "contain",
       "backgroundColor": "#F4F8FC"
     },
@@ -18,7 +18,7 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/WeatherToDoIcon.png",
+        "foregroundImage": "./assets/weather-todo-adaptive.png",
         "backgroundColor": "#F4F8FC"
       },
       "edgeToEdgeEnabled": true,
@@ -37,7 +37,7 @@
       "package": "com.xkvk11.DusthealthAIMobile"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/weather-todo-favicon.png"
     },
     "plugins": [
       "expo-secure-store",
