@@ -3,6 +3,7 @@ import { useMemo, useRef } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import Reanimated, { FadeInDown, ReduceMotion } from 'react-native-reanimated';
 
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/calendar';
@@ -33,6 +34,7 @@ function timeText(event: CalendarEvent) {
 
 // 삼성 캘린더 '일정' 보기처럼 모든 일정을 날짜별로 나열하고, 오늘 위치에서 엽니다(위로 올리면 지난 일정).
 export function CalendarAgendaList({ events, getEventTone, onSelectDate, todayDateLabel }: Props) {
+  const holidays = useHolidayNames(Number(todayDateLabel.slice(0, 4)));
   const scrollRef = useRef<ScrollView>(null);
   const hasScrolledRef = useRef(false);
 
@@ -67,6 +69,7 @@ export function CalendarAgendaList({ events, getEventTone, onSelectDate, todayDa
           >
             <View style={styles.calendarAgendaHeader}>
               <Text style={[styles.calendarAgendaHeaderText, isToday && styles.calendarAgendaHeaderToday]}>{sectionTitle(date, todayDateLabel)}</Text>
+              {!!holidays[date] && <Text style={[styles.calendarAgendaHeaderText, styles.calendarHolidayText]}>{holidays[date]}</Text>}
               {isToday && <Text style={styles.calendarAgendaTodayTag}>오늘</Text>}
             </View>
             {!dayEvents.length && <Text style={styles.calendarAgendaEmptyText}>오늘 일정이 없어요</Text>}

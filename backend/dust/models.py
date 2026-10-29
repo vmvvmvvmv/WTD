@@ -253,3 +253,13 @@ class ExpoPushTicket(models.Model):
     class Meta:
         db_table = 'expo_push_ticket'
         indexes = [models.Index(fields=['created_at'], name='push_ticket_time_idx')]
+
+
+# 대한민국 공휴일(대체·임시공휴일 포함). collect_holidays가 천문연구원 API에서 해마다 채운다.
+class PublicHoliday(models.Model):
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=60)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'public_holiday'

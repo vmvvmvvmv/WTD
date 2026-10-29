@@ -5,6 +5,7 @@ import Reanimated, { FadeIn, LayoutAnimationConfig, LinearTransition, ReduceMoti
 import { styles } from '../../styles/appStyles';
 import { bauhausColors } from '../../theme/bauhaus';
 import type { CalendarEvent } from '../../types/calendar';
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { CalendarDayCell } from './CalendarDayCell';
 import { useCalendarSlide } from './useCalendarSlide';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
@@ -67,6 +68,7 @@ export function CalendarTimeline({
   }, []);
 
   const cells = useMemo(() => dates.map((date) => ({ date, day: parseDateParts(date).day, inMonth: true })), [dates]);
+  const holidays = useHolidayNames(Number((dates[0] ?? todayDateLabel).slice(0, 4)));
   const multiDayEvents = useMemo(() => events.filter(isMultiDayEvent), [events]);
   const allDayItems = useMemo(() => buildCalendarEventLanes(cells, multiDayEvents), [cells, multiDayEvents]);
   const allDayCounts = useMemo(() => buildCalendarEventCounts(cells, multiDayEvents), [cells, multiDayEvents]);
@@ -109,6 +111,7 @@ export function CalendarTimeline({
                   eventCount={allDayCounts[cell.date] ?? 0}
                   eventItems={allDayItems[cell.date] ?? []}
                   getEventTone={getEventTone}
+                  holidayName={holidays[cell.date]}
                   isRangeAnchor={false}
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}

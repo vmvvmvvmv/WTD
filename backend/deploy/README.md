@@ -146,6 +146,10 @@ sudo tail -f /var/log/mysql/weathertodo-slow.log
 ```bash
 deploy/collect_hourly.sh
 ```
+공휴일(올해·내년)도 처음 한 번 받는다. 이후에는 아침 7시 타이머가 매일 다시 받는다(공공데이터포털에서 `한국천문연구원_특일 정보` 활용 신청 필요):
+```bash
+venv/bin/python manage.py collect_holidays
+```
 
 ## 6-3. 접속 기록 보관 기간 30일 (개인정보 처리방침 3번)
 

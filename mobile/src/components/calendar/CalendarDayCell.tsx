@@ -24,6 +24,8 @@ type Props = {
   eventItems: Array<CalendarEvent | null>;
   fillsParent?: boolean;
   getEventTone: (event: CalendarEvent) => string;
+  // 공휴일이면 날짜를 빨갛게 칠하고, 일정이 없는 칸에는 이름도 적습니다.
+  holidayName?: string;
   isRangeAnchor: boolean;
   isSelected: boolean;
   isToday: boolean;
@@ -46,6 +48,7 @@ export function CalendarDayCell({
   eventItems,
   fillsParent,
   getEventTone,
+  holidayName,
   isRangeAnchor,
   isSelected,
   isToday,
@@ -104,10 +107,15 @@ export function CalendarDayCell({
       <Reanimated.Text style={[
         dayScaleStyle,
         styles.calendarDayText,
+        !!holidayName && styles.calendarHolidayText,
         isToday && { color: accentTone },
         isSelected && { color: accentTone },
       ]}>{day}</Reanimated.Text>
       <View style={[styles.calendarEventLineStack, compact && styles.calendarEventLineStackCompact]}>
+        {/* 일정 줄이 있는 칸에 이름을 끼우면 여러 날 일정 막대가 옆 칸과 어긋나서, 빈 칸에만 적습니다. */}
+        {!!holidayName && !compact && visibleEventCount === 0 && (
+          <Text numberOfLines={1} style={styles.calendarDayHolidayName}>{holidayName}</Text>
+        )}
         {visibleEventItems.map((event, laneIndex) => {
           if (!event) {
             return <View key={`${date}-empty-lane-${laneIndex}`} style={styles.calendarEventLineSpacer} />;
