@@ -11,8 +11,9 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import type { StationDustItem } from '../../types/dust';
 import type { RegionState } from '../../types/region';
 import type { WeatherState } from '../../types/weather';
+import { formatDistanceKm, stationLabel, stationResults, type RegionSearchResult } from '../../features/region/regionPlaceSearch';
 import { isSameRegion } from '../../features/region/regionUtils';
-import { stationIdentity, uniqueStations } from '../../features/stations/stationUtils';
+import { uniqueStations } from '../../features/stations/stationUtils';
 import { StationBottomSheet } from './StationBottomSheet';
 import { accentBorderTone, accentTone } from '../../theme/appTheme';
 
@@ -21,9 +22,10 @@ type FullMapScreenProps = {
   dismissMapSearchKeyboard: () => void;
   favoriteRegions: RegionState[];
   focusGpsMapRegion: () => void;
-  focusMapStation: (station?: StationDustItem) => void;
+  focusMapStation: (station?: StationDustItem, label?: string) => void;
   handleMapMessage: (event: { nativeEvent: { data: string } }) => void;
   isLoadingStations: boolean;
+  isMapSearching: boolean;
   isMapSearchFocused: boolean;
   mapMarkerMode: 'dust' | 'weather';
   mapRecentSearches: StationDustItem[];
@@ -41,7 +43,7 @@ type FullMapScreenProps = {
   onRemoveRecentSearch: (station: StationDustItem) => void;
   onRetryMap: () => void;
   onToggleFavorite: (station: StationDustItem) => void;
-  searchSuggestions: StationDustItem[];
+  searchSuggestions: RegionSearchResult[];
   selectedStation: StationDustItem | null;
   selectedStationWeather?: WeatherState | null;
   setIsMapSearchFocused: (value: boolean) => void;
@@ -62,6 +64,7 @@ export function FullMapScreen({
   focusMapStation,
   handleMapMessage,
   isLoadingStations,
+  isMapSearching,
   isMapSearchFocused,
   mapMarkerMode,
   mapRecentSearches,
@@ -90,7 +93,12 @@ export function FullMapScreen({
   showSearchSuggestions,
   switchMapMarkerMode,
 }: FullMapScreenProps) {
-  const overlayItems = mapSearchText.trim() ? searchSuggestions : uniqueStations(mapRecentSearches);
+  // 검색어가 있으면 장소 검색 결과(근처 측정소 포함), 없으면 최근에 본 측정소.
+  const overlayItems = mapSearchText.trim() ? searchSuggestions : stationResults(uniqueStations(mapRecentSearches));
+  // 장소로 찾은 결과면 그 장소 이름을, 측정소 이름으로 찾은 결과면 측정소를 그대로 씁니다.
+  const focusResult = (result?: RegionSearchResult) => {
+    if (result) focusMapStation(result.station, result.distanceKm === null ? undefined : result.title);
+  };
   const [mapLoadError, setMapLoadError] = useState('');
 
   return (
@@ -144,8 +152,8 @@ export function FullMapScreen({
             setIsMapSearchFocused(true);
             setShowSearchSuggestions(false);
           }}
-          onSubmitEditing={() => focusMapStation(searchSuggestions[0])}
-          placeholder={"\uC9C0\uC5ED\uC774\uB098 \uCE21\uC815\uC18C \uAC80\uC0C9"}
+          onSubmitEditing={() => focusResult(searchSuggestions[0])}
+          placeholder="장소, 주소, 지역 검색"
           placeholderTextColor={textColors.muted}
           returnKeyType="search"
           style={styles.mapSearchInput}
@@ -180,15 +188,15 @@ export function FullMapScreen({
       )}
       {showSearchSuggestions && !isMapSearchFocused && searchSuggestions.length > 0 && (
         <View style={[styles.searchSuggestions, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
-          {searchSuggestions.map((station, index) => (
+          {searchSuggestions.map((result) => (
             <Pressable
-              key={stationIdentity(station) + '-' + index + '-inline'}
+              key={`${result.key}-inline`}
               onPressIn={dismissMapSearchKeyboard}
-              onPress={() => focusMapStation(station)}
+              onPress={() => focusResult(result)}
               style={({ pressed }) => [styles.searchSuggestionItem, pressed && styles.pressedFeedback]}
             >
-              <Text style={styles.searchSuggestionTitle}>{station.name ?? station.city}</Text>
-              <Text style={styles.searchSuggestionMeta}>{[station.sido, station.addr].filter(Boolean).join(' / ')}</Text>
+              <Text style={styles.searchSuggestionTitle}>{result.title}</Text>
+              <Text style={styles.searchSuggestionMeta}>{result.meta}</Text>
             </Pressable>
           ))}
         </View>
@@ -207,8 +215,8 @@ export function FullMapScreen({
                 setMapSearchText(text);
                 setMapSearchMessage('');
               }}
-              onSubmitEditing={() => focusMapStation(searchSuggestions[0])}
-              placeholder={"\uC9C0\uC5ED, \uCE21\uC815\uC18C, \uC8FC\uC18C \uAC80\uC0C9"}
+              onSubmitEditing={() => focusResult(searchSuggestions[0])}
+              placeholder="장소, 주소, 지역 검색"
               placeholderTextColor={textColors.muted}
               returnKeyType="search"
               style={styles.mapSearchOverlayInput}
@@ -232,19 +240,24 @@ export function FullMapScreen({
           {(mapSearchText.trim() || mapRecentSearches.length > 0) && (
             <View style={[styles.mapSearchOverlayList, { borderColor: accentBorderTone, shadowColor: accentTone }]}>
               {overlayItems.length === 0 ? (
-                <Text style={styles.mapSearchEmptyText}>{"\uC77C\uCE58\uD558\uB294 \uCE21\uC815\uC18C\uB97C \uCC3E\uC9C0 \uBABB\uD588\uC2B5\uB2C8\uB2E4."}</Text>
+                <Text style={styles.mapSearchEmptyText}>{isMapSearching ? '찾는 중입니다.' : '찾는 장소가 없습니다. 다른 이름이나 주소로 찾아보세요.'}</Text>
               ) : (
-                overlayItems.map((station, index) => (
-                  <View key={stationIdentity(station) + '-' + index + '-overlay'} style={styles.mapSearchOverlayItem}>
-                    <Pressable onPressIn={dismissMapSearchKeyboard} onPress={() => focusMapStation(station)} style={({ pressed }) => [styles.mapSearchOverlaySelect, pressed && styles.pressedFeedback]}>
+                overlayItems.map((result) => (
+                  <View key={`${result.key}-overlay`} style={styles.mapSearchOverlayItem}>
+                    <Pressable onPressIn={dismissMapSearchKeyboard} onPress={() => focusResult(result)} style={({ pressed }) => [styles.mapSearchOverlaySelect, pressed && styles.pressedFeedback]}>
                       <AppActionIcon name="location" size={25} />
                       <View style={styles.mapSearchOverlayTextGroup}>
-                        <Text style={styles.mapSearchOverlayTitle}>{station.sido} {station.city || station.name}</Text>
-                        <Text style={styles.mapSearchOverlayMeta}>{[station.name, station.addr].filter(Boolean).join(' / ')}</Text>
+                        <Text numberOfLines={1} style={styles.mapSearchOverlayTitle}>{result.title}</Text>
+                        {!!result.meta && <Text numberOfLines={1} style={styles.mapSearchOverlayMeta}>{result.meta}</Text>}
+                        {result.distanceKm !== null && (
+                          <Text numberOfLines={1} style={[styles.mapSearchOverlayMeta, { color: accentTone }]}>
+                            {`근처 측정소 ${result.station.sido ?? ''} ${stationLabel(result.station)} · ${formatDistanceKm(result.distanceKm)}`}
+                          </Text>
+                        )}
                       </View>
                     </Pressable>
                     {!mapSearchText.trim() && (
-                      <Pressable accessibilityLabel="최근 검색 삭제" onPress={() => onRemoveRecentSearch(station)} style={({ pressed }) => [styles.mapSearchRemoveButton, pressed && styles.pressedFeedback]}>
+                      <Pressable accessibilityLabel="최근 검색 삭제" onPress={() => onRemoveRecentSearch(result.station)} style={({ pressed }) => [styles.mapSearchRemoveButton, pressed && styles.pressedFeedback]}>
                         <Ionicons color={textColors.muted} name="close" size={19} />
                       </Pressable>
                     )}

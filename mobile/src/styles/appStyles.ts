@@ -57,7 +57,7 @@ const appStyles = StyleSheet.create({
   homeRegionSearchInput: { color: textColors.primary, flex: 1, fontSize: 14, fontWeight: '600', minHeight: 44, paddingHorizontal: 12, paddingVertical: 0 },
   homeRegionSearchGpsButton: { alignItems: 'center', borderLeftColor: '#d9dee5', borderLeftWidth: 1, height: 38, justifyContent: 'center', marginRight: 4, width: 44 },
   homeRegionSearchEmpty: { color: textColors.muted, fontSize: 12, fontWeight: '600', lineHeight: 18, marginTop: 10 },
-  homeRegionSuggestionList: { marginTop: 10, maxHeight: 180 },
+  homeRegionSuggestionList: { marginTop: 10 },
   homeRegionSuggestionItem: { alignItems: 'center', borderTopColor: '#EDF1F6', borderTopWidth: 1, flexDirection: 'row', gap: 10, justifyContent: 'space-between', minHeight: 58, paddingVertical: 8 },
   homeRegionSuggestionTextGroup: { flex: 1, paddingVertical: 2 },
   homeRegionSuggestionTitle: { color: textColors.primary, fontSize: 14, fontWeight: '700' },
