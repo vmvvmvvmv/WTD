@@ -6,6 +6,7 @@ import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 
 import { searchNaverPlaces } from '../../api/dustEndpoints';
+import { parseNaverPlaceItems } from '../../features/places/naverPlaces';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
@@ -180,20 +181,7 @@ export function CalendarEventEditor({
         for (const nearbyQuery of searchQueries) {
           const response = await searchNaverPlaces({ query: nearbyQuery, size: 5 });
           if (cancelled) return;
-          const items = Array.isArray(response?.items) ? response.items : [];
-          const candidates = items.flatMap((item) => {
-            const place = item && typeof item === 'object' ? item as Record<string, unknown> : null;
-            if (!place || typeof place.label !== 'string' || !place.label || typeof place.lat !== 'number' || typeof place.lng !== 'number') return [];
-            return [{
-              address: typeof place.address === 'string' ? place.address : undefined,
-              category: typeof place.category === 'string' ? place.category : undefined,
-              label: place.label,
-              lat: place.lat,
-              lng: place.lng,
-              link: typeof place.link === 'string' ? place.link : undefined,
-              source: 'naver_local',
-            } satisfies CalendarLocationCandidate];
-          });
+          const candidates = parseNaverPlaceItems(response?.items).map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
           if (candidates.length > 0) {
             results = candidates;
             break;

@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, AppState, BackHandler, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,7 +10,9 @@ import { HomePanel } from '../components/home/HomePanel';
 import { HomeRegionSearchPanel } from '../components/home/HomeRegionSearchPanel';
 import { useRegionTransition } from '../components/home/useRegionTransition';
 import { FullMapScreen } from '../components/map/FullMapScreen';
-import { findStationSuggestions, useMapSearch } from '../components/map/useMapSearch';
+import { useMapSearch } from '../components/map/useMapSearch';
+import type { RegionSearchResult } from '../features/region/regionPlaceSearch';
+import { useRegionPlaceSearch } from '../features/region/useRegionPlaceSearch';
 import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { BottomToast } from '../components/shared/BottomToast';
@@ -163,9 +165,7 @@ export function AppContent() {
   const { handleMapMessage } = useMapTabLifecycle(mapSearch, activeTab, () => switchTab('home'));
 
   // 홈 화면 지역 검색어에 맞는 측정소 후보를 계산합니다.
-  const homeRegionSuggestions = useMemo(() => {
-    return findStationSuggestions(mapStations, homeRegionSearchText, 6);
-  }, [homeRegionSearchText, mapStations]);
+  const homeRegionSearch = useRegionPlaceSearch(homeRegionSearchText, mapStations);
 
   const { calendarDefaultLocation, calendarMapPickerUrl, fullMapUrl, homeMapPreviewUrl } = useAppMapUrls({
     activeTab, findStationForRegion, gpsRegion, mapMarkerMode, selectedRegion,
@@ -232,10 +232,13 @@ export function AppContent() {
     return city && region ? { city, region, label: station.name } : null;
   };
 
-  // 홈 지역 검색 결과를 눌렀을 때 홈 기준 지역으로 적용합니다.
-  const selectHomeRegionSuggestion = (station: StationDustItem) => {
-    const region = regionFromStation(station);
-    if (region) applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`);
+  // 홈 지역 검색 결과를 눌렀을 때: 그 장소 근처 측정소의 지역을 홈 기준 지역으로 적용합니다.
+  const selectHomeRegionSuggestion = (result: RegionSearchResult) => {
+    const region = regionFromStation(result.station);
+    if (!region) return;
+    applyRegion(region, result.distanceKm === null
+      ? `${region.city} ${region.region} 기준으로 변경했습니다.`
+      : `${result.title} 근처 ${region.city} ${region.region} 측정소 기준으로 변경했습니다.`);
   };
 
   // 지도·홈 검색 결과의 별표로 즐겨찾기를 추가하거나 해제합니다.
@@ -393,6 +396,7 @@ export function AppContent() {
           onRemoveRecentSearch={mapSearch.removeMapRecentSearch}
           onRetryMap={() => setMapViewKey((key) => key + 1)}
           onToggleFavorite={toggleStationFavorite}
+          isMapSearching={mapSearch.isMapSearching}
           searchSuggestions={mapSearch.searchSuggestions}
           selectedStation={mapSearch.selectedStation}
           selectedStationWeather={mapSearch.selectedStationWeather}
@@ -490,14 +494,15 @@ export function AppContent() {
                 favoriteRegions={favoriteRegions}
                 gpsRegion={gpsRegion}
                 isLoadingStations={isLoadingStations}
+                isSearching={homeRegionSearch.isSearching}
                 onApplyRegion={applyRegion}
                 onChangeText={setHomeRegionSearchText}
-                onSelectStation={selectHomeRegionSuggestion}
+                onSelectResult={selectHomeRegionSuggestion}
                 onToggleFavorite={toggleStationFavorite}
                 panelAnimation={homePanelAnimation}
                 searchText={homeRegionSearchText}
                 selectedRegion={selectedRegion}
-                suggestions={homeRegionSuggestions}
+                suggestions={homeRegionSearch.results}
               />
             )}
           </View>
