@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
@@ -448,11 +448,6 @@ export function CalendarEventEditor({
                         <Text style={styles.calendarMapPickerSearchResultTitle}>{place.label}</Text>
                         <Text numberOfLines={1} style={styles.calendarMapPickerSearchResultMeta}>{[place.category, place.address].filter(Boolean).join(' / ')}</Text>
                       </Pressable>
-                      {place.link && /^https?:\/\//i.test(place.link) && (
-                        <Pressable accessibilityLabel={`${place.label} 원본 보기`} onPress={() => Linking.openURL(place.link!)} style={styles.calendarMapPickerSearchResultLink}>
-                          <Text style={styles.calendarMapPickerSearchResultLinkText}>원본 보기</Text>
-                        </Pressable>
-                      )}
                     </View>
                   ))}
                   <Text style={styles.calendarMapPickerSearchAttribution}>네이버 지역 검색 결과</Text>
@@ -495,11 +490,6 @@ export function CalendarEventEditor({
                   {isMapMoving ? '' : pendingLocation?.source === 'naver_local' ? '네이버 지역 검색 결과' : pendingLocation ? '핀이 가리키는 위치' : ''}
                 </Text>
               </View>
-              {pendingLocation?.link && /^https?:\/\//i.test(pendingLocation.link) && (
-                <Pressable accessibilityLabel="선택한 장소 원본 보기" onPress={() => Linking.openURL(pendingLocation.link!)} style={styles.calendarMapPickerSearchResultLink}>
-                  <Text style={styles.calendarMapPickerSearchResultLinkText}>원본 보기</Text>
-                </Pressable>
-              )}
               <Pressable
                 disabled={!pendingLocation || isMapMoving}
                 onPress={() => pendingLocation && applyPickedLocation(pendingLocation)}

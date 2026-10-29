@@ -154,8 +154,6 @@ export const calendarStyles = StyleSheet.create({
   calendarMapPickerSearchResults: { backgroundColor: 'rgba(255,255,255,0.98)', borderColor: '#e5e9ef', borderRadius: 8, borderWidth: 1, marginTop: 8, overflow: 'hidden', shadowColor: '#141821', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.06, shadowRadius: 12 },
   calendarMapPickerSearchResultItem: { alignItems: 'center', borderBottomColor: '#eef1f5', borderBottomWidth: 1, flexDirection: 'row', paddingHorizontal: 13 },
   calendarMapPickerSearchResultMain: { flex: 1, paddingVertical: 10 },
-  calendarMapPickerSearchResultLink: { paddingHorizontal: 6, paddingVertical: 10 },
-  calendarMapPickerSearchResultLinkText: { color: '#2463c7', fontSize: 12, fontWeight: '600' },
   calendarMapPickerSearchAttribution: { color: textColors.secondary, fontSize: 11, paddingHorizontal: 13, paddingVertical: 7 },
   calendarMapPickerSearchResultTitle: { color: textColors.primary, fontSize: 14, fontWeight: '700' },
   calendarMapPickerSearchResultMeta: { color: textColors.secondary, fontSize: 12, fontWeight: '600', marginTop: 3 },
