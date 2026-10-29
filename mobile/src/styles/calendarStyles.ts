@@ -72,7 +72,8 @@ export const calendarStyles = StyleSheet.create({
   calendarLibraryDayCell: { width: '100%' },
   calendarBlankDayCell: { backgroundColor: '#fcfdfc' },
   calendarDraftRangeCell: { backgroundColor: '#e7f6ee' },
-  calendarDayWeatherIcon: { alignItems: 'center', height: 18, justifyContent: 'center', opacity: 0.85, position: 'absolute', right: 3, top: 3, width: 18, zIndex: 3 },
+  // 날씨 그림은 오른쪽 위 구석에 작게: 좁은 화면에서도 두 자리 날짜 숫자를 가리지 않게.
+  calendarDayWeatherIcon: { alignItems: 'center', height: 14, justifyContent: 'center', opacity: 0.85, position: 'absolute', right: 1, top: 2, width: 14, zIndex: 3 },
   calendarDayWeatherRiskBadge: { alignItems: 'center', borderRadius: 999, borderWidth: 1, height: 18, justifyContent: 'center', position: 'absolute', right: 3, top: 3, width: 18, zIndex: 3 },
   calendarRangeAnchorMark: { borderRadius: 999, height: 7, position: 'absolute', right: 3, top: 3, width: 7 },
   calendarDayText: { color: textColors.primary, fontSize: 13, fontWeight: '700', textAlign: 'center' },
