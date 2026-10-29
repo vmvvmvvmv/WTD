@@ -447,7 +447,6 @@ export function CalendarPanel({
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
-        defaultLocation={defaultLocation}
         endDate={draft.endDate}
         endTime={draft.endTime}
         isRepeatLocked={draft.isRepeatLocked}
