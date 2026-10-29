@@ -72,6 +72,8 @@ export function CalendarDayCell({
     dayScale.value = withSequence(withTiming(1.22, { duration: 110 }), withSpring(1, { damping: 9, stiffness: 260 }));
   }, [dayScale, isSelected, reduceMotion]);
   const dayScaleStyle = useAnimatedStyle(() => ({ transform: [{ scale: dayScale.value }] }));
+  // 일요일 빨강, 토요일 파랑(공휴일이면 빨강이 우선, 오늘·고른 날은 강조색이 우선).
+  const weekday = new Date(`${date}T00:00:00`).getDay();
   const visibleEventItems = eventItems.slice(0, 3);
   const visibleEventCount = visibleEventItems.filter(Boolean).length;
   const hiddenEventCount = Math.max(0, eventCount - visibleEventCount);
@@ -107,15 +109,20 @@ export function CalendarDayCell({
       <Reanimated.Text style={[
         dayScaleStyle,
         styles.calendarDayText,
+        weekday === 0 && styles.calendarWeekTextSunday,
+        weekday === 6 && styles.calendarWeekTextSaturday,
         !!holidayName && styles.calendarHolidayText,
         isToday && { color: accentTone },
         isSelected && { color: accentTone },
       ]}>{day}</Reanimated.Text>
+      {/* 공휴일 이름은 일정이 없는 칸에만, 날짜 바로 아래 가운데에 적습니다. 일정이 있으면 빨간 날짜만 남깁니다.
+          "대체공휴일(개천절)"처럼 긴 이름은 괄호를 떼고 적고, 전체 이름은 날짜 창에서 보여 줍니다. */}
+      {!!holidayName && !compact && visibleEventCount === 0 && (
+        <View pointerEvents="none" style={styles.calendarDayHolidayBox}>
+          <Text adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1} style={styles.calendarDayHolidayName}>{holidayName.replace(/\(.*\)$/, '')}</Text>
+        </View>
+      )}
       <View style={[styles.calendarEventLineStack, compact && styles.calendarEventLineStackCompact]}>
-        {/* 일정 줄이 있는 칸에 이름을 끼우면 여러 날 일정 막대가 옆 칸과 어긋나서, 빈 칸에만 적습니다. */}
-        {!!holidayName && !compact && visibleEventCount === 0 && (
-          <Text numberOfLines={1} style={styles.calendarDayHolidayName}>{holidayName}</Text>
-        )}
         {visibleEventItems.map((event, laneIndex) => {
           if (!event) {
             return <View key={`${date}-empty-lane-${laneIndex}`} style={styles.calendarEventLineSpacer} />;

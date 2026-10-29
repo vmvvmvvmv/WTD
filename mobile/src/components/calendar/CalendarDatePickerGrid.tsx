@@ -39,7 +39,7 @@ export function CalendarDatePickerGrid({ onChange, value }: {
       </View>
       <View style={styles.calendarDatePickerWeekRow}>
         {weekdayLabels.map((label, index) => (
-          <Text key={label} style={[styles.calendarDatePickerWeekText, index === 0 && styles.calendarDatePickerSunday]}>{label}</Text>
+          <Text key={label} style={[styles.calendarDatePickerWeekText, index === 0 && styles.calendarDatePickerSunday, index === 6 && styles.calendarDatePickerSaturday]}>{label}</Text>
         ))}
       </View>
       <Reanimated.View
@@ -67,6 +67,7 @@ export function CalendarDatePickerGrid({ onChange, value }: {
                 <Text
                   style={[
                     styles.calendarDatePickerDayText,
+                    index % 7 === 6 && styles.calendarDatePickerSaturday,
                     (index % 7 === 0 || !!holidays[cell.date]) && styles.calendarDatePickerSunday,
                     isToday && { color: accentTone },
                     isSelected && styles.calendarDatePickerDayTextSelected,

@@ -61,7 +61,8 @@ export const calendarStyles = StyleSheet.create({
   calendarWeekTextSunday: { color: '#E05263' },
   // 공휴일: 일요일과 같은 빨강. 칸 안 이름은 일정 글자보다 작게.
   calendarHolidayText: { color: '#E05263' },
-  calendarDayHolidayName: { color: '#E05263', fontSize: 10, fontWeight: '700', lineHeight: 13, paddingHorizontal: 2 },
+  calendarDayHolidayBox: { alignItems: 'center', left: 0, paddingHorizontal: 1, position: 'absolute', right: 0, top: 28 },
+  calendarDayHolidayName: { color: '#E05263', fontSize: 10, fontWeight: '700', lineHeight: 13, textAlign: 'center' },
   calendarWeekTextSaturday: { color: bauhausColors.blueText },
   calendarWeekText: { color: textColors.muted, flex: 1, fontSize: 11, fontWeight: '700', textAlign: 'center' },
   calendarGrid: { borderColor: '#dfe5ec', flex: 1, minHeight: 0 },
@@ -110,6 +111,7 @@ export const calendarStyles = StyleSheet.create({
   calendarDatePickerWeekRow: { flexDirection: 'row', marginBottom: 2 },
   calendarDatePickerWeekText: { color: textColors.muted, flex: 1, fontSize: 11, fontWeight: '700', textAlign: 'center' },
   calendarDatePickerSunday: { color: '#E05263' },
+  calendarDatePickerSaturday: { color: bauhausColors.blueText },
   calendarDatePickerGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   // 100/7%를 그대로 쓰면 픽셀 반올림으로 7칸 합이 폭을 넘어 한 줄에 6칸만 들어가(요일이 어긋남) 조금 줄입니다.
   calendarDatePickerCell: { alignItems: 'center', height: 42, justifyContent: 'center', width: '14.28%' },
