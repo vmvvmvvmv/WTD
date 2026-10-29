@@ -56,15 +56,10 @@ export function AppContent() {
   const { showToast: setNotificationMessage, toast } = useToast();
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
-  const [openCalendarEditor, setOpenCalendarEditor] = useState(false);
   const {
-    addFirstEvent, calendarTipSeen, continueTutorialInCalendar, dismissCalendarTip, finishTutorial,
+    calendarTipSeen, continueTutorialInCalendar, dismissCalendarTip, finishTutorial,
     hydrate: hydrateTutorial, setTutorialMode, skipTutorialForNow, tutorialMode,
-  } = useAppTutorial({ notify: setNotificationMessage, openCalendarEditor: () => setOpenCalendarEditor(true), switchTab: (tab) => switchTab(tab) });
-  // 캘린더를 떠나면 끕니다. 다시 와도 일정 추가 화면이 또 열리지 않게.
-  useEffect(() => {
-    if (activeTab !== 'calendar') setOpenCalendarEditor(false);
-  }, [activeTab]);
+  } = useAppTutorial({ notify: setNotificationMessage, switchTab: (tab) => switchTab(tab) });
   useAppNavigationEvents(activeTab, setActiveTab, setNotificationMessage);
 
   const todayDateLabel = useTodayLabel();
@@ -359,7 +354,7 @@ export function AppContent() {
     <>
       <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />
       {activeTab === 'home' && tutorialMode === 'welcome' && (
-        <WelcomeSheet onAddEvent={addFirstEvent} onLater={skipTutorialForNow} onStart={() => setTutorialMode('tour')} />
+        <WelcomeSheet onLater={skipTutorialForNow} onStart={() => setTutorialMode('tour')} />
       )}
       {activeTab === 'home' && tutorialMode === 'tour' && (
         <TutorialTour hasHourlyForecast={weatherHourlyItems.length > 0 ? true : weatherForecastResolved ? false : undefined}onContinueCalendar={continueTutorialInCalendar} onFinish={finishTutorial} scrollHome={(y) => mainScrollRef.current?.scrollTo({ animated: true, y })} />
@@ -430,7 +425,6 @@ export function AppContent() {
               currentPm10={currentPm10}
               hourlyItems={hourlyItems}
               mapPickerUrl={calendarMapPickerUrl}
-              openEditorOnMount={openCalendarEditor}
               onAddEvent={addCalendarEvent}
               onAddEvents={addCalendarEvents}
               onRemoveEvent={removeCalendarEvent}
