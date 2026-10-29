@@ -62,6 +62,8 @@ export async function loadStoredWeather(lat: number, lng: number, todayDateLabel
   )) ?? yesterdayItems[yesterdayItems.length - 1];
   return {
     hourlyItems: buildDashboardWeatherHourlyItems(weatherHourlyData, currentWeather, todayDateLabel),
+    // 오늘 이미 지난 시간의 실측값. 홈 배너 '오늘' 칸에서 하루 전체를 보여 줄 때만 씁니다(다른 계산은 지금부터의 예보만 씀).
+    todayPastItems: storedItems.filter((item) => (item.date || item.measuredAt?.slice(0, 10)) === todayDateLabel),
     midTermItems: Array.isArray(midTermData?.items) ? midTermData.items as WeatherMidTermItem[] : [],
     weather: currentWeather,
     yesterdayWeather: weatherStateFromHourlyItem(yesterdayItem),

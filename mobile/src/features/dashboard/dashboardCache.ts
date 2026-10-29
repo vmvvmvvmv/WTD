@@ -17,6 +17,7 @@ export type DashboardCacheSnapshot = {
   weather: WeatherState | null;
   weatherHourlyItems: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
+  weatherTodayPastItems?: WeatherHourlyItem[];
   yesterdayWeather?: WeatherState | null;
 };
 

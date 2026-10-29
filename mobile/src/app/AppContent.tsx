@@ -106,6 +106,7 @@ export function AppContent() {
     weatherHourlyItems,
     weatherForecastResolved,
     weatherMidTermItems,
+    weatherTodayPastItems,
     yesterdayWeather,
   } = useDashboardData({
     autoRefresh: activeTab === 'home',
@@ -539,6 +540,7 @@ export function AppContent() {
             hourlyItems={hourlyItems}
             weatherHourlyItems={weatherHourlyItems}
             weatherMidTermItems={weatherMidTermItems}
+            weatherTodayPastItems={weatherTodayPastItems}
             prediction={prediction}
             todayDateLabel={todayDateLabel}
             weather={weather}
