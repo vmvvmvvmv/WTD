@@ -260,9 +260,9 @@ def naver_place_search(request):
     if len(query) < 1:
         return Response({"items": []})
     try:
-        display = max(1, min(int(request.GET.get("size") or 8), 10))
+        display = max(1, min(int(request.GET.get("size") or 5), 5))
     except (TypeError, ValueError):
-        display = 8
+        display = 5
     try:
         items = search_naver_places(query, display)
     except PlaceSearchUnavailable:
