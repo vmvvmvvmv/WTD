@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { Easing, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 
-const DAY_SHEET_HEIGHT = 300;
+// 날짜 시트의 최소 높이. 작은 화면(16:9, 높이 640dp)에서도 달력 줄이 너무 납작해지지 않게 낮게 둡니다.
+const DAY_SHEET_HEIGHT = 240;
 const EASING = Easing.out(Easing.cubic);
 
 // 날짜 시트(아래에서 올라오는 그날 일정)의 열기·닫기·크게 보기 상태와 애니메이션.

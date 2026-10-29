@@ -294,6 +294,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
               ))}
             </ScrollView>
           ) : (
+            <>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={local.inputScroll}>
               <View style={local.inputBox}>
                 <TextInput
@@ -334,7 +335,8 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                 ))}
               </ScrollView>
               )}
-              {/* AI로 보내기 전 주의사항은 한 줄로 두고, 누르면 펼쳐 봅니다. 서버도 개인정보와 민감한 단어를 가려서 보냅니다. */}
+            </ScrollView>
+              {/* AI로 보내기 전 주의사항은 한 줄로 두고, 누르면 펼쳐 봅니다. 스크롤 밖에 둬서 작은 화면에서 키보드가 올라와도 늘 보입니다. 서버도 개인정보와 민감한 단어를 가려서 보냅니다. */}
               <Pressable
                 accessibilityHint="눌러서 주의사항 보기"
                 accessibilityRole="button"
@@ -353,7 +355,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                   <Text style={local.cautionText}>{caution}</Text>
                 </View>
               ))}
-            </ScrollView>
+            </>
           )}
 
           {!!message && <Text style={local.message}>{message}</Text>}
