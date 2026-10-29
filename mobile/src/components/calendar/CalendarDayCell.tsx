@@ -13,6 +13,13 @@ import { accentSoftTone, accentTone } from '../../theme/appTheme';
 
 type CalendarRange = { endDate: string; startDate: string };
 
+// 칸에 들어가게 공휴일 이름을 줄입니다. "대체공휴일(개천절)" → "대체휴일". 전체 이름은 날짜 창에서 보여 줍니다.
+const SHORT_HOLIDAY_NAMES: Record<string, string> = { 기독탄신일: '성탄절', 대체공휴일: '대체휴일', 임시공휴일: '임시휴일' };
+function shortHolidayName(name: string) {
+  const base = name.replace(/\(.*\)$/, '').trim();
+  return SHORT_HOLIDAY_NAMES[base] ?? (base.endsWith('선거') ? '선거일' : base);
+}
+
 type Props = {
   cellIndex: number;
   // 일정 줄 자리를 미리 잡지 않습니다(주 보기 위쪽 날짜 줄).
@@ -23,6 +30,8 @@ type Props = {
   eventCount: number;
   eventItems: Array<CalendarEvent | null>;
   fillsParent?: boolean;
+  // 칸이 낮아(날짜 창을 열었을 때 등) 공휴일 이름이 잘리면 숨깁니다. 빨간 날짜는 그대로 둡니다.
+  hideHolidayName?: boolean;
   getEventTone: (event: CalendarEvent) => string;
   // 공휴일이면 날짜를 빨갛게 칠하고, 일정이 없는 칸에는 이름도 적습니다.
   holidayName?: string;
@@ -48,6 +57,7 @@ export function CalendarDayCell({
   eventItems,
   fillsParent,
   getEventTone,
+  hideHolidayName,
   holidayName,
   isRangeAnchor,
   isSelected,
@@ -116,10 +126,10 @@ export function CalendarDayCell({
         isSelected && { color: accentTone },
       ]}>{day}</Reanimated.Text>
       {/* 공휴일 이름은 일정이 없는 칸에만, 날짜 바로 아래 가운데에 적습니다. 일정이 있으면 빨간 날짜만 남깁니다.
-          "대체공휴일(개천절)"처럼 긴 이름은 괄호를 떼고 적고, 전체 이름은 날짜 창에서 보여 줍니다. */}
-      {!!holidayName && !compact && visibleEventCount === 0 && (
+          긴 이름은 줄여 적습니다(shortHolidayName). */}
+      {!!holidayName && !compact && !hideHolidayName && visibleEventCount === 0 && (
         <View pointerEvents="none" style={styles.calendarDayHolidayBox}>
-          <Text adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1} style={styles.calendarDayHolidayName}>{holidayName.replace(/\(.*\)$/, '')}</Text>
+          <Text adjustsFontSizeToFit minimumFontScale={0.75} numberOfLines={1} style={styles.calendarDayHolidayName}>{shortHolidayName(holidayName)}</Text>
         </View>
       )}
       <View style={[styles.calendarEventLineStack, compact && styles.calendarEventLineStackCompact]}>
