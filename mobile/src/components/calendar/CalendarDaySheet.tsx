@@ -216,13 +216,16 @@ export function CalendarDaySheet({
           {typeof temperature === 'number' && (
             <MetricChip icon="thermometer" label="기온" tone={bauhausColors.amber} value={`${Math.round(temperature)}°`} />
           )}
-          {/* 날씨 아이콘은 일정 줄과 같은 채운 아이콘 세트를 씁니다. */}
-          <MetricChip
-            weatherKind={weatherIconKind(weatherLabel)}
-            label="날씨"
-            tone={weatherIconKind(weatherLabel) === 'clear' ? '#F3B43F' : bauhausColors.blue}
-            value={weatherLabel || '확인 중'}
-          />
+          {/* 날씨 아이콘은 일정 줄과 같은 채운 아이콘 세트를 씁니다.
+              날씨가 없을 때: 지난 날짜는 숨기고, 오늘은 불러오는 중일 수 있어 '확인 중', 앞으로 올 날은 '예보 전'. */}
+          {(!!weatherLabel || selectedDate >= todayDateLabel) && (
+            <MetricChip
+              weatherKind={weatherIconKind(weatherLabel)}
+              label="날씨"
+              tone={weatherIconKind(weatherLabel) === 'clear' ? '#F3B43F' : bauhausColors.blue}
+              value={weatherLabel || (selectedDate === todayDateLabel ? '확인 중' : '예보 전')}
+            />
+          )}
         </View>
       </View>
       {weatherRisks.length > 0 && (

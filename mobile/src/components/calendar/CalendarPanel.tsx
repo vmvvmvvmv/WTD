@@ -29,6 +29,9 @@ import { useCalendarEventDraft } from './useCalendarEventDraft';
 import { useCalendarNavigation, VIEW_MODES } from './useCalendarNavigation';
 import { accentTone } from '../../theme/appTheme';
 
+// 떠 있는 일정 추가 버튼(높이 58, 바닥에서 20)이 차지하는 자리 + 여유 8.
+const FLOATING_ADD_SPACE = 58 + 20 + 8;
+
 export function CalendarPanel({
   currentPm10,
   defaultLocation,
@@ -312,6 +315,7 @@ export function CalendarPanel({
         )}
         {viewMode === 'month' && (
           <CalendarMonthGrid
+            bottomInset={sheet.isOpen ? 0 : FLOATING_ADD_SPACE}
             eventCountByDate={eventCountByDate}
             eventItemsByDate={eventItemsByDate}
             getEventTone={eventTone}
