@@ -399,13 +399,15 @@ export function CalendarEventEditor({
             </View>
             </View>
           </ScrollView>
-          {/* 하단 바: 왼쪽엔 일정 요약(날짜·시간, 장소), 오른쪽엔 알약 버튼 '저장'. 지도 선택의 아래 칸과 같은 모양입니다. 제목이 비어 있으면 저장을 막습니다. */}
+          {/* 하단 바: 왼쪽엔 일정 요약(첫 줄 시간, 둘째 줄 날짜·장소), 오른쪽엔 알약 버튼 '저장'. 지도 선택의 아래 칸과 같은 모양입니다. 제목이 비어 있으면 저장을 막습니다. */}
           <View style={[styles.calendarMapPickerConfirmBar, styles.calendarEditorBottomBar, { paddingBottom: isKeyboardOpen ? 10 : Math.max(12, insets.bottom + 8) }]}>
             <View style={styles.calendarMapPickerConfirmTextGroup}>
-              <Text numberOfLines={1} style={styles.calendarMapPickerConfirmTitle}>
-                {dayLabel(startDate)} {startTime}~{endDate !== startDate ? `${dayLabel(endDate)} ` : ''}{endTime}
+              <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={styles.calendarMapPickerConfirmTitle}>
+                {startTime} ~ {endDate !== startDate ? `${dayLabel(endDate)} ` : ''}{endTime}
               </Text>
-              {!!location && <Text numberOfLines={1} style={styles.calendarMapPickerConfirmMeta}>{location}</Text>}
+              <Text numberOfLines={1} style={styles.calendarMapPickerConfirmMeta}>
+                {[dayLabel(startDate), location].filter(Boolean).join(' · ')}
+              </Text>
             </View>
             <Pressable
               disabled={!title.trim()}
