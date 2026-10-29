@@ -226,11 +226,8 @@ export const calendarStyles = StyleSheet.create({
   calendarSelectionEmptyBar: { borderRadius: 999, height: 32, opacity: 0.75, width: 4 },
   calendarSelectionEmptyTitle: { color: textColors.secondary, fontSize: 15, fontWeight: '700' },
   // 펼친 두 버튼은 + 버튼(58) 위로 쌓입니다. bottom은 + 버튼과 같은 값(시트를 따라 움직임)을 받습니다.
-  // 일정 추가 메뉴: 보기 탭 줄의 + 버튼 바로 아래 오른쪽에 펼칩니다.
-  calendarAddDial: { alignItems: 'flex-end', gap: 10, position: 'absolute', right: 14, top: 4, zIndex: 7 },
-  calendarAddDialClose: { position: 'relative', right: 0, top: 0 },
-  calendarTabsRow: { position: 'relative' },
-  calendarHeaderAddButton: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 999, borderWidth: 1, height: 34, justifyContent: 'center', position: 'absolute', right: 14, top: 4, width: 34, zIndex: 2 },
+  // 일정 추가 메뉴: 날짜 창의 '+ 일정 추가'를 누르면 오른쪽 아래에 펼칩니다. 바깥을 누르면 닫힙니다.
+  calendarAddDial: { alignItems: 'flex-end', bottom: 20, gap: 10, position: 'absolute', right: 14, zIndex: 7 },
   calendarAddDialBackdrop: { backgroundColor: 'rgba(255, 255, 255, 0.72)', bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 5 },
   calendarAddDialOption: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, height: 46, paddingHorizontal: 18, ...bauhausMediumShadow },
   calendarAddDialText: { fontSize: 14, fontWeight: '800' },
