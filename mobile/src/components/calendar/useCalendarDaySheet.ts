@@ -9,7 +9,7 @@ const EASING = Easing.out(Easing.cubic);
 // - progress: 날짜를 고르면 시트가 올라오고 닫으면 내려갑니다.
 // - sizeProgress: 열린 시트를 크게/작게 바꿉니다.
 // 캘린더 높이와 시트 높이가 매 프레임 바뀌므로 Reanimated로 화면 스레드에서 돌려, JS가 바쁠 때도 끊기지 않게 합니다.
-export function useCalendarDaySheet(windowHeight: number) {
+export function useCalendarDaySheet(panelHeight: number) {
   const reduceMotion = useReducedMotion();
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -17,8 +17,8 @@ export function useCalendarDaySheet(windowHeight: number) {
   const progress = useSharedValue(0);
   const sizeProgress = useSharedValue(0);
 
-  const compactHeight = Math.min(380, Math.max(DAY_SHEET_HEIGHT, Math.round(windowHeight * 0.42)));
-  const expandedHeight = Math.max(compactHeight, windowHeight - 120);
+  const compactHeight = Math.min(380, Math.max(DAY_SHEET_HEIGHT, Math.round(panelHeight * 0.42)), Math.max(0, panelHeight - 64));
+  const expandedHeight = Math.max(compactHeight, panelHeight - 48);
 
   const close = () => {
     setIsOpen(false);

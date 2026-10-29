@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Animated, Pressable, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Animated, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
@@ -76,7 +76,7 @@ export function HomeRegionSearchPanel({
         <Text style={styles.homeRegionSearchEmpty}>일치하는 지역을 찾지 못했습니다. 시군구나 읍면동 이름을 조금 다르게 입력해보세요.</Text>
       )}
       {suggestions.length > 0 && (
-        <View style={styles.homeRegionSuggestionList}>
+        <ScrollView keyboardShouldPersistTaps="always" nestedScrollEnabled style={styles.homeRegionSuggestionList}>
           {suggestions.map((station, index) => {
             const regionName = station.city || station.name || '';
             const alreadyFavorite = favoriteRegions.some((region) => isSameRegion(region, { city: station.sido ?? '', region: regionName }));
@@ -99,7 +99,7 @@ export function HomeRegionSearchPanel({
               </View>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </Animated.View>
   );

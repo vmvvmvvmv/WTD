@@ -15,8 +15,8 @@ import { WeatherIcon } from './WeatherIcon';
 const TOUR_STEPS = [
   { body: '지역 이름을 눌러 바꾸고, 지역 검색에서 다른 곳을 찾아볼 수 있어요.', target: 'homeRegion', title: '지역 바꾸기·검색' },
   { body: '지금 날씨와 미세먼지를 보여 줘요. 옆으로 밀면 다른 정보도 볼 수 있어요.', target: 'homeBanner', title: '날씨 배너' },
-  { body: '시간을 누르면 위 배너에 그때 날씨가 나와요.', target: 'homeHourly', title: '시간별 예보' },
-  { body: '활동 가이드, 추천 옷차림, 날씨 지도를 여기서 골라 볼 수 있어요.', target: 'homeSections', title: '홈에서 골라 보기' },
+  { body: '날짜를 누르면 시간별 예보가 열려요. 시간을 고르면 위 배너가 바뀌어요.', target: 'homeHourly', title: '4일 예보' },
+  { body: '일정 가이드, 추천 옷차림, 날씨 지도를 여기서 골라 볼 수 있어요.', target: 'homeSections', title: '홈에서 골라 보기' },
   { body: '이어서 캘린더를 열어 볼게요. 일정을 적으면 그때 날씨도 같이 볼 수 있어요.', target: 'tabCalendar', title: '캘린더에서 일정 추가' },
 ];
 
@@ -211,8 +211,8 @@ function WelcomeMotion() {
   );
 }
 
-// 첫 실행 시트: 직접 일정을 적어 보게 이끌고, 투어는 고른 사람만 본다.
-export function WelcomeSheet({ onAddEvent, onLater, onStart }: { onAddEvent: () => void; onLater: () => void; onStart: () => void }) {
+// 첫 실행 시트: 기능 둘러보기와 닫기를 선택한다.
+export function WelcomeSheet({ onLater, onStart }: { onLater: () => void; onStart: () => void }) {
   const reduceMotion = useReducedMotion();
   const translateY = useRef(new Animated.Value(reduceMotion ? 0 : 40)).current;
   useEffect(() => {
@@ -224,17 +224,14 @@ export function WelcomeSheet({ onAddEvent, onLater, onStart }: { onAddEvent: () 
       <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
         <View style={styles.sheetHandle} />
         <WelcomeMotion />
-        <Text accessibilityRole="header" style={styles.sheetTitle}>첫 일정을 적어 볼까요?</Text>
-        <Text style={styles.sheetBody}>그때 날씨와 옷차림을 같이 보여 드려요.</Text>
+        <Text accessibilityRole="header" style={styles.sheetTitle}>웨더투두를 둘러볼까요?</Text>
+        <Text style={styles.sheetBody}>날씨와 옷차림, 일정 기능을 차례로 보여 드려요.</Text>
         <View style={styles.sheetActions}>
-          <Pressable accessibilityRole="button" onPress={onAddEvent} style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}>
-            <Text style={[styles.primaryText, styles.sheetPrimaryText]}>첫 일정 추가하기</Text>
+          <Pressable accessibilityRole="button" onPress={onStart} style={({ pressed }) => [styles.sheetPrimary, pressed && styles.pressed]}>
+            <Text style={[styles.primaryText, styles.sheetPrimaryText]}>기능 둘러보기</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" onPress={onStart} style={({ pressed }) => [styles.sheetSecondary, pressed && styles.pressed]}>
-            <Text style={styles.sheetSecondaryText}>기능 둘러보기</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={onLater} style={({ pressed }) => [styles.sheetText, pressed && styles.pressed]}>
-            <Text style={styles.sheetTextLabel}>괜찮아요</Text>
+          <Pressable accessibilityRole="button" onPress={onLater} style={({ pressed }) => [styles.sheetSecondary, pressed && styles.pressed]}>
+            <Text style={styles.sheetSecondaryText}>괜찮아요</Text>
           </Pressable>
         </View>
       </Animated.View>
@@ -304,8 +301,6 @@ const styles = StyleSheet.create({
   sheetPrimaryText: { fontSize: 16 },
   sheetSecondary: { alignItems: 'center', backgroundColor: bauhausColors.white, borderColor: bauhausColors.border, borderRadius: 999, borderWidth: 1, justifyContent: 'center', minHeight: 48 },
   sheetSecondaryText: { color: textColors.secondary, fontSize: 15, fontWeight: '700' },
-  sheetTextLabel: { color: textColors.muted, fontSize: 14, fontWeight: '700' },
-  sheetText: { alignItems: 'center', justifyContent: 'center', minHeight: 40 },
   sheetTitle: { color: textColors.heading, fontSize: 23, fontWeight: '900', lineHeight: 30 },
   title: { color: textColors.heading, fontSize: 18, fontWeight: '900', lineHeight: 24, marginTop: 10 },
 });

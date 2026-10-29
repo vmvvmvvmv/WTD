@@ -170,12 +170,12 @@ export function HomeInfoGaugeSlide({ animate, comparison, gaugeSize, progress, r
         <HomeCircularGauge animate={animate} gaugeSize={gaugeSize} large progress={progress} revealed={revealed} unit={unit} value={value} />
       </View>
       <View style={styles.homeSplitGaugeInfo}>
-        <Text numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>
         <View style={styles.homeSplitGaugeStatusRow}>
           <View style={[styles.homeSplitGaugeStatusDot, { backgroundColor: tone }]} />
-          <Text style={styles.homeSplitGaugeStatus}>{status}</Text>
+          <Text maxFontSizeMultiplier={1.2} style={styles.homeSplitGaugeStatus}>{status}</Text>
         </View>
-        <Text numberOfLines={2} style={styles.homeInfoSlideComparison}>{comparison}</Text>
+        <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.homeInfoSlideComparison}>{comparison}</Text>
       </View>
     </View>
   );

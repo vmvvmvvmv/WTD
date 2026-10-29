@@ -8,6 +8,7 @@ import { styles } from '../../styles/appStyles';
 import type { PastDustItem } from '../../types/dust';
 import type { WeatherHourlyItem, WeatherState } from '../../types/weather';
 import { toNumber } from '../../utils/format';
+import { addDays, toIsoDate } from '../../utils/date';
 import { bestOutingWindowText, type findBestOutingWindow } from '../../features/dashboard/bestOutingWindow';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { getWeatherVisualKind } from '../../utils/weather';
@@ -53,16 +54,19 @@ export function HomeHeroBanner({
   weatherHourlyItems: WeatherHourlyItem[];
   yesterdayWeather?: WeatherState | null;
 }) {
-  const { fontScale, width: windowWidth } = useWindowDimensions();
+  const { width: windowWidth } = useWindowDimensions();
   const infoCarouselRef = useRef<ScrollView>(null);
+  const carouselIndexRef = useRef(1);
+  const pauseCarouselUntil = useRef(0);
+  const carouselResetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [activeInfoSlide, setActiveInfoSlide] = useState(0);
   const reduceMotion = useReducedMotion();
   // 한 번이라도 화면에 들어온 게이지 슬라이드. 처음 들어올 때만 호가 차오릅니다.
   const [revealedSlides, setRevealedSlides] = useState<ReadonlySet<string>>(() => new Set());
   const [carouselIndex, setCarouselIndex] = useState(1);
-  const infoSlideWidth = windowWidth;
-  const infoSlideHeight = Math.max(146, Math.ceil(146 * fontScale));
+  const [infoSlideWidth, setInfoSlideWidth] = useState(windowWidth);
   const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
+  const infoSlideHeight = Math.max(146, infoGaugeSize + 34);
   const now = new Date();
   const hourlyForecastItems = weatherHourlyItems
     .map((item, index) => {
@@ -72,6 +76,8 @@ export function HomeHeroBanner({
       const rainProbability = toNumber(item.rain_probability);
       const visualKind = getWeatherVisualKind(item.label);
       return {
+        date: itemDate,
+        hour: itemTime,
         isCurrent,
         // 비·눈이 예보됐거나 강수확률 60% 이상인 시간은 파란색으로 강조합니다.
         isRainy: visualKind === 'rain' || visualKind === 'snow' || (rainProbability ?? 0) >= 60 || (toNumber(item.rain_mm) ?? 0) > 0,
@@ -91,6 +97,14 @@ export function HomeHeroBanner({
       };
     });
   const bannerForecastItems = hourlyForecastItems;
+  const [selectedForecastDate, setSelectedForecastDate] = useState<string | null>(null);
+  const forecastDays = Array.from({ length: 4 }, (_, index) => {
+    const date = toIsoDate(addDays(new Date(`${todayDateLabel}T12:00:00`), index));
+    const items = bannerForecastItems.filter((item) => item.date === date);
+    const summary = items.reduce((best, item) => Math.abs(Number(item.hour.slice(0, 2)) - 12) < Math.abs(Number(best.hour.slice(0, 2)) - 12) ? item : best, items[0]);
+    const temperatures = items.map((item) => item.temperature).filter((value): value is number => value !== undefined);
+    return { date, items, label: ['오늘', '내일', '모레', '글피'][index], summary, temperatures };
+  });
   // 시간별 예보 줄에서 고른 시간. null이면 "지금"입니다. 고른 시간이 지나가 목록에서 빠지면 저절로 "지금"으로 돌아갑니다.
   const [selectedForecastKey, setSelectedForecastKey] = useState<string | null>(null);
   const selectedForecastIndex = selectedForecastKey ? bannerForecastItems.findIndex((item) => item.key === selectedForecastKey) : -1;
@@ -136,6 +150,7 @@ export function HomeHeroBanner({
   useEffect(() => {
     if (loading) {
       setSelectedForecastKey(null);
+      setSelectedForecastDate(null);
       setRevealedSlides(new Set());
       // 배너가 다시 나타날 때 한 프레임이라도 그대로 보이지 않게 미리 투명하게 둡니다.
       if (!reduceMotion) bannerOpacity.setValue(0);
@@ -148,13 +163,30 @@ export function HomeHeroBanner({
   }, [bannerOpacity, loading, reduceMotion]);
   useEffect(() => {
     const timer = setInterval(() => {
-      setCarouselIndex((current) => current + 1);
+      if (infoSlideCount < 2 || Date.now() < pauseCarouselUntil.current) return;
+      const next = Math.min(carouselIndexRef.current + 1, infoSlideCount + 1);
+      carouselIndexRef.current = next;
+      setCarouselIndex(next);
+      setActiveInfoSlide((next - 1) % infoSlideCount);
+      infoCarouselRef.current?.scrollTo({ animated: true, x: next * infoSlideWidth });
+      if (next === infoSlideCount + 1) {
+        if (carouselResetTimer.current) clearTimeout(carouselResetTimer.current);
+        carouselResetTimer.current = setTimeout(() => {
+          infoCarouselRef.current?.scrollTo({ animated: false, x: infoSlideWidth });
+          carouselIndexRef.current = 1;
+          setCarouselIndex(1);
+          setActiveInfoSlide(0);
+        }, 650);
+      }
     }, 5000);
-    return () => clearInterval(timer);
-  }, []);
+    return () => {
+      clearInterval(timer);
+      if (carouselResetTimer.current) clearTimeout(carouselResetTimer.current);
+    };
+  }, [infoSlideCount, infoSlideWidth]);
   useEffect(() => {
-    infoCarouselRef.current?.scrollTo({ animated: carouselIndex !== 1, x: carouselIndex * infoSlideWidth });
-  }, [carouselIndex, infoSlideWidth]);
+    infoCarouselRef.current?.scrollTo({ animated: false, x: carouselIndexRef.current * infoSlideWidth });
+  }, [infoSlideWidth]);
   const nowHour = now.getHours();
   const bestOutingText = bestOutingWindow ? bestOutingWindowText(bestOutingWindow) : null;
   const hasHourlyForecast = bannerForecastItems.length > 0;
@@ -174,7 +206,13 @@ export function HomeHeroBanner({
 
   if (loading) return <HomeBannerSkeleton bannerHeight={infoSlideHeight + 12} reduceMotion={reduceMotion} />;
   return (
-    <Animated.View style={[styles.homeHeroBanner, { opacity: bannerOpacity }]}>
+    <Animated.View
+      onLayout={(event) => {
+        const width = event.nativeEvent.layout.width;
+        if (width > 0 && Math.abs(width - infoSlideWidth) > 1) setInfoSlideWidth(width);
+      }}
+      style={[styles.homeHeroBanner, { opacity: bannerOpacity }]}
+    >
       <View style={styles.homeHeroBannerImage}>
         <View style={styles.homeHeroBannerBottom}>
           <View ref={tutorialTarget('homeBanner')} style={[styles.homeGaugeFeature, { backgroundColor: HOME_METRIC_BACKGROUND_COLORS[weatherBackgroundKind] }]}>
@@ -185,22 +223,29 @@ export function HomeHeroBanner({
               contentOffset={{ x: infoSlideWidth, y: 0 }}
               horizontal
               pagingEnabled
-              style={[styles.homeInfoCarousel, { height: infoSlideHeight }]}
+              onTouchStart={() => {
+                pauseCarouselUntil.current = Date.now() + 15000;
+              }}
+              style={[styles.homeInfoCarousel, { height: infoSlideHeight, width: infoSlideWidth }]}
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(event) => {
                 const next = Math.round(event.nativeEvent.contentOffset.x / infoSlideWidth);
+                if (carouselResetTimer.current) clearTimeout(carouselResetTimer.current);
                 if (next === 0) {
                   infoCarouselRef.current?.scrollTo({ animated: false, x: infoSlideCount * infoSlideWidth });
+                  carouselIndexRef.current = infoSlideCount;
                   setCarouselIndex(infoSlideCount);
                   setActiveInfoSlide(infoSlideCount - 1);
                   return;
                 }
                 if (next === infoSlideCount + 1) {
                   infoCarouselRef.current?.scrollTo({ animated: false, x: infoSlideWidth });
+                  carouselIndexRef.current = 1;
                   setCarouselIndex(1);
                   setActiveInfoSlide(0);
                   return;
                 }
+                carouselIndexRef.current = next;
                 setCarouselIndex(next);
                 setActiveInfoSlide(next - 1);
               }}
@@ -225,14 +270,42 @@ export function HomeHeroBanner({
           </View>
           <View ref={tutorialTarget('homeHourly')} style={styles.homeHeroBannerForecastSection}>
             {hasHourlyForecast ? (
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.homeHeroBannerForecastContent}
-                style={styles.homeHeroBannerForecastScroll}
-              >
-                {bannerForecastItems.map((item, index) => {
+              <>
+                <View style={styles.homeForecastDayRow}>
+                  {forecastDays.map((day) => {
+                    const expanded = selectedForecastDate === day.date;
+                    const minimum = day.temperatures.length ? Math.round(Math.min(...day.temperatures)) : null;
+                    const maximum = day.temperatures.length ? Math.round(Math.max(...day.temperatures)) : null;
+                    return (
+                      <Pressable
+                        accessibilityLabel={`${day.label}, ${day.date}, ${day.summary?.label ?? '예보 없음'}`}
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded }}
+                        key={day.date}
+                        onPress={() => {
+                          // 날짜를 바꾸거나 접으면 배너도 "지금"으로 돌립니다. 안 보이는 시각이 배너에 남지 않게.
+                          setSelectedForecastKey(null);
+                          setSelectedForecastDate(expanded ? null : day.date);
+                        }}
+                        style={[styles.homeForecastDay, expanded && styles.homeForecastDaySelected]}
+                      >
+                        <Text numberOfLines={1} style={[styles.homeForecastDayTitle, expanded && styles.homeHeroBannerForecastTimeCurrent]}>{day.label}</Text>
+                        {day.summary ? <WeatherIcon kind={weatherIconKind(day.summary.label)} size={23} /> : <Ionicons color="#7890AE" name="time-outline" size={23} />}
+                        <Text numberOfLines={1} style={styles.homeForecastDayTemp}>{minimum === null ? '예보 없음' : `${minimum}° / ${maximum}°`}</Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {selectedForecastDate && (
+                  forecastDays.find((day) => day.date === selectedForecastDate)?.items.length ? <ScrollView
+                    horizontal
+                    nestedScrollEnabled
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.homeHeroBannerForecastContent}
+                    style={styles.homeHeroBannerForecastScroll}
+                  >
+                  {bannerForecastItems.map((item, index) => {
+                  if (item.date !== selectedForecastDate) return null;
                   const selected = index === shownForecastIndex;
                   return (
                   <Pressable
@@ -254,7 +327,9 @@ export function HomeHeroBanner({
                   </Pressable>
                   );
                 })}
-              </ScrollView>
+                  </ScrollView> : <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>
+                )}
+              </>
             ) : (
               <View style={styles.homeHeroBannerForecastEmpty}>
                 <Ionicons color="#7890AE" name={loadFailed ? 'cloud-offline-outline' : 'time-outline'} size={18} />

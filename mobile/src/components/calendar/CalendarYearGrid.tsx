@@ -1,5 +1,6 @@
 import { Animated, Pressable, Text, View } from 'react-native';
 
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { styles } from '../../styles/appStyles';
 import { useCalendarSlide } from './useCalendarSlide';
 import { buildMonthCells } from './calendarUtils';
@@ -19,6 +20,7 @@ type Props = {
 // 1년 12달을 한눈에. 달을 누르면 그 달 보기로 갑니다. 일정 있는 날은 점으로 표시합니다.
 export function CalendarYearGrid({ eventDates, onGoToday, onMoveYear, onSelectMonth, todayDateLabel, transitionDirection, year }: Props) {
   const todayMonthKey = todayDateLabel.slice(0, 7);
+  const holidays = useHolidayNames(year);
   const { animatedStyle, swipeHandlers } = useCalendarSlide(String(year), transitionDirection, onMoveYear);
 
   return (
@@ -52,6 +54,7 @@ export function CalendarYearGrid({ eventDates, onGoToday, onMoveYear, onSelectMo
                             styles.calendarYearDayText,
                             index % 7 === 0 && styles.calendarWeekTextSunday,
                             index % 7 === 6 && styles.calendarWeekTextSaturday,
+                            !!holidays[cell.date] && styles.calendarHolidayText,
                             cell.date === todayDateLabel && { color: accentTone, fontWeight: '900' },
                           ]}>{cell.day}</Text>
                         )}

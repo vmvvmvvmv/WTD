@@ -102,6 +102,9 @@ AIRKOREA_HEADERS = PUBLIC_API_HEADERS
 
 
 NAVER_LOCAL_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
+NAVER_API_HUB_LOCAL_SEARCH_URL = "https://naverapihub.apigw.ntruss.com/search/v1/local"
+NAVER_API_HUB_CLIENT_ID = os.getenv("NAVER_API_HUB_CLIENT_ID") or ""
+NAVER_API_HUB_CLIENT_SECRET = os.getenv("NAVER_API_HUB_CLIENT_SECRET") or ""
 
 
 AIRKOREA_REQUEST_WORKERS = max(1, _env_int('AIRKOREA_REQUEST_WORKERS', 4))
@@ -488,3 +491,8 @@ STATION_MAPPING = {
         '제주시': '이도동',
     },
 }
+
+
+# 한국천문연구원 특일 정보(공휴일·대체공휴일·임시공휴일). 공공데이터포털 키를 같이 쓴다.
+HOLIDAY_API_URL = "https://apis.data.go.kr/B090041/openapi/service/SpcdeInfoService/getRestDeInfo"
+HOLIDAY_SERVICE_KEY = _public_data_service_key(PUBLIC_DATA_API_KEY) or KMA_API_KEY

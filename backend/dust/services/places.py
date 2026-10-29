@@ -2,7 +2,9 @@
 import logging
 import re
 
-from dust.config import NAVER_LOCAL_SEARCH_URL, NAVER_SEARCH_CLIENT_ID, NAVER_SEARCH_CLIENT_SECRET
+from dust.config import (NAVER_API_HUB_CLIENT_ID, NAVER_API_HUB_CLIENT_SECRET,
+                         NAVER_API_HUB_LOCAL_SEARCH_URL, NAVER_LOCAL_SEARCH_URL,
+                         NAVER_SEARCH_CLIENT_ID, NAVER_SEARCH_CLIENT_SECRET)
 from dust.external_api import public_api_get
 from dust.services.common import _to_float
 
@@ -28,16 +30,25 @@ def _naver_coord(value):
     return number / 10000000 if abs(number) > 1000 else number
 
 
-def search_naver_places(query, display=8, timeout=6):
-    if not NAVER_SEARCH_CLIENT_ID or not NAVER_SEARCH_CLIENT_SECRET:
+def search_naver_places(query, display=5, timeout=6):
+    display = max(1, min(int(display), 5))
+    if NAVER_API_HUB_CLIENT_ID and NAVER_API_HUB_CLIENT_SECRET:
+        url = NAVER_API_HUB_LOCAL_SEARCH_URL
+        headers = {
+            "X-NCP-APIGW-API-KEY-ID": NAVER_API_HUB_CLIENT_ID,
+            "X-NCP-APIGW-API-KEY": NAVER_API_HUB_CLIENT_SECRET,
+        }
+    elif NAVER_SEARCH_CLIENT_ID and NAVER_SEARCH_CLIENT_SECRET:
+        url = NAVER_LOCAL_SEARCH_URL
+        headers = {
+            "X-Naver-Client-Id": NAVER_SEARCH_CLIENT_ID,
+            "X-Naver-Client-Secret": NAVER_SEARCH_CLIENT_SECRET,
+        }
+    else:
         logger.warning("Naver search credentials are not configured.")
         raise PlaceSearchUnavailable()
-    headers = {
-        "X-Naver-Client-Id": NAVER_SEARCH_CLIENT_ID,
-        "X-Naver-Client-Secret": NAVER_SEARCH_CLIENT_SECRET,
-    }
     try:
-        response = public_api_get(NAVER_LOCAL_SEARCH_URL, params={"query": query, "display": display}, headers=headers, timeout=timeout)
+        response = public_api_get(url, params={"query": query, "display": display}, headers=headers, timeout=timeout)
         data = response.json()
     except Exception as exc:
         logger.exception("Naver place search request failed")
@@ -64,6 +75,7 @@ def search_naver_places(query, display=8, timeout=6):
             "label": label,
             "address": item.get("roadAddress") or item.get("address") or "",
             "category": item.get("category") or "",
+            "link": item.get("link") or "",
             "lat": lat,
             "lng": lng,
             "source": "naver_local",
