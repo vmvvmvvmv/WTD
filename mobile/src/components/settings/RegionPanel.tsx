@@ -103,23 +103,7 @@ export function RegionPanel({
         />
         {outfitSettings.enabled && (
           <View style={styles.outfitSensitivitySection}>
-            <Text style={styles.outfitSensitivityLabel}>코디 이미지</Text>
-            <View style={styles.outfitSensitivityOptions}>
-              {([['male', '남성'], ['female', '여성']] as const).map(([value, label]) => {
-                const selected = outfitSettings.figure === value;
-                return (
-                  <Pressable
-                    accessibilityLabel={`코디 이미지 ${label}`}
-                    accessibilityState={{ selected }}
-                    key={value}
-                    onPress={() => onUpdateOutfitSetting('figure', value)}
-                    style={({ pressed }) => [styles.outfitSensitivityButton, selected && styles.outfitSensitivityButtonSelected, selected && { borderBottomColor: accentTone }, pressed && styles.pressedFeedback]}
-                  >
-                    <Text style={[styles.outfitSensitivityButtonText, selected && { color: accentTone }]}>{label}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            {/* 코디 이미지(남녀) 선택은 뺐습니다. 이미 저장된 값(기본 남성)은 그대로 씁니다. */}
             <Text style={styles.outfitSensitivityLabel}>체감 성향</Text>
             <View style={styles.outfitSensitivityOptions}>
               {([['cold', '추위 많이 탐'], ['normal', '보통'], ['hot', '더위 많이 탐']] as const).map(([value, label]) => {
