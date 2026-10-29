@@ -12,7 +12,6 @@ import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
 import { compareDateTime, formatDate, parseDateParts } from './calendarUtils';
 import type { CalendarLocationCandidate } from './calendarLocation';
-import { nearbyPlaceQueries, type MapPlaceSearchContext } from './calendarNearbyPlaces';
 import type { CalendarRepeatMode } from './calendarRepeat';
 import { ActivityTypeSelector, type CalendarActivityInput } from './editor/ActivityTypeSelector';
 import { DateTimePicker } from './editor/DateTimePicker';
@@ -40,7 +39,6 @@ const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon:
 
 type Props = {
   activityInput: CalendarActivityInput;
-  defaultLocation?: CalendarLocationCandidate | null;
   endDate: string;
   endTime: string;
   isRepeatLocked?: boolean;
@@ -74,7 +72,6 @@ type Props = {
 
 export function CalendarEventEditor({
   activityInput,
-  defaultLocation,
   endDate,
   endTime,
   isRepeatLocked = false,
@@ -112,7 +109,6 @@ export function CalendarEventEditor({
   const [mapPickerSearchMessage, setMapPickerSearchMessage] = useState('');
   const [mapPickerSearchResults, setMapPickerSearchResults] = useState<CalendarLocationCandidate[]>([]);
   const [mapPickerSearchText, setMapPickerSearchText] = useState('');
-  const [mapPickerSearchContext, setMapPickerSearchContext] = useState<MapPlaceSearchContext | null>(null);
   const [pendingLocation, setPendingLocation] = useState<CalendarLocationCandidate | null>(null);
   // 지도를 움직이는 동안 가운데 핀을 살짝 띄웁니다. 멈추면 내려앉고 그 자리 주소가 아래 카드에 뜹니다.
   const [isMapMoving, setIsMapMoving] = useState(false);
@@ -122,7 +118,6 @@ export function CalendarEventEditor({
   }, [isMapMoving, pinLift]);
   const mapPickerWebViewRef = useRef<WebViewType>(null);
   const mapPlaceSelectionCommittedRef = useRef(false);
-  const mapPickerHasReceivedContextRef = useRef(false);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true));
@@ -143,8 +138,6 @@ export function CalendarEventEditor({
   }, [onChangeRepeatEndDate, repeatEndDate, startDate]);
 
   const mapPickerSource = mapPickerUrl ? `${mapPickerUrl}${mapPickerUrl.includes('?') ? '&' : '?'}picker=1` : '';
-  const fallbackCity = defaultLocation?.city || '';
-  const fallbackDistrict = defaultLocation?.region || '';
 
   useEffect(() => {
     if (!isMapPickerOpen || !isMapPickerSearchOpen) return;
@@ -154,42 +147,18 @@ export function CalendarEventEditor({
       setMapPickerSearchMessage('');
       return;
     }
-    const searchContext = mapPickerSearchContext ?? (!mapPickerHasReceivedContextRef.current && (fallbackCity || fallbackDistrict) ? {
-      city: fallbackCity,
-      district: fallbackDistrict,
-      neighborhood: '',
-    } : null);
-    if (!searchContext) {
-      setMapPickerSearchResults([]);
-      setMapPickerSearchMessage('지도 위치를 확인하는 중입니다.');
-      const timeout = setTimeout(() => setMapPickerSearchMessage('지도 위치를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.'), 1500);
-      return () => clearTimeout(timeout);
-    }
-    const searchQueries = nearbyPlaceQueries(query, searchContext);
-    if (searchQueries.length === 0) {
-      setMapPickerSearchResults([]);
-      setMapPickerSearchMessage('지도 주변 위치를 확인할 수 없습니다. 지도를 다시 움직여 주세요.');
-      return;
-    }
-
+    // 홈·지도 지역 검색과 같은 방식: 친 검색어 그대로 네이버 장소 검색(지도 중심 지역 이름을 붙이지 않음).
     let cancelled = false;
     setMapPickerSearchResults([]);
-    setMapPickerSearchMessage('지도 주변을 검색 중입니다.');
+    setMapPickerSearchMessage('검색 중입니다.');
     const timer = setTimeout(async () => {
       let results: CalendarLocationCandidate[] = [];
       try {
-        for (const nearbyQuery of searchQueries) {
-          const response = await searchNaverPlaces({ query: nearbyQuery, size: 5 });
-          if (cancelled) return;
-          const candidates = parseNaverPlaceItems(response?.items).map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
-          if (candidates.length > 0) {
-            results = candidates;
-            break;
-          }
-        }
+        const response = await searchNaverPlaces({ query, size: 5 });
         if (cancelled) return;
+        results = parseNaverPlaceItems(response?.items).map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
         setMapPickerSearchResults(results);
-        setMapPickerSearchMessage(results.length === 0 ? '검색 결과가 없습니다.' : '');
+        setMapPickerSearchMessage(results.length === 0 ? '찾는 장소가 없습니다. 다른 이름이나 주소로 찾아보세요.' : '');
       } catch {
         if (!cancelled) {
           setMapPickerSearchResults(results);
@@ -202,7 +171,7 @@ export function CalendarEventEditor({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [isMapPickerOpen, isMapPickerSearchOpen, mapPickerSearchContext, mapPickerSearchText, fallbackCity, fallbackDistrict]);
+  }, [isMapPickerOpen, isMapPickerSearchOpen, mapPickerSearchText]);
 
   useEffect(() => {
     if (!isMapPickerOpen) return;
@@ -238,26 +207,12 @@ export function CalendarEventEditor({
     try {
       const payload = JSON.parse(event.nativeEvent.data) as {
         location?: Partial<CalendarLocationCandidate>;
-        searchContext?: Partial<MapPlaceSearchContext>;
         station?: Record<string, unknown>;
         type?: string;
       };
       if (payload.type === 'map-moving') {
         setIsMapMoving(true);
         return;
-      }
-      if (payload.type === 'map-search-context-pending') {
-        setMapPickerSearchContext(null);
-        setMapPickerSearchResults([]);
-      }
-      if (payload.type === 'map-search-context' && payload.searchContext) {
-        mapPickerHasReceivedContextRef.current = true;
-        const context = payload.searchContext;
-        setMapPickerSearchContext({
-          city: typeof context.city === 'string' ? context.city : '',
-          district: typeof context.district === 'string' ? context.district : '',
-          neighborhood: typeof context.neighborhood === 'string' ? context.neighborhood : '',
-        });
       }
       if ((payload.type === 'map-picked' || payload.type === 'map-place-selected') && payload.location) {
         if (mapPlaceSelectionCommittedRef.current) return;
@@ -411,12 +366,10 @@ export function CalendarEventEditor({
                   onPress={() => {
                     Keyboard.dismiss();
                     mapPlaceSelectionCommittedRef.current = false;
-                    mapPickerHasReceivedContextRef.current = false;
                     setPendingLocation(null);
                     setIsMapMoving(false);
                     setMapPickerSearchText('');
                     setMapPickerSearchResults([]);
-                    setMapPickerSearchContext(null);
                     setIsMapPickerSearchOpen(false);
                     setIsMapPickerOpen(true);
                   }}
@@ -480,7 +433,7 @@ export function CalendarEventEditor({
                     setIsMapPickerSearchOpen(false);
                     Keyboard.dismiss();
                   }}
-                  placeholder="현재 지도 지역 장소 검색"
+                  placeholder="장소, 주소, 지역 검색"
                   placeholderTextColor="#8a94a3"
                   returnKeyType="search"
                   style={styles.calendarMapPickerSearchInput}
@@ -502,7 +455,7 @@ export function CalendarEventEditor({
                       )}
                     </View>
                   ))}
-                  <Text style={styles.calendarMapPickerSearchAttribution}>{mapPickerSearchContext ? '현재 지도 지역' : '지도 시작 위치'} 기준 · 네이버 지역 검색 결과</Text>
+                  <Text style={styles.calendarMapPickerSearchAttribution}>네이버 지역 검색 결과</Text>
                 </View>
               )}
               {isMapPickerSearchOpen && !!mapPickerSearchMessage && mapPickerSearchResults.length === 0 && (
