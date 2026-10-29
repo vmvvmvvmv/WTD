@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -161,8 +161,13 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
     onClose();
   };
 
-  // 미리보기에서 뒤로 가기는 메모 고치기로 돌아갑니다.
+  // 뒤로 가기: 키보드가 열려 있으면 키보드만 닫습니다(Android 모달은 키보드가 열려 있어도 창을 닫으려 해서).
+  // 미리보기에서는 메모 고치기로 돌아갑니다.
   const handleRequestClose = () => {
+    if (Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return;
+    }
     if (events) setEvents(null);
     else close();
   };
