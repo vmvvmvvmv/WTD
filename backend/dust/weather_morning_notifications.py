@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from collections import Counter
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from typing import Callable
@@ -45,6 +46,33 @@ def parse_target_date(value: str | None) -> date:
 def _event_label(event: dict) -> str:
     # 일정 제목은 서버에 두지 않으므로 시간만 안내한다(예전 데이터에 title이 남아 있어도 쓰지 않는다).
     return str(event.get("time") or "").strip()[:5]
+
+
+def _clock(value) -> tuple[int, int] | None:
+    text = str(value or "").strip()[:5]
+    if len(text) != 5 or text[2] != ":" or not (text[:2].isdigit() and text[3:].isdigit()):
+        return None
+    return int(text[:2]), int(text[3:])
+
+
+def _event_hours(event: dict) -> list[int]:
+    """일정이 걸친 시(時). 10:30~12:00이면 10·11시. 끝 시각이 없거나 이상하면 시작한 시만."""
+    start = _clock(event.get("time"))
+    if not start:
+        return []
+    end = _clock(event.get("endTime"))
+    if not end or end <= start:
+        return [start[0]]
+    last_hour = end[0] if end[1] else end[0] - 1
+    return list(range(start[0], max(start[0], last_hour) + 1))
+
+
+def _event_time_range(event: dict) -> str:
+    start = _event_label(event)
+    end = _clock(event.get("endTime"))
+    if not start or not end or end <= (_clock(start) or (0, 0)):
+        return start
+    return f"{start}~{end[0]:02d}:{end[1]:02d}"
 
 
 def events_for_date(device: NotificationDevice, target_date: date) -> list[dict]:
@@ -145,7 +173,7 @@ MAX_EVENT_LINES = 3
 
 
 def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasurement], events: list[dict]) -> tuple[str, str]:
-    """(제목, 본문). 핵심만 짧게: 남은 시간의 비·눈·천둥·강풍과 시간대, 기온, 날씨가 겹치는 일정, 챙길 것."""
+    """(제목, 본문). 핵심만 짧게: 남은 시간의 비·눈·천둥·강풍과 시간대, 기온, 일정 시간대 날씨, 챙길 것."""
     rain = [_hour(point) for point in points if _is_rain(point)]
     snow = [_hour(point) for point in points if _is_snow(point)]
     thunder = [_hour(point) for point in points if _is_thunder(point)]
@@ -159,13 +187,22 @@ def build_weather_morning_message(region: str, points: list[WeatherHourlyMeasure
     if low is not None and high is not None:
         lines.append(f"기온 {low}°" if low == high else f"기온 {low}~{high}°")
 
-    # 날씨가 겹치는 일정은 같은 시각을 한 줄로 합치고, 알림이 길어지지 않게 앞의 3줄만 보여 준다.
+    # 일정마다 시작~끝 시간대 날씨를 한 줄씩 보여 준다(날씨가 괜찮아도). 같은 시간대는 한 줄로, 알림이 길어지지 않게 앞의 3줄만.
+    # 이미 지난 일정처럼 그 시간대 예보가 없으면 넣지 않는다.
     event_lines = []
-    for time_text in dict.fromkeys(_event_label(event) for event in events):
-        hour = int(time_text[:2]) if time_text[:2].isdigit() else None
-        kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", wind)) if hour in hours]
-        if kinds:
-            event_lines.append(f"{time_text} 일정 때 {'·'.join(kinds)}")
+    for time_text, event_hours in dict.fromkeys((_event_time_range(event), tuple(_event_hours(event))) for event in events):
+        event_points = [point for point in points if _hour(point) in event_hours]
+        if not time_text or not event_points:
+            continue
+        kinds = [name for name, hours in (("비", rain), ("눈", snow), ("천둥·번개", thunder), ("강한 바람", wind)) if set(hours) & set(event_hours)]
+        sky = Counter(point.label for point in event_points if point.label).most_common(1)
+        weather_text = f"{'·'.join(kinds)} 예보" if kinds else (sky[0][0] if sky else "날씨 정보 없음")
+        event_temperatures = [round(point.temperature) for point in event_points if point.temperature is not None]
+        temperature_text = ""
+        if event_temperatures:
+            event_low, event_high = min(event_temperatures), max(event_temperatures)
+            temperature_text = f" · {event_low}°" if event_low == event_high else f" · {event_low}~{event_high}°"
+        event_lines.append(f"{time_text} 일정 {weather_text}{temperature_text}")
     lines.extend(event_lines[:MAX_EVENT_LINES])
 
     bring = [item for item, needed in (

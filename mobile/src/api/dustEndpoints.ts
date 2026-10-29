@@ -165,7 +165,7 @@ export function getMidTermWeather(params: { lat: number; lng: number; startDate:
 }
 
 export function registerNotificationDevice(params: {
-  calendarEvents?: Array<{ date: string; time?: string }>;
+  calendarEvents?: { date: string; endTime?: string; time?: string }[];
   city: string;
   dustSpikeAlerts?: boolean;
   enabled: boolean;
