@@ -18,7 +18,7 @@ import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { BottomToast } from '../components/shared/BottomToast';
 import { LocationGate } from '../components/shared/LocationGate';
-import { CalendarTip, TutorialTour, WelcomeSheet } from '../components/shared/TutorialTour';
+import { CalendarTip, TutorialTour, tutorialTarget, WelcomeSheet } from '../components/shared/TutorialTour';
 import { ScreenTransition, WeatherBackdrop } from '../components/shared/ScreenChrome';
 import { IS_EXPO_GO } from '../config/runtime';
 import { DEFAULT_OUTFIT_SETTINGS } from '../constants/dust';
@@ -377,7 +377,7 @@ export function AppContent() {
 
   if (activeTab === 'map') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView ref={tutorialTarget('appRoot')} style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="dark" />
         <WeatherBackdrop label={weather?.label} />
         <ScreenTransition transitionKey="map">
@@ -426,7 +426,7 @@ export function AppContent() {
 
   if (activeTab === 'calendar') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView ref={tutorialTarget('appRoot')} style={styles.safeArea} edges={['top']}>
         <StatusBar style="dark" />
         <ScreenTransition transitionKey="calendar">
         <View style={[styles.screen, styles.calendarOnlyScreen]}>
@@ -465,7 +465,8 @@ export function AppContent() {
 
   // 홈과 설정 탭
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    // appRoot: 튜토리얼이 강조할 자리를 재는 기준(화면 꼭대기). 탭마다 화면 뿌리가 달라 셋 다 붙인다. TutorialTour의 measureTarget 참고.
+    <SafeAreaView ref={tutorialTarget('appRoot')} style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
