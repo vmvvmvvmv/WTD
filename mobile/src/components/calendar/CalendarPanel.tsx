@@ -276,7 +276,7 @@ export function CalendarPanel({
   };
 
   return (
-    <View style={styles.calendarPanel}>
+    <View onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)} style={styles.calendarPanel}>
       <Reanimated.View style={[styles.calendarFullStage, sheet.stageStyle]}>
         <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
@@ -362,7 +362,7 @@ export function CalendarPanel({
         </Reanimated.View>
       )}
       {isAddMenuOpen && (
-        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.addDockStyle]}>
+        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.isOpen ? { bottom: 20, paddingBottom: 0 } : sheet.addDockStyle]}>
           {[
             { icon: 'calendar-outline' as const, label: '직접 일정 등록', onPress: () => draft.openEditor(selectedDate), primary: false },
             { icon: 'sparkles' as const, label: 'AI 일정 등록', onPress: () => setIsMemoOpen(true), primary: true },
@@ -393,7 +393,8 @@ export function CalendarPanel({
           ))}
         </Reanimated.View>
       )}
-      <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
+      {/* 날짜 시트가 열려 있으면 숨깁니다. 시트 위로 떠서 달력 마지막 줄 날짜를 가리기 때문. 시트 머리의 "일정 추가"를 씁니다. */}
+      {!sheet.isOpen && <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
         <Pressable
           accessibilityLabel={isAddMenuOpen ? '일정 추가 접기' : '일정 추가'}
           accessibilityState={{ expanded: isAddMenuOpen }}
@@ -408,7 +409,7 @@ export function CalendarPanel({
         >
           {isAddMenuOpen ? <Ionicons color={accentTone} name="close" size={30} /> : <AppActionIcon name="schedule" size={38} />}
         </Pressable>
-      </Reanimated.View>
+      </Reanimated.View>}
       <CalendarMemoSheet
         calendarEvents={events}
         isOpen={isMemoOpen}
