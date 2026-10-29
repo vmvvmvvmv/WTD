@@ -11,6 +11,7 @@ import { HomeRegionSearchPanel } from '../components/home/HomeRegionSearchPanel'
 import { useRegionTransition } from '../components/home/useRegionTransition';
 import { FullMapScreen } from '../components/map/FullMapScreen';
 import { useMapSearch } from '../components/map/useMapSearch';
+import { normalizeLatLng } from '../utils/geo';
 import type { RegionSearchResult } from '../features/region/regionPlaceSearch';
 import { useRegionPlaceSearch } from '../features/region/useRegionPlaceSearch';
 import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
@@ -166,7 +167,15 @@ export function AppContent() {
   const { handleMapMessage } = useMapTabLifecycle(mapSearch, activeTab, () => switchTab('home'));
 
   // 홈 화면 지역 검색어에 맞는 측정소 후보를 계산합니다.
-  const homeRegionSearch = useRegionPlaceSearch(homeRegionSearchText, mapStations);
+  // 내 GPS 지역(없으면 지금 기준 지역) 측정소에서 가까운 결과부터 보여 줍니다.
+  const homeSearchRegion = gpsRegion ?? selectedRegion;
+  const homeSearchOriginStation = findStationForRegion(homeSearchRegion);
+  const homeSearchCoords = normalizeLatLng(homeSearchOriginStation?.lat, homeSearchOriginStation?.lng);
+  const homeRegionSearch = useRegionPlaceSearch(
+    homeRegionSearchText,
+    mapStations,
+    homeSearchCoords && { ...homeSearchCoords, areaName: homeSearchRegion ? `${homeSearchRegion.city} ${homeSearchRegion.region}` : undefined },
+  );
 
   const { calendarDefaultLocation, calendarMapPickerUrl, fullMapUrl, homeMapPreviewUrl } = useAppMapUrls({
     activeTab, findStationForRegion, gpsRegion, mapMarkerMode, selectedRegion,

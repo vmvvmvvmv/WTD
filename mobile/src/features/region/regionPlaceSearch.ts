@@ -6,6 +6,10 @@ import type { StationDustItem } from '../../types/dust';
 export type RegionSearchResult = {
   distanceKm: number | null;
   key: string;
+  // 검색한 장소의 좌표·출처(가까운 순 정렬에 씀). 측정소 이름으로 찾은 결과에는 없음.
+  lat?: number;
+  lng?: number;
+  source?: string;
   meta: string;
   station: StationDustItem;
   title: string;
@@ -23,6 +27,9 @@ export function placesWithNearestStation(places: NaverPlace[], stations: Station
     return [{
       distanceKm: nearest.distanceKm,
       key: `${place.label}-${place.lat}-${place.lng}-${index}`,
+      lat: place.lat,
+      lng: place.lng,
+      source: place.source,
       meta: place.address || place.category || '',
       station: nearest.station,
       title: place.label,

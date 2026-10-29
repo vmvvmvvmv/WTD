@@ -8,7 +8,7 @@ import type { StationDustItem } from '../../types/dust';
 import type { RegionState } from '../../types/region';
 import type { WeatherState } from '../../types/weather';
 import { useRegionPlaceSearch } from '../../features/region/useRegionPlaceSearch';
-import { stationIdentity } from '../../features/stations/stationUtils';
+import { stationForRegion, stationIdentity } from '../../features/stations/stationUtils';
 import { normalizeLatLng } from '../../utils/geo';
 
 export function useMapSearch(
@@ -34,18 +34,16 @@ export function useMapSearch(
   const mapSearchOverlayTranslateY = useRef(new Animated.Value(18)).current;
 
   // 아무 장소·주소·지역이나 찾고, 고르면 그 근처 측정소로 지도를 옮깁니다(홈 지역 검색과 같은 방식).
-  const { isSearching: isMapSearching, results: searchSuggestions } = useRegionPlaceSearch(mapSearchText, mapStations);
+  // GPS 지역 측정소에서 가까운 결과부터 보여 줍니다.
+  const gpsStation = stationForRegion(mapStations, gpsRegion);
+  const gpsCoords = normalizeLatLng(gpsStation?.lat, gpsStation?.lng);
+  const { isSearching: isMapSearching, results: searchSuggestions } = useRegionPlaceSearch(
+    mapSearchText,
+    mapStations,
+    gpsCoords && { ...gpsCoords, areaName: gpsRegion ? `${gpsRegion.city} ${gpsRegion.region}` : undefined },
+  );
 
-  const findStationForRegion = (region?: RegionState | null) => {
-    if (!region) return undefined;
-    return mapStations.find((station) => (
-      station.sido === region.city
-      && (station.city === region.region || station.name === region.region || station.name === region.label)
-    )) ?? mapStations.find((station) => (
-      station.sido === region.city
-      && [station.city, station.name, station.addr].filter(Boolean).some((value) => String(value).includes(region.region))
-    ));
-  };
+  const findStationForRegion = (region?: RegionState | null) => stationForRegion(mapStations, region);
 
   const dismissMapSearchKeyboard = () => {
     mapSearchInputRef.current?.blur();
