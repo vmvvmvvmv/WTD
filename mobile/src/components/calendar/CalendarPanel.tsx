@@ -76,7 +76,8 @@ export function CalendarPanel({
 }) {
   const windowSize = useWindowDimensions();
   const draft = useCalendarEventDraft(todayDateLabel, defaultLocation);
-  const sheet = useCalendarDaySheet(windowSize.height);
+  const [panelHeight, setPanelHeight] = useState(windowSize.height);
+  const sheet = useCalendarDaySheet(panelHeight);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   // Android 뒤로가기: 펼친 일정 추가 버튼 → 날짜 시트 순서로 닫고, 둘 다 닫혀 있으면 앱 쪽 처리(홈으로)로 넘깁니다.
@@ -332,7 +333,7 @@ export function CalendarPanel({
       {sheet.shouldRender && (
         <CalendarDaySheet
           events={selectedEvents}
-          onAddEvent={() => draft.openEditor(selectedDate)}
+          onAddEvent={() => setIsAddMenuOpen(true)}
           isExpanded={sheet.isExpanded}
           onDismiss={() => sheet.setIsOpen(false)}
           onEditEvent={editEvent}

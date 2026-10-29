@@ -20,7 +20,7 @@ import { HomeMapPreview } from './HomeMapPreview';
 import { HomeSectionTabBar, type HomeSectionKey } from './HomeSectionTabBar';
 
 const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
-  { icon: 'schedule', key: 'guide', label: '활동 가이드' },
+  { icon: 'schedule', key: 'guide', label: '일정 가이드' },
   { icon: 'outfit', key: 'outfit', label: '추천 옷차림' },
   { icon: 'map', key: 'map', label: '날씨 지도' },
 ];
@@ -28,6 +28,7 @@ const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: 
 // 홈 탭: 위쪽 배너(HomeHeroBanner)와, 활동 가이드·추천 옷차림·날씨 지도를 탭으로 바꿔 보는 섹션을 묶습니다.
 // 오늘 일정의 날씨 판단과 산책하기 좋은 시간은 여기서 한 번 계산해 배너와 가이드가 같이 씁니다.
 export function HomePanel({
+  tabBarTop,
   currentPm10,
   currentPm25,
   currentO3,
@@ -54,6 +55,7 @@ export function HomePanel({
   weather,
   yesterdayWeather,
 }: {
+  tabBarTop?: number;
   currentPm10?: number;
   currentPm25?: number;
   currentO3?: number;
@@ -218,7 +220,7 @@ export function HomePanel({
           </View>
         )}
 
-        <HomeMapPreview active={activeHomeSection === 'map'} mapPreviewUrl={mapPreviewUrl} onOpenMap={onOpenMap} />
+        <HomeMapPreview active={activeHomeSection === 'map'} mapPreviewUrl={mapPreviewUrl} onOpenMap={onOpenMap} tabBarTop={tabBarTop} />
         </Reanimated.View>
       </Reanimated.View>
     </View>
