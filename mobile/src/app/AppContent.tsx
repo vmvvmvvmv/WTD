@@ -49,6 +49,7 @@ import { accentTone } from '../theme/appTheme';
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [tabBarTop, setTabBarTop] = useState<number>();
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
   const [homeRegionSearchText, setHomeRegionSearchText] = useState('');
@@ -184,7 +185,6 @@ export function AppContent() {
   const applyRegion = (region: RegionState, message?: string) => {
     closeHomeRegionPanels();
     if (message) setLocationMessage(message);
-    setActiveTab('home');
     if (selectedRegion && isSameRegion(region, selectedRegion)) {
       if (!currentItem || !prediction || pastItems.length === 0) {
         regionTransition.start();
@@ -220,11 +220,9 @@ export function AppContent() {
   // 홈에서 지역 검색 패널을 열고, 필요하면 측정소 목록을 먼저 불러옵니다.
   const openHomeRegionSearch = () => {
     const willOpen = !showHomeRegionSearch;
+    if (willOpen) mainScrollRef.current?.scrollTo({ animated: false, y: 0 });
     setShowHomeRegionSearch(willOpen);
     setShowFavoritePicker(false);
-    if (willOpen) {
-      requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ animated: true, y: 0 }));
-    }
     if (stationItems.length === 0) loadStations();
   };
 
@@ -342,6 +340,7 @@ export function AppContent() {
     <AppTabBar
       activeTab={activeTab}
       onNavigate={switchTab}
+      onTopMeasured={setTabBarTop}
     />
   );
 
@@ -461,30 +460,47 @@ export function AppContent() {
       >
       <ScreenTransition transitionKey={activeTab}>
       <ScrollView
+        key={activeTab}
         ref={mainScrollRef}
         style={styles.screenTransitionScroll}
         contentContainerStyle={[styles.screen, styles.edgeToEdgeScreen]}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={activeTab === 'home' ? [0] : undefined}
-        refreshControl={<RefreshControl colors={[accentTone]} refreshing={isRefreshingCurrent} tintColor={accentTone} onRefresh={loadCurrentDust} />}
+       refreshControl={<RefreshControl colors={[accentTone]} refreshing={isRefreshingCurrent} tintColor={accentTone} onRefresh={loadCurrentDust} />}
       >
         {activeTab === 'home' ? (
-          <HomeHeader
-            currentItem={currentItem}
-            error={error}
-            favoriteRegions={favoriteRegions}
-            gpsRegion={gpsRegion}
-            isSearchOpen={showHomeRegionSearch}
-            onApplyRegion={applyRegion}
-            onOpenSearch={openHomeRegionSearch}
-            onRemoveFavorite={removeFavoriteRegion}
-            onRetry={() => void loadDashboard(true)}
-            onToggleFavoritePicker={toggleFavoritePicker}
-            panelAnimation={homePanelAnimation}
-            selectedRegion={selectedRegion}
-            showFavoritePicker={showFavoritePicker}
-            weather={weather}
-          />
+          <View>
+            <HomeHeader
+              currentItem={currentItem}
+              error={error}
+              favoriteRegions={favoriteRegions}
+              gpsRegion={gpsRegion}
+              isSearchOpen={showHomeRegionSearch}
+              onApplyRegion={applyRegion}
+              onOpenSearch={openHomeRegionSearch}
+              onRemoveFavorite={removeFavoriteRegion}
+              onRetry={() => void loadDashboard(true)}
+              onToggleFavoritePicker={toggleFavoritePicker}
+              panelAnimation={homePanelAnimation}
+              selectedRegion={selectedRegion}
+              showFavoritePicker={showFavoritePicker}
+              weather={weather}
+            />
+            {showHomeRegionSearch && (
+              <HomeRegionSearchPanel
+                favoriteRegions={favoriteRegions}
+                gpsRegion={gpsRegion}
+                isLoadingStations={isLoadingStations}
+                onApplyRegion={applyRegion}
+                onChangeText={setHomeRegionSearchText}
+                onSelectStation={selectHomeRegionSuggestion}
+                onToggleFavorite={toggleStationFavorite}
+                panelAnimation={homePanelAnimation}
+                searchText={homeRegionSearchText}
+                selectedRegion={selectedRegion}
+                suggestions={homeRegionSuggestions}
+              />
+            )}
+          </View>
         ) : (
           <View style={styles.tabPageHeader}>
             <View>
@@ -493,24 +509,9 @@ export function AppContent() {
             <Ionicons color={bauhausColors.blue} name="options-outline" size={24} />
           </View>
         )}
-        {activeTab === 'home' && showHomeRegionSearch && (
-          <HomeRegionSearchPanel
-            favoriteRegions={favoriteRegions}
-            gpsRegion={gpsRegion}
-            isLoadingStations={isLoadingStations}
-            onApplyRegion={applyRegion}
-            onChangeText={setHomeRegionSearchText}
-            onSelectStation={selectHomeRegionSuggestion}
-            onToggleFavorite={toggleStationFavorite}
-            panelAnimation={homePanelAnimation}
-            searchText={homeRegionSearchText}
-            selectedRegion={selectedRegion}
-            suggestions={homeRegionSuggestions}
-          />
-        )}
-
         {activeTab === 'home' && (
           <HomePanel
+            tabBarTop={tabBarTop}
             currentPm10={currentPm10}
             currentPm25={currentPm25}
             currentO3={currentO3}
