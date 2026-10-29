@@ -50,6 +50,7 @@ export function HomePanel({
   loading = false,
   weatherHourlyItems,
   weatherMidTermItems,
+  weatherTodayPastItems,
   prediction,
   todayDateLabel,
   weather,
@@ -78,6 +79,7 @@ export function HomePanel({
   // 지역을 바꿔 새 데이터를 불러오는 중이면 배너 자리에 뼈대를 보여줍니다.
   loading?: boolean;
   weatherHourlyItems: WeatherHourlyItem[];
+  weatherTodayPastItems?: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
   prediction: PredictionResponse | null;
   todayDateLabel: string;
@@ -182,6 +184,7 @@ export function HomePanel({
         todayDateLabel={todayDateLabel}
         weather={weather}
         weatherHourlyItems={weatherHourlyItems}
+        weatherTodayPastItems={weatherTodayPastItems}
         yesterdayWeather={yesterdayWeather}
       />
 

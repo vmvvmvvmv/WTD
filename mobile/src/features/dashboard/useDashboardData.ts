@@ -34,6 +34,7 @@ export function useDashboardData({
   const [pastItems, setPastItems] = useState<PastDustItem[]>([]);
   const [hourlyItems, setHourlyItems] = useState<HourlyDustItem[]>([]);
   const [weatherHourlyItems, setWeatherHourlyItems] = useState<WeatherHourlyItem[]>([]);
+  const [weatherTodayPastItems, setWeatherTodayPastItems] = useState<WeatherHourlyItem[]>([]);
   const [weatherForecastResolved, setWeatherForecastResolved] = useState(false);
   const [weatherMidTermItems, setWeatherMidTermItems] = useState<WeatherMidTermItem[]>([]);
   const [currentItem, setCurrentItem] = useState<CurrentDustItem | null>(null);
@@ -61,6 +62,7 @@ export function useDashboardData({
     setWeather(null);
     setYesterdayWeather(null);
     setWeatherHourlyItems([]);
+    setWeatherTodayPastItems([]);
     setWeatherForecastResolved(false);
     setWeatherMidTermItems([]);
   };
@@ -96,6 +98,7 @@ export function useDashboardData({
       setPastItems(cachedDashboard.pastItems);
       setHourlyItems(cachedDashboard.hourlyItems);
       setWeatherHourlyItems(cachedDashboard.weatherHourlyItems ?? []);
+      setWeatherTodayPastItems(cachedDashboard.weatherTodayPastItems ?? []);
       setWeatherMidTermItems(cachedDashboard.weatherMidTermItems ?? []);
       setCurrentItem(cachedDashboard.currentItem);
       setWeather(cachedDashboard.weather ?? null);
@@ -123,6 +126,7 @@ export function useDashboardData({
       const storedWeather = weatherResult.value;
       if (storedWeather.stations.length > 0 && stationItems.length === 0) setStationItems(storedWeather.stations);
       setWeatherHourlyItems(storedWeather.hourlyItems);
+      setWeatherTodayPastItems(storedWeather.todayPastItems);
       setWeatherMidTermItems(storedWeather.midTermItems);
       setWeather(storedWeather.weather);
       setYesterdayWeather(storedWeather.yesterdayWeather);
@@ -153,6 +157,7 @@ export function useDashboardData({
           weather: storedWeather.weather,
           weatherHourlyItems: storedWeather.hourlyItems,
           weatherMidTermItems: storedWeather.midTermItems,
+          weatherTodayPastItems: storedWeather.todayPastItems,
           yesterdayWeather: storedWeather.yesterdayWeather,
         });
       } else {
@@ -162,6 +167,7 @@ export function useDashboardData({
           weather: cachedDashboard?.weather ?? null,
           weatherHourlyItems: cachedDashboard?.weatherHourlyItems ?? [],
           weatherMidTermItems: cachedDashboard?.weatherMidTermItems ?? [],
+          weatherTodayPastItems: cachedDashboard?.weatherTodayPastItems ?? [],
           yesterdayWeather: cachedDashboard?.yesterdayWeather ?? null,
         });
       }
@@ -209,6 +215,7 @@ export function useDashboardData({
     weatherHourlyItems,
     weatherForecastResolved,
     weatherMidTermItems,
+    weatherTodayPastItems,
     yesterdayWeather,
   };
 }

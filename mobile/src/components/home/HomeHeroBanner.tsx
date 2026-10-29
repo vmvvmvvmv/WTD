@@ -15,6 +15,7 @@ import { getWeatherVisualKind } from '../../utils/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
+import { HomeForecastHourStrip } from './HomeForecastHourStrip';
 import { HomeBannerSkeleton } from './HomeBannerSkeleton';
 import { getHomeWeatherMotionKind, HOME_METRIC_BACKGROUND_COLORS, HomeBannerScene } from './HomeWeatherScene';
 import { HomeInfoGaugeSlide } from './HomeMetricGauge';
@@ -40,6 +41,7 @@ export function HomeHeroBanner({
   todayDateLabel,
   weather,
   weatherHourlyItems,
+  weatherTodayPastItems = [],
   yesterdayWeather,
 }: {
   bestOutingWindow: ReturnType<typeof findBestOutingWindow>;
@@ -52,6 +54,7 @@ export function HomeHeroBanner({
   todayDateLabel: string;
   weather?: WeatherState | null;
   weatherHourlyItems: WeatherHourlyItem[];
+  weatherTodayPastItems?: WeatherHourlyItem[];
   yesterdayWeather?: WeatherState | null;
 }) {
   const { width: windowWidth } = useWindowDimensions();
@@ -68,7 +71,12 @@ export function HomeHeroBanner({
   const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
   const infoSlideHeight = Math.max(146, infoGaugeSize + 34);
   const now = new Date();
-  const hourlyForecastItems = weatherHourlyItems
+  // 오늘 이미 지난 시간(실측)을 앞에 붙여 '오늘' 칸에서 00시부터 볼 수 있게 합니다. 지금 시각부터는 원래 예보 목록을 씁니다.
+  const pastToday = weatherTodayPastItems.filter((item) => (
+    (item.date || item.measuredAt?.slice(0, 10)) === todayDateLabel
+    && Number((item.hour || item.measuredAt?.slice(11, 13) || '99').slice(0, 2)) < now.getHours()
+  ));
+  const hourlyForecastItems = [...pastToday, ...weatherHourlyItems]
     .map((item, index) => {
       const itemDate = item.date || item.measuredAt?.slice(0, 10) || '';
       const itemTime = item.hour?.slice(0, 5) || item.measuredAt?.slice(11, 16) || '--:--';
@@ -79,6 +87,7 @@ export function HomeHeroBanner({
         date: itemDate,
         hour: itemTime,
         isCurrent,
+        isPast: index < pastToday.length,
         // 비·눈이 예보됐거나 강수확률 60% 이상인 시간은 파란색으로 강조합니다.
         isRainy: visualKind === 'rain' || visualKind === 'snow' || (rainProbability ?? 0) >= 60 || (toNumber(item.rain_mm) ?? 0) > 0,
         key: `${itemDate || item.measuredAt || 'hour'}-${item.hour || index}`,
@@ -296,39 +305,21 @@ export function HomeHeroBanner({
                     );
                   })}
                 </View>
-                {selectedForecastDate && (
-                  forecastDays.find((day) => day.date === selectedForecastDate)?.items.length ? <ScrollView
-                    horizontal
-                    nestedScrollEnabled
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.homeHeroBannerForecastContent}
-                    style={styles.homeHeroBannerForecastScroll}
-                  >
-                  {bannerForecastItems.map((item, index) => {
-                  if (item.date !== selectedForecastDate) return null;
-                  const selected = index === shownForecastIndex;
+                {selectedForecastDate && (() => {
+                  const dayItems = bannerForecastItems
+                    .map((item, index) => ({ ...item, index }))
+                    .filter((item) => item.date === selectedForecastDate);
+                  if (!dayItems.length) return <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>;
                   return (
-                  <Pressable
-                    key={item.key}
-                    accessibilityLabel={`${item.timeLabel} ${item.label} ${item.temperature === undefined ? '' : `${Math.round(item.temperature)}도`}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => selectForecastIndex(index)}
-                    style={[styles.homeHeroBannerForecastItem, selected && styles.homeHeroBannerForecastItemCurrent]}
-                  >
-                    <Text style={[styles.homeHeroBannerForecastTime, selected && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
-                    <WeatherIcon kind={weatherIconKind(item.label)} size={23} />
-                    <Text style={styles.homeHeroBannerForecastTemp}>
-                      {item.temperature === undefined ? '-' : `${Math.round(item.temperature)}°`}
-                    </Text>
-                    <Text style={[styles.homeHeroBannerForecastRain, item.isRainy && styles.homeHeroBannerForecastRainActive]}>
-                      {item.rainProbability === undefined ? '강수 -' : `강수 ${Math.round(item.rainProbability)}%`}
-                    </Text>
-                  </Pressable>
+                    <HomeForecastHourStrip
+                      dayKey={selectedForecastDate}
+                      items={dayItems}
+                      onSelect={selectForecastIndex}
+                      selectedIndex={shownForecastIndex}
+                      startIndex={Math.max(0, dayItems.findIndex((item) => item.isCurrent))}
+                    />
                   );
-                })}
-                  </ScrollView> : <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>
-                )}
+                })()}
               </>
             ) : (
               <View style={styles.homeHeroBannerForecastEmpty}>
