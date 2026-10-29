@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, Text, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
-import { tutorialTarget } from '../shared/TutorialTour';
 import { bauhausColors } from '../../theme/bauhaus';
 
 // 일·주·월·년 보기 공통 머리: ‹ 제목 [오늘] ›
@@ -14,7 +13,7 @@ export function CalendarPeriodHeader({ onGoToday, onMove, title, unitLabel }: {
   unitLabel: string;
 }) {
   return (
-    <View ref={tutorialTarget('calendarAdd')} style={styles.calendarMonthHeader}>
+    <View style={styles.calendarMonthHeader}>
       <Pressable accessibilityLabel={`이전 ${unitLabel}`} onPress={() => onMove(-1)} style={({ pressed }) => [styles.calendarMonthButton, pressed && styles.pressedFeedback]}>
         <Ionicons color={bauhausColors.blue} name="chevron-back" size={22} />
       </Pressable>

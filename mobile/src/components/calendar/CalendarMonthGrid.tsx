@@ -5,6 +5,7 @@ import { LayoutAnimationConfig } from 'react-native-reanimated';
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/calendar';
 import { useHolidayNames } from '../../features/calendar/useHolidayNames';
+import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarDayCell } from './CalendarDayCell';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import type { CalendarMonthCell } from './calendarUtils';
@@ -101,6 +102,8 @@ export function CalendarMonthGrid({
                   key={cell.date}
                   onLongPress={() => onSelectDate(cell.date)}
                   onPress={() => onSelectDate(cell.date)}
+                  // 캘린더를 처음 열 때 안내 말풍선이 오늘 날짜 칸을 가리킨다(CalendarTip).
+                  onRef={cell.date === todayDateLabel ? tutorialTarget('calendarToday') : undefined}
                   range={null}
                   style={styles.calendarGridDayFill}
                   weatherRisk={weatherRiskByDate?.[cell.date]}

@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Easing, Modal, Platform, Pressable, StatusBar, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, type LayoutChangeEvent, Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -35,20 +35,34 @@ export function tutorialTarget(name: string) {
   return ref;
 }
 
-// RN 0.81 + edge-to-edge(안드로이드)에서는 measureInWindow가 상태 표시줄 높이만큼 위쪽 값을 돌려준다.
-// 튜토리얼 화면(Modal)은 화면 맨 위부터 그려지므로 그만큼 더한다. 2026-10-22 실기기 캡처로 확인함.
-// ponytail: RN 0.86부터 measureInWindow가 고쳐졌으니, 올리면 이 보정을 지운다.
-const MEASURE_Y_FIX = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 0;
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function measureTarget(name: string) {
-  return new Promise<Rect | null>((resolve) => {
-    const node = targets.get(name);
-    if (!node) return resolve(null);
-    node.measureInWindow((x, y, width, height) => resolve(width > 0 && height > 0 ? { height, width, x, y: y + MEASURE_Y_FIX } : null));
-  });
+function measureInWindow(node: Measurable) {
+  return new Promise<Rect>((resolve) => node.measureInWindow((x, y, width, height) => resolve({ height, width, x, y })));
 }
 
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+// 강조할 요소의 자리를 앱 화면 맨 위(ref={tutorialTarget('appRoot')}, 화면 꼭대기부터 그려짐) 기준으로 잰다.
+// 둘 다 같은 창에서 measureInWindow로 재서 빼므로, 안드로이드에서 상태 표시줄 높이만큼 어긋나는 값(기기·화면 비율마다 다름)이 서로 지워진다.
+// 튜토리얼 화면(Modal)도 화면 꼭대기부터 그려지므로 이 값을 그대로 쓴다.
+async function measureTarget(name: string) {
+  const node = targets.get(name);
+  if (!node) return null;
+  const root = targets.get('appRoot');
+  const [target, origin] = await Promise.all([measureInWindow(node), root ? measureInWindow(root) : Promise.resolve({ height: 0, width: 0, x: 0, y: 0 })]);
+  if (target.width <= 0 || target.height <= 0) return null;
+  return { height: target.height, width: target.width, x: target.x - origin.x, y: target.y - origin.y };
+}
+
+// 튜토리얼 화면의 실제 크기. 화면 비율·내비게이션 바에 따라 창 크기(useWindowDimensions)와 다를 수 있어서 직접 잰다.
+function useOverlayFrame() {
+  const window = useWindowDimensions();
+  const [size, setSize] = useState<{ height: number; width: number } | null>(null);
+  const onLayout = (event: LayoutChangeEvent) => {
+    const { height, width } = event.nativeEvent.layout;
+    setSize({ height, width });
+  };
+  return { onLayout, size: size ?? { height: window.height, width: window.width } };
+}
 
 function useFadeIn(visible: boolean) {
   const reduceMotion = useReducedMotion();
@@ -64,8 +78,8 @@ function useFadeIn(visible: boolean) {
 }
 
 // 설명 카드의 작은 화살표가 강조 대상을 가리킨다. 아래에 자리가 없으면 설명을 위에 둔다.
-function Bubble({ children, rect, visible }: { children: ReactNode; rect: Rect; visible: boolean }) {
-  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
+function Bubble({ children, frame, rect, visible }: { children: ReactNode; frame: { height: number; width: number }; rect: Rect; visible: boolean }) {
+  const { height: screenHeight, width: screenWidth } = frame;
   const opacity = useFadeIn(visible);
   // 카드 높이는 문구 줄 수·글자 크기에 따라 달라서 실제로 잰 값을 쓴다. 재기 전에는 넉넉히 잡는다.
   const [bubbleHeight, setBubbleHeight] = useState(260);
@@ -91,7 +105,8 @@ const PAD = 6;
 // 홈 투어의 마지막 버튼은 캘린더로 이어진다. 시작할 때 홈을 맨 위로 올린 뒤 필요할 때만 한 번 더 스크롤한다.
 // hasHourlyForecast가 undefined면 예보를 아직 불러오는 중이다. 그동안은 어두운 막과 로딩 표시만 띄운다.
 export function TutorialTour({ hasHourlyForecast, onContinueCalendar, onFinish, scrollHome }: { hasHourlyForecast?: boolean; onContinueCalendar: () => void; onFinish: () => void; scrollHome: (y: number) => void }) {
-  const { height: screenHeight, width: screenWidth } = useWindowDimensions();
+  const frame = useOverlayFrame();
+  const { height: screenHeight, width: screenWidth } = frame.size;
   // 단계 목록은 예보 결과가 처음 나왔을 때 한 번만 정한다. 투어 도중에 단계 수가 바뀌지 않게.
   const stepsRef = useRef<typeof TOUR_STEPS | null>(null);
   if (!stepsRef.current && hasHourlyForecast !== undefined) {
@@ -140,13 +155,14 @@ export function TutorialTour({ hasHourlyForecast, onContinueCalendar, onFinish, 
 
   return (
     <Modal animationType="fade" navigationBarTranslucent onRequestClose={onFinish} statusBarTranslucent transparent visible>
+      <View onLayout={frame.onLayout} pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {hole && steps && step ? (
         <View style={StyleSheet.absoluteFill}>
           <View style={[styles.dim, { height: hole.y, left: 0, top: 0, width: screenWidth }]} />
           <View style={[styles.dim, { bottom: 0, left: 0, top: hole.y + hole.height, width: screenWidth }]} />
           <View style={[styles.dim, { height: hole.height, left: 0, top: hole.y, width: hole.x }]} />
           <View style={[styles.dim, { height: hole.height, left: hole.x + hole.width, right: 0, top: hole.y }]} />
-          <Bubble rect={hole} visible={bubbleVisible}>
+          <Bubble frame={frame.size} rect={hole} visible={bubbleVisible}>
             <Text style={styles.counter}>{stepIndex + 1} / {steps.length}</Text>
             <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={styles.progressTrack}>
               <View style={[styles.progressFill, { width: `${((stepIndex + 1) / steps.length) * 100}%` }]} />
@@ -175,6 +191,7 @@ export function TutorialTour({ hasHourlyForecast, onContinueCalendar, onFinish, 
           <ActivityIndicator accessibilityLabel="튜토리얼 준비 중" color={bauhausColors.white} size="large" />
         </View>
       )}
+      </View>
     </Modal>
   );
 }
@@ -239,13 +256,14 @@ export function WelcomeSheet({ onLater, onStart }: { onLater: () => void; onStar
   );
 }
 
-// 캘린더를 처음 열 때 달력 머리 아래에 한 번 뜨는 말풍선(날짜를 눌러 일정을 추가한다고 안내). 화면을 어둡게 덮지 않고, 아무 데나 누르면 닫힌다.
+// 캘린더를 처음 열 때 오늘 날짜 칸을 가리키며 한 번 뜨는 말풍선(오늘을 눌러 일정을 추가한다고 안내). 오늘이 화면에 없으면 띄우지 않는다. 화면을 어둡게 덮지 않고, 아무 데나 누르면 닫힌다.
 export function CalendarTip({ onDone }: { onDone: () => void }) {
+  const frame = useOverlayFrame();
   const [rect, setRect] = useState<Rect | null>(null);
   useEffect(() => {
     let cancelled = false;
     // 탭 전환과 일정 추가 버튼의 등장 애니메이션이 끝난 뒤에 잰다.
-    wait(500).then(() => measureTarget('calendarAdd')).then((next) => {
+    wait(500).then(() => measureTarget('calendarToday')).then((next) => {
       if (cancelled) return;
       if (next) setRect(next);
       else onDone();
@@ -256,10 +274,10 @@ export function CalendarTip({ onDone }: { onDone: () => void }) {
   if (!rect) return null;
   return (
     <Modal animationType="none" navigationBarTranslucent onRequestClose={onDone} statusBarTranslucent transparent visible>
-      <Pressable accessibilityLabel="말풍선 닫기" onPress={onDone} style={StyleSheet.absoluteFill}>
-        <Bubble rect={rect} visible>
+      <Pressable accessibilityLabel="말풍선 닫기" onLayout={frame.onLayout} onPress={onDone} style={StyleSheet.absoluteFill}>
+        <Bubble frame={frame.size} rect={rect} visible>
           <Text accessibilityRole="header" style={styles.title}>일정 추가</Text>
-          <Text style={styles.body}>날짜를 누르면 아래에 “+ 일정 추가”가 나와요. 직접 적거나, AI로 한 번에 넣어 보세요.</Text>
+          <Text style={styles.body}>오늘 날짜를 눌러 보세요. 아래에 “+ 일정 추가”가 나와요. 직접 적거나, AI로 한 번에 넣을 수 있어요.</Text>
           <View style={styles.actions}>
             <Pressable accessibilityRole="button" onPress={onDone} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
               <Text style={styles.primaryText}>확인</Text>
