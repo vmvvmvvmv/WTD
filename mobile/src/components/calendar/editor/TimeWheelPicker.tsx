@@ -15,6 +15,7 @@ function TimeWheelColumn({ labels, onSelect, selectedIndex }: {
   const scrollRef = useRef<ScrollView>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(selectedIndex);
   const hasPositionedRef = useRef(false);
+  const isUserDragRef = useRef(false);
 
   useEffect(() => {
     setHighlightedIndex(selectedIndex);
@@ -45,8 +46,12 @@ function TimeWheelColumn({ labels, onSelect, selectedIndex }: {
       decelerationRate="fast"
       nestedScrollEnabled
       onScroll={(event) => highlightFromOffset(event.nativeEvent.contentOffset.y)}
-      onScrollEndDrag={(event) => selectFromOffset(event.nativeEvent.contentOffset.y)}
-      onMomentumScrollEnd={(event) => selectFromOffset(event.nativeEvent.contentOffset.y)}
+      onScrollBeginDrag={() => { isUserDragRef.current = true; }}
+      onMomentumScrollEnd={(event) => {
+        if (!isUserDragRef.current) return;
+        isUserDragRef.current = false;
+        selectFromOffset(event.nativeEvent.contentOffset.y);
+      }}
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
       snapToInterval={TIME_WHEEL_ITEM_HEIGHT}
@@ -56,6 +61,7 @@ function TimeWheelColumn({ labels, onSelect, selectedIndex }: {
         <Pressable
           key={label}
           onPress={() => {
+            isUserDragRef.current = false;
             setHighlightedIndex(index);
             scrollRef.current?.scrollTo({ animated: true, y: index * TIME_WHEEL_ITEM_HEIGHT });
             onSelect(index);
@@ -73,6 +79,8 @@ export function TimeWheelPicker({ onChange, value }: {
   onChange: (value: string) => void;
   value: string;
 }) {
+  const latestValueRef = useRef(value);
+  latestValueRef.current = value;
   const parts = parseTimeParts(value);
   const hour24 = Number(parts.hour);
   const minute = Number(parts.minute);
@@ -82,18 +90,25 @@ export function TimeWheelPicker({ onChange, value }: {
   const hours = Array.from({ length: 12 }, (_, index) => `${index + 1}시`);
   const minutes = Array.from({ length: 60 }, (_, index) => `${String(index).padStart(2, '0')}분`);
 
-  const updateTime = (nextHour: number, nextMinute: number, pm: boolean) => {
+  const updateTime = (change: { hour?: number; minute?: number; pm?: boolean }) => {
+    const latest = parseTimeParts(latestValueRef.current);
+    const latestHour24 = Number(latest.hour);
+    const nextHour = change.hour ?? (latestHour24 % 12 || 12);
+    const nextMinute = change.minute ?? Number(latest.minute);
+    const pm = change.pm ?? latestHour24 >= 12;
     const nextHour24 = (nextHour % 12) + (pm ? 12 : 0);
-    onChange(`${String(nextHour24).padStart(2, '0')}:${String(nextMinute).padStart(2, '0')}`);
+    const nextValue = `${String(nextHour24).padStart(2, '0')}:${String(nextMinute).padStart(2, '0')}`;
+    latestValueRef.current = nextValue;
+    onChange(nextValue);
   };
 
   return (
     <View accessibilityLabel={`선택한 일정 시간 ${value}`} style={styles.calendarTimeWheelSection}>
       <View style={styles.calendarTimeWheelViewport}>
         <View pointerEvents="none" style={[styles.calendarTimeWheelSelection, { borderColor: accentTone }]} />
-        <TimeWheelColumn labels={periods} onSelect={(index) => updateTime(selectedHour, minute, index === 1)} selectedIndex={isPm ? 1 : 0} />
-        <TimeWheelColumn labels={hours} onSelect={(index) => updateTime(index + 1, minute, isPm)} selectedIndex={selectedHour - 1} />
-        <TimeWheelColumn labels={minutes} onSelect={(index) => updateTime(selectedHour, index, isPm)} selectedIndex={minute} />
+        <TimeWheelColumn labels={periods} onSelect={(index) => updateTime({ pm: index === 1 })} selectedIndex={isPm ? 1 : 0} />
+        <TimeWheelColumn labels={hours} onSelect={(index) => updateTime({ hour: index + 1 })} selectedIndex={selectedHour - 1} />
+        <TimeWheelColumn labels={minutes} onSelect={(index) => updateTime({ minute: index })} selectedIndex={minute} />
         <View pointerEvents="none" style={styles.calendarTimeWheelFadeTop} />
         <View pointerEvents="none" style={styles.calendarTimeWheelFadeBottom} />
       </View>
