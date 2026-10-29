@@ -8,7 +8,6 @@ import type { CalendarEvent } from '../../types/calendar';
 import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
 import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
-import { AppActionIcon } from '../shared/AppActionIcon';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
@@ -28,9 +27,6 @@ import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
 import { useCalendarNavigation, VIEW_MODES } from './useCalendarNavigation';
 import { accentTone } from '../../theme/appTheme';
-
-// 떠 있는 일정 추가 버튼(높이 58, 바닥에서 20)이 차지하는 자리 + 여유 8.
-const FLOATING_ADD_SPACE = 58 + 20 + 8;
 
 export function CalendarPanel({
   currentPm10,
@@ -281,7 +277,20 @@ export function CalendarPanel({
   return (
     <View onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)} style={styles.calendarPanel}>
       <Reanimated.View style={[styles.calendarFullStage, sheet.stageStyle]}>
-        <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
+        {/* 보기 탭 줄 오른쪽 끝의 + 버튼: 모든 보기(목록·일·주·월·년)에서 같은 자리. 달력 칸을 가리지 않습니다. */}
+        <View style={styles.calendarTabsRow}>
+          <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
+          <Pressable
+            accessibilityLabel={isAddMenuOpen ? '일정 추가 접기' : '일정 추가'}
+            accessibilityState={{ expanded: isAddMenuOpen }}
+            hitSlop={8}
+            onPress={() => setIsAddMenuOpen((current) => !current)}
+            ref={tutorialTarget('calendarAdd')}
+            style={({ pressed }) => [styles.calendarHeaderAddButton, { borderColor: accentTone }, pressed && styles.pressedFeedback]}
+          >
+            <Ionicons color={accentTone} name={isAddMenuOpen ? 'close' : 'add'} size={22} />
+          </Pressable>
+        </View>
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
           <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
@@ -315,7 +324,6 @@ export function CalendarPanel({
         )}
         {viewMode === 'month' && (
           <CalendarMonthGrid
-            bottomInset={sheet.isOpen ? 0 : FLOATING_ADD_SPACE}
             eventCountByDate={eventCountByDate}
             eventItemsByDate={eventItemsByDate}
             getEventTone={eventTone}
@@ -366,7 +374,16 @@ export function CalendarPanel({
         </Reanimated.View>
       )}
       {isAddMenuOpen && (
-        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.isOpen ? { bottom: 20, paddingBottom: 0 } : sheet.addDockStyle]}>
+        <Reanimated.View pointerEvents="box-none" style={styles.calendarAddDial}>
+          {/* 흐린 덮개 위에 + 버튼과 같은 자리에 닫기 버튼을 다시 그립니다(덮개 아래 버튼은 흐려 보여서). */}
+          <Pressable
+            accessibilityLabel="일정 추가 접기"
+            hitSlop={8}
+            onPress={() => setIsAddMenuOpen(false)}
+            style={({ pressed }) => [styles.calendarHeaderAddButton, styles.calendarAddDialClose, { borderColor: accentTone }, pressed && styles.pressedFeedback]}
+          >
+            <Ionicons color={accentTone} name="close" size={22} />
+          </Pressable>
           {[
             { icon: 'calendar-outline' as const, label: '직접 일정 등록', onPress: () => draft.openEditor(selectedDate), primary: false },
             { icon: 'sparkles' as const, label: 'AI 일정 등록', onPress: () => setIsMemoOpen(true), primary: true },
@@ -397,23 +414,6 @@ export function CalendarPanel({
           ))}
         </Reanimated.View>
       )}
-      {/* 날짜 시트가 열려 있으면 숨깁니다. 시트 위로 떠서 달력 마지막 줄 날짜를 가리기 때문. 시트 머리의 "일정 추가"를 씁니다. */}
-      {!sheet.isOpen && <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
-        <Pressable
-          accessibilityLabel={isAddMenuOpen ? '일정 추가 접기' : '일정 추가'}
-          accessibilityState={{ expanded: isAddMenuOpen }}
-          onPress={() => setIsAddMenuOpen((current) => !current)}
-          ref={tutorialTarget('calendarAdd')}
-          style={({ pressed }) => [
-            styles.calendarFloatingAddButton,
-            styles.calendarFloatingAddButtonDocked,
-            { backgroundColor: '#ffffff', borderColor: accentTone, shadowColor: accentTone },
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          {isAddMenuOpen ? <Ionicons color={accentTone} name="close" size={30} /> : <AppActionIcon name="schedule" size={38} />}
-        </Pressable>
-      </Reanimated.View>}
       <CalendarMemoSheet
         calendarEvents={events}
         isOpen={isMemoOpen}

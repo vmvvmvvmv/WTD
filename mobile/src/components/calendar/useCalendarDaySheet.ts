@@ -64,11 +64,5 @@ export function useCalendarDaySheet(panelHeight: number) {
     const height = compactHeight + (expandedHeight - compactHeight) * sizeProgress.value;
     return { height, maxHeight: height, transform: [{ translateY: (1 - progress.value) * height }] };
   });
-  // 일정 추가 버튼은 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16).
-  const addDockStyle = useAnimatedStyle(() => {
-    const height = compactHeight + (expandedHeight - compactHeight) * sizeProgress.value;
-    return { bottom: progress.value * height + 20 - progress.value * 4 };
-  });
-
-  return { addDockStyle, close, isExpanded, isOpen, setExpanded, setIsOpen, sheetStyle, shouldRender, stageStyle };
+  return { close, isExpanded, isOpen, setExpanded, setIsOpen, sheetStyle, shouldRender, stageStyle };
 }
