@@ -105,6 +105,9 @@ NAVER_LOCAL_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
 NAVER_API_HUB_LOCAL_SEARCH_URL = "https://naverapihub.apigw.ntruss.com/search/v1/local"
 NAVER_API_HUB_CLIENT_ID = os.getenv("NAVER_API_HUB_CLIENT_ID") or ""
 NAVER_API_HUB_CLIENT_SECRET = os.getenv("NAVER_API_HUB_CLIENT_SECRET") or ""
+# 네이버 지도(NCP Maps) 주소 검색. 지도 앱의 Client Secret이 있어야 하고, 없으면 주소 검색만 건너뛴다.
+NAVER_MAP_CLIENT_SECRET = os.getenv("NAVER_MAP_CLIENT_SECRET") or ""
+NAVER_GEOCODE_URL = "https://maps.apigw.ntruss.com/map-geocode/v2/geocode"
 
 
 AIRKOREA_REQUEST_WORKERS = max(1, _env_int('AIRKOREA_REQUEST_WORKERS', 4))

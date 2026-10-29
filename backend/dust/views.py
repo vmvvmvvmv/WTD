@@ -20,7 +20,7 @@ from dust.notification_registry import notification_device_response, upsert_noti
 from dust.services.common import _dfs_grid_from_lat_lng, _parse_measure_date, _to_float
 from dust.services.dust_history import _fetch_past_dust_items_by_station, _latest_past_item_date, _load_recent_realtime_hourly_dust, _load_stored_past_dust, _load_stored_realtime_daily_dust, _load_stored_realtime_hourly_dust, _merge_past_items, _store_past_dust_items
 from dust.services.holidays import holidays_for_year
-from dust.services.places import PlaceSearchFailed, PlaceSearchUnavailable, search_naver_places
+from dust.services.places import PlaceSearchFailed, PlaceSearchUnavailable, geocode_address, search_naver_places
 from dust.services.stations import dust_cache_version, _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
 from dust.services.weather import _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
 from rest_framework.decorators import api_view
@@ -264,13 +264,19 @@ def naver_place_search(request):
         display = max(1, min(int(request.GET.get("size") or 5), 5))
     except (TypeError, ValueError):
         display = 5
+    # 주소처럼 보이면 주소 검색 결과(최대 2개)를 장소 결과 앞에 둔다. 한쪽이 실패해도 다른 쪽 결과는 보여 준다.
+    address_items = geocode_address(query)
     try:
-        items = search_naver_places(query, display)
+        place_items = search_naver_places(query, display)
     except PlaceSearchUnavailable:
-        return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
+        if not address_items:
+            return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
+        place_items = []
     except PlaceSearchFailed:
-        return error_response(502, "장소 검색에 실패했습니다.")
-    return Response({"items": items})
+        if not address_items:
+            return error_response(502, "장소 검색에 실패했습니다.")
+        place_items = []
+    return Response({"items": address_items + place_items})
 
 
 @api_view(['GET'])

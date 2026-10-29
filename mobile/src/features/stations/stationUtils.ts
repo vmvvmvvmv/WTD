@@ -1,4 +1,5 @@
 import type { StationDustItem } from '../../types/dust';
+import type { RegionState } from '../../types/region';
 import { haversineKm, normalizeLatLng } from '../../utils/geo';
 
 // 검색어 비교용: 행정구역 접미사·공백 제거 + 소문자.
@@ -50,4 +51,16 @@ export function findStationSuggestions(stations: StationDustItem[], searchText: 
     const target = normalizeSearchText([station.sido, station.city, station.name, station.addr].filter(Boolean).join(' '));
     return target.includes(keyword);
   })).slice(0, limit);
+}
+
+// 지역(시도·시군구)에 해당하는 측정소. 이름이 딱 맞는 것부터, 없으면 주소에 지역 이름이 들어간 것.
+export function stationForRegion(stations: StationDustItem[], region?: RegionState | null) {
+  if (!region) return undefined;
+  return stations.find((station) => (
+    station.sido === region.city
+    && (station.city === region.region || station.name === region.region || station.name === region.label)
+  )) ?? stations.find((station) => (
+    station.sido === region.city
+    && [station.city, station.name, station.addr].filter(Boolean).some((value) => String(value).includes(region.region))
+  ));
 }

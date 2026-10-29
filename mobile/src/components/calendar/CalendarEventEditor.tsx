@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 
-import { searchNaverPlaces } from '../../api/dustEndpoints';
-import { parseNaverPlaceItems } from '../../features/places/naverPlaces';
+import type { SearchNear } from '../../features/places/naverPlaces';
+import { searchPlacesNear } from '../../features/places/placeSearch';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
@@ -118,6 +118,9 @@ export function CalendarEventEditor({
   }, [isMapMoving, pinLift]);
   const mapPickerWebViewRef = useRef<WebViewType>(null);
   const mapPlaceSelectionCommittedRef = useRef(false);
+  // 지금 지도 가운데 좌표(지도가 멈출 때마다 갱신). 검색 결과를 여기서 가까운 순으로 보여 줍니다.
+  // 가운데 주소의 시·도와 동 이름도 두어, 흔한 이름이라 먼 결과만 나오면 이 지역 이름을 붙여 다시 찾습니다.
+  const mapPickerCenterRef = useRef<SearchNear | null>(null);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true));
@@ -147,16 +150,16 @@ export function CalendarEventEditor({
       setMapPickerSearchMessage('');
       return;
     }
-    // 홈·지도 지역 검색과 같은 방식: 친 검색어 그대로 네이버 장소 검색(지도 중심 지역 이름을 붙이지 않음).
+    // 홈·지도 지역 검색과 같은 방식: 친 검색어 그대로 찾고, 결과가 모두 지도 가운데서 멀면 그 지역 이름을 붙여 다시 찾은 뒤 가까운 순으로.
     let cancelled = false;
     setMapPickerSearchResults([]);
     setMapPickerSearchMessage('검색 중입니다.');
     const timer = setTimeout(async () => {
       let results: CalendarLocationCandidate[] = [];
       try {
-        const response = await searchNaverPlaces({ query, size: 5 });
+        results = (await searchPlacesNear(query, mapPickerCenterRef.current))
+          .map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
         if (cancelled) return;
-        results = parseNaverPlaceItems(response?.items).map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
         setMapPickerSearchResults(results);
         setMapPickerSearchMessage(results.length === 0 ? '찾는 장소가 없습니다. 다른 이름이나 주소로 찾아보세요.' : '');
       } catch {
@@ -243,6 +246,7 @@ export function CalendarEventEditor({
           region,
           source: payload.location.source || 'naver_map',
         };
+        if (candidate.source === 'naver_map') mapPickerCenterRef.current = { areaName: [city, region].filter(Boolean).join(' ') || undefined, lat, lng };
         if (payload.type === 'map-place-selected') {
           mapPlaceSelectionCommittedRef.current = true;
           applyPickedLocation(candidate);
