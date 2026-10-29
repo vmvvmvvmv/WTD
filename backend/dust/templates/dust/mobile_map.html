@@ -62,25 +62,51 @@
         position: relative;
         z-index: 2;
       }
-      .picker-gps-marker {
+      .picker-search-marker {
         align-items: center;
         background: #ffffff;
-        border: 3px solid #e85c6b;
-        border-radius: 999px 999px 999px 0;
-        box-shadow: 0 3px 10px rgba(232,92,107,.28);
-        display: flex;
-        height: 28px;
-        justify-content: center;
-        transform: rotate(-45deg);
-        width: 28px;
+        box-sizing: border-box;
+        border: 1px solid #d7e4f2;
+        border-radius: 14px;
+        box-shadow: 0 4px 12px rgba(35, 50, 77, .16);
+        color: #17202a;
+        cursor: pointer;
+        display: inline-flex;
+        font: 700 13px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        gap: 7px;
+        height: 40px;
+        max-width: 180px;
+        padding: 3px 9px 3px 3px;
+        position: relative;
+        white-space: nowrap;
       }
-      .picker-gps-marker::after {
-        background: #e85c6b;
-        border-radius: 999px;
+      .picker-search-marker::after {
+        background: #ffffff;
+        border-bottom: 1px solid #d7e4f2;
+        border-right: 1px solid #d7e4f2;
+        bottom: -5px;
         content: '';
-        display: block;
         height: 9px;
+        left: 15px;
+        position: absolute;
+        transform: rotate(45deg);
         width: 9px;
+      }
+      .picker-search-number {
+        align-items: center;
+        background: #3d7fea;
+        border-radius: 11px;
+        color: #ffffff;
+        display: flex;
+        flex: none;
+        height: 32px;
+        justify-content: center;
+        width: 32px;
+      }
+      .picker-search-label {
+        max-width: 124px;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .marker-wrap {
         align-items: center;
@@ -655,25 +681,74 @@
         let focusedKey = null;
         let activeMarkers = [];
         let lastMarkerClick = { key: null, time: 0 };
-        let pickerMarker = null;
-
-        function setPickerMarker(lat, lng) {
-          const position = new naver.maps.LatLng(lat, lng);
-          if (pickerMarker) {
-            pickerMarker.setPosition(position);
+        // 위치 고르기(카카오T 방식): 핀은 앱이 화면 가운데에 고정해 그리고, 지도는 손으로 움직입니다.
+        // 지도가 멈출 때마다 가운데 좌표의 주소를 앱에 보냅니다. 검색 장소로 옮긴 직후에는 그 장소 이름을 지킵니다.
+        let pickedPlace = null;
+        let pickerMoving = false;
+        let pickerCenterVersion = 0;
+        function postPickerMoving() {
+          if (!pickerMode || pickerMoving || !window.ReactNativeWebView) return;
+          pickerMoving = true;
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-moving' }));
+        }
+        async function postPickerCenter() {
+          if (!pickerMode || !window.ReactNativeWebView) return;
+          pickerMoving = false;
+          const center = map.getCenter();
+          const lat = center.lat();
+          const lng = center.lng();
+          if (pickedPlace && Math.abs(pickedPlace.lat - lat) < 0.0003 && Math.abs(pickedPlace.lng - lng) < 0.0003) {
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-picked', location: pickedPlace }));
             return;
           }
-          pickerMarker = new naver.maps.Marker({
-            position,
-            map,
-            zIndex: 5000,
-            icon: {
-              content: '<div class="picker-gps-marker"></div>',
-              size: new naver.maps.Size(42, 42),
-              anchor: new naver.maps.Point(21, 21)
+          pickedPlace = null;
+          const version = ++pickerCenterVersion;
+          const resolved = await reverseGeocodePickerLocation(lat, lng, '지도 선택 위치');
+          if (version !== pickerCenterVersion || pickerMoving) return;
+          window.ReactNativeWebView.postMessage(JSON.stringify({
+            type: 'map-picked',
+            location: {
+              label: '지도 선택 위치',
+              address: resolved.address,
+              city: resolved.city,
+              lat,
+              lng,
+              region: resolved.region,
+              source: 'naver_map'
             }
-          });
+          }));
         }
+
+        let pickerSearchMarkers = [];
+        window.setPickerSearchResults = function(results) {
+          pickerSearchMarkers.forEach((marker) => marker.setMap(null));
+          pickerSearchMarkers = [];
+          if (!pickerMode || !Array.isArray(results)) return;
+          results.slice(0, 5).forEach((place, index) => {
+            const coords = normalizeLatLng(place.lat, place.lng);
+            if (!coords || typeof place.label !== 'string' || !place.label) return;
+            const marker = new naver.maps.Marker({
+              position: new naver.maps.LatLng(coords.lat, coords.lng),
+              map,
+              zIndex: 4000,
+              clickable: true,
+              title: place.label,
+              icon: {
+                content: '<div class="picker-search-marker"><span class="picker-search-number">' + (index + 1) + '</span><span class="picker-search-label">' + escapeHtml(place.label) + '</span></div>',
+                size: new naver.maps.Size(180, 54),
+                anchor: new naver.maps.Point(20, 51)
+              }
+            });
+            naver.maps.Event.addListener(marker, 'click', () => {
+              if (!window.ReactNativeWebView) return;
+              window.ReactNativeWebView.postMessage(JSON.stringify({
+                type: 'map-place-selected',
+                location: { ...place, lat: coords.lat, lng: coords.lng }
+              }));
+            });
+            pickerSearchMarkers.push(marker);
+          });
+        };
 
         function compactAddressName(address) {
           if (!address) return '';
@@ -689,7 +764,9 @@
               resolve({
                 address: '',
                 city: '',
+                district: '',
                 label: fallbackLabel,
+                neighborhood: '',
                 region: fallbackLabel
               });
               return;
@@ -718,11 +795,37 @@
               resolve({
                 address,
                 city: area1 || '',
+                district: area2 || '',
                 label: compactAddressName(address) || region || fallbackLabel,
+                neighborhood: area3 || area4 || '',
                 region
               });
             });
           });
+        }
+
+        let searchContextTimer = null;
+        let searchContextVersion = 0;
+        function updatePickerSearchContext() {
+          if (!pickerMode || !window.ReactNativeWebView) return;
+          const center = map.getCenter();
+          const lat = center.lat();
+          const lng = center.lng();
+          const version = ++searchContextVersion;
+          if (searchContextTimer) clearTimeout(searchContextTimer);
+          window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-search-context-pending' }));
+          searchContextTimer = setTimeout(async () => {
+            const location = await reverseGeocodePickerLocation(lat, lng, '');
+            if (version !== searchContextVersion) return;
+            window.ReactNativeWebView.postMessage(JSON.stringify({
+              type: 'map-search-context',
+              searchContext: {
+                city: location.city,
+                district: location.district,
+                neighborhood: location.neighborhood
+              }
+            }));
+          }, 250);
         }
 
         function clearMarkers() {
@@ -847,19 +950,17 @@
           focusedKey = target ? stationKey(target) : null;
           const targetCoords = target ? normalizeLatLng(target.lat, target.lng) : coords;
           if (pickerMode && window.ReactNativeWebView) {
-            setPickerMarker(targetCoords.lat, targetCoords.lng);
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'map-picked',
-              location: {
-                label: target ? (target.name || target.city || '지도 선택 위치') : (data.label || data.name || data.city || '지도 선택 위치'),
-                address: target ? target.addr : (data.address || ''),
-                city: target ? target.sido : (data.city || ''),
-                lat: targetCoords.lat,
-                lng: targetCoords.lng,
-                region: target ? (target.city || target.name || '') : (data.region || ''),
-                source: target ? 'station' : (data.source || 'naver_local')
-              }
-            }));
+            pickedPlace = {
+              label: target ? (target.name || target.city || '지도 선택 위치') : (data.label || data.name || data.city || '지도 선택 위치'),
+              address: target ? target.addr : (data.address || ''),
+              city: target ? target.sido : (data.city || ''),
+              link: target ? '' : (data.link || ''),
+              lat: targetCoords.lat,
+              lng: targetCoords.lng,
+              region: target ? (target.city || target.name || '') : (data.region || ''),
+              source: target ? 'station' : (data.source || 'naver_local')
+            };
+            window.ReactNativeWebView.postMessage(JSON.stringify({ type: 'map-picked', location: pickedPlace }));
           } else if (target && window.ReactNativeWebView) {
             window.ReactNativeWebView.postMessage(JSON.stringify({
               type: 'station-selected',
@@ -895,69 +996,16 @@
         };
 
         if (pickerMode) {
-          naver.maps.Event.addListener(map, 'click', async (event) => {
+          // 지도를 누르면 그곳을 가운데로 옮깁니다. 멈추면 idle에서 주소를 보냅니다.
+          naver.maps.Event.addListener(map, 'click', (event) => {
             const coord = event.coord || event.latlng;
-            if (!coord || !window.ReactNativeWebView) return;
-            const lat = typeof coord.lat === 'function' ? coord.lat() : coord.y;
-            const lng = typeof coord.lng === 'function' ? coord.lng() : coord.x;
-            if (typeof lat !== 'number' || typeof lng !== 'number') return;
-            setPickerMarker(lat, lng);
-            const resolvedLocation = await reverseGeocodePickerLocation(lat, lng, '지도 선택 위치');
-            window.ReactNativeWebView.postMessage(JSON.stringify({
-              type: 'map-picked',
-              location: {
-                label: '지도 선택 위치',
-                address: resolvedLocation.address,
-                city: resolvedLocation.city,
-                lat,
-                lng,
-                region: resolvedLocation.region,
-                source: 'naver_map'
-              }
-            }));
+            if (coord) map.panTo(coord);
+          });
+          ['dragstart', 'pinchstart', 'zoom_changed', 'center_changed'].forEach((name) => {
+            naver.maps.Event.addListener(map, name, postPickerMoving);
           });
         }
 
-        /*
-        stations.forEach((station) => {
-          if (typeof station.lat !== 'number' || typeof station.lng !== 'number') return;
-          const marker = new naver.maps.Marker({
-            position: new naver.maps.LatLng(station.lat, station.lng),
-            map,
-            icon: {
-              content: '<div class="marker ' + markerClass(station) + '">' + markerValue(station) + '</div>',
-              size: new naver.maps.Size(42, 42),
-              anchor: new naver.maps.Point(19, 19)
-            }
-          });
-          const info = new naver.maps.InfoWindow({
-            content:
-              '<div class="info">' +
-              '<strong>' + (station.name || station.city || '측정소') + '</strong>' +
-              '<div class="grid">' +
-              '<div class="metric"><span class="label">PM10</span><span class="value">' + (station.pm10 ?? '-') + ' ug/m3</span></div>' +
-              '<div class="metric"><span class="label">PM2.5</span><span class="value">' + (station.pm25 ?? '-') + ' ug/m3</span></div>' +
-              '<div class="metric"><span class="label">O3</span><span class="value">' + (station.o3 ?? '-') + ' ppm</span></div>' +
-              '<div class="metric"><span class="label">NO2</span><span class="value">' + (station.no2 ?? '-') + ' ppm</span></div>' +
-              '</div>' +
-              '<div class="muted">' + (station.time || '') + '</div>' +
-              '</div>'
-          });
-          naver.maps.Event.addListener(marker, 'click', () => {
-            map.panTo(marker.getPosition());
-            if (window.ReactNativeWebView) {
-              window.ReactNativeWebView.postMessage(JSON.stringify({
-                type: 'station-selected',
-                station
-              }));
-              return;
-            }
-            if (opened) opened.close();
-            info.open(map, marker);
-            opened = info;
-          });
-        });
-        */
         naver.maps.Event.addListener(map, 'idle', () => {
         
         
@@ -969,8 +1017,13 @@
             zoom: map.getZoom ? map.getZoom() : ''
           });
           scheduleRenderMarkers(false);
+          updatePickerSearchContext();
+          postPickerCenter();
         });
         scheduleRenderMarkers(true);
+        updatePickerSearchContext();
+        // 첫 idle은 이 리스너를 달기 전에 지나갈 수 있어, 처음 위치 주소를 한 번 직접 보냅니다.
+        setTimeout(postPickerCenter, 300);
         setTimeout(() => {
           mapDebug('map_render_after_2s', {
             childCount: mapElement.children.length,

@@ -102,6 +102,9 @@ AIRKOREA_HEADERS = PUBLIC_API_HEADERS
 
 
 NAVER_LOCAL_SEARCH_URL = "https://openapi.naver.com/v1/search/local.json"
+NAVER_API_HUB_LOCAL_SEARCH_URL = "https://naverapihub.apigw.ntruss.com/search/v1/local"
+NAVER_API_HUB_CLIENT_ID = os.getenv("NAVER_API_HUB_CLIENT_ID") or ""
+NAVER_API_HUB_CLIENT_SECRET = os.getenv("NAVER_API_HUB_CLIENT_SECRET") or ""
 
 
 AIRKOREA_REQUEST_WORKERS = max(1, _env_int('AIRKOREA_REQUEST_WORKERS', 4))

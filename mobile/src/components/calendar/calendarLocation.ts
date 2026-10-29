@@ -6,6 +6,7 @@ export type CalendarLocationCandidate = {
   city?: string;
   id?: string;
   label: string;
+  link?: string;
   lat: number;
   lng: number;
   region?: string;
