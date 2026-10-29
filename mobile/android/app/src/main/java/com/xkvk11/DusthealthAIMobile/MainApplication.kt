@@ -1,6 +1,7 @@
 package com.xkvk11.DusthealthAIMobile
 
 import android.app.Application
+import android.content.Context
 import android.content.res.Configuration
 
 import com.facebook.react.PackageList
@@ -17,6 +18,11 @@ import expo.modules.ApplicationLifecycleDispatcher
 import expo.modules.ReactNativeHostWrapper
 
 class MainApplication : Application(), ReactApplication {
+
+  // React Native는 글자 크기를 앱 Context에서 읽으므로 여기서도 글자 배율 한도를 겁니다(FontScale.kt).
+  override fun attachBaseContext(base: Context) {
+    super.attachBaseContext(base.withCappedFontScale())
+  }
 
   override val reactNativeHost: ReactNativeHost = ReactNativeHostWrapper(
       this,
