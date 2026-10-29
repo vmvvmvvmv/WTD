@@ -413,7 +413,12 @@ export function CalendarEventEditor({
         >
           <Ionicons color="#ffffff" name="checkmark" size={32} />
         </Pressable>
-        <Modal animationType="slide" visible={isMapPickerOpen} onRequestClose={() => setIsMapPickerOpen(false)}>
+        <Modal
+          animationType="slide"
+          visible={isMapPickerOpen}
+          // 검색 키보드가 열려 있으면 뒤로 가기는 키보드만 닫습니다.
+          onRequestClose={() => (Keyboard.isVisible() ? Keyboard.dismiss() : setIsMapPickerOpen(false))}
+        >
           <View style={styles.calendarMapPickerBackdrop}>
             <View style={[styles.calendarMapPickerHeader, { paddingTop: Math.max(12, insets.top) }]}>
               <Pressable accessibilityLabel="지도 선택 닫기" onPress={() => setIsMapPickerOpen(false)} style={({ pressed }) => [styles.calendarEditorHeaderButton, pressed && styles.pressedFeedback]}>
