@@ -11,8 +11,6 @@ import { useCalendarSlide } from './useCalendarSlide';
 import type { CalendarDailyWeather, CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
 
 type Props = {
-  // 떠 있는 일정 추가 버튼이 마지막 줄 날짜를 가리지 않게 달력 아래에 비워 둘 높이.
-  bottomInset?: number;
   dailyWeatherByDate?: Record<string, CalendarDailyWeather | undefined>;
   eventCountByDate: Record<string, number>;
   eventItemsByDate: Record<string, Array<CalendarEvent | null>>;
@@ -33,7 +31,6 @@ type Props = {
 const weekDays = ['\uC77C', '\uC6D4', '\uD654', '\uC218', '\uBAA9', '\uAE08', '\uD1A0'];
 
 export function CalendarMonthGrid({
-  bottomInset = 0,
   dailyWeatherByDate,
   eventCountByDate,
   eventItemsByDate,
@@ -67,7 +64,7 @@ export function CalendarMonthGrid({
         ))}
       </View>
       <LayoutAnimationConfig skipEntering>
-      <Animated.View style={[styles.calendarGrid, { paddingBottom: bottomInset }, monthAnimatedStyle]} {...swipeHandlers}>
+      <Animated.View style={[styles.calendarGrid, monthAnimatedStyle]} {...swipeHandlers}>
         {weekRows.map((week, rowIndex) => (
           <View key={`week-${rowIndex}`} style={styles.calendarGridWeekRow}>
             {week.map((cell, columnIndex) => {

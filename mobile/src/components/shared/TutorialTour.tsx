@@ -239,7 +239,7 @@ export function WelcomeSheet({ onLater, onStart }: { onLater: () => void; onStar
   );
 }
 
-// 캘린더를 처음 열 때 + 버튼 위에 한 번 뜨는 말풍선. 화면을 어둡게 덮지 않고, 아무 데나 누르면 닫힌다.
+// 캘린더를 처음 열 때 보기 탭 줄의 + 버튼 아래에 한 번 뜨는 말풍선. 화면을 어둡게 덮지 않고, 아무 데나 누르면 닫힌다.
 export function CalendarTip({ onDone }: { onDone: () => void }) {
   const [rect, setRect] = useState<Rect | null>(null);
   useEffect(() => {
@@ -259,7 +259,7 @@ export function CalendarTip({ onDone }: { onDone: () => void }) {
       <Pressable accessibilityLabel="말풍선 닫기" onPress={onDone} style={StyleSheet.absoluteFill}>
         <Bubble rect={rect} visible>
           <Text accessibilityRole="header" style={styles.title}>일정 추가</Text>
-          <Text style={styles.body}>오른쪽 아래 버튼을 눌러 직접 적거나, AI로 한 번에 넣어 보세요.</Text>
+          <Text style={styles.body}>오른쪽 위 + 버튼을 눌러 직접 적거나, AI로 한 번에 넣어 보세요.</Text>
           <View style={styles.actions}>
             <Pressable accessibilityRole="button" onPress={onDone} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
               <Text style={styles.primaryText}>확인</Text>
