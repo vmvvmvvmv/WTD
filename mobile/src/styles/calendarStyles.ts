@@ -108,7 +108,8 @@ export const calendarStyles = StyleSheet.create({
   calendarDatePickerWeekText: { color: textColors.muted, flex: 1, fontSize: 11, fontWeight: '700', textAlign: 'center' },
   calendarDatePickerSunday: { color: '#E05263' },
   calendarDatePickerGrid: { flexDirection: 'row', flexWrap: 'wrap' },
-  calendarDatePickerCell: { alignItems: 'center', height: 42, justifyContent: 'center', width: `${100 / 7}%` },
+  // 100/7%를 그대로 쓰면 픽셀 반올림으로 7칸 합이 폭을 넘어 한 줄에 6칸만 들어가(요일이 어긋남) 조금 줄입니다.
+  calendarDatePickerCell: { alignItems: 'center', height: 42, justifyContent: 'center', width: '14.28%' },
   calendarDatePickerDay: { alignItems: 'center', borderRadius: 999, height: 36, justifyContent: 'center', width: 36 },
   calendarDatePickerDayText: { color: textColors.primary, fontSize: 14, fontWeight: '700' },
   calendarDatePickerDayTextSelected: { color: '#ffffff', fontWeight: '900' },
