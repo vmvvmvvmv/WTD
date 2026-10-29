@@ -35,20 +35,19 @@ export function HomeActivityGuideList({
     <View style={hidden && styles.homeSectionHidden}>
       {/* 일정이 없을 때는 기본 가이드라는 것을 먼저 알립니다. */}
       {activityGuideRows.length === 0 && (
-        <View accessibilityLabel="기본 가이드. 오늘 등록된 일정이 없어 기본 가이드로 안내드립니다" accessible style={styles.defaultGuideSourceRow}>
+        <View accessibilityLabel="기본 가이드. 오늘 등록된 일정이 없어 기본 가이드를 보여 줍니다. 일정을 등록하면 그 일정에 맞는 가이드로 바뀝니다" accessible style={styles.defaultGuideSourceRow}>
           <Ionicons color={textColors.secondary} name="compass-outline" size={15} />
           <Text style={styles.defaultGuideSourceTitle}>기본 가이드</Text>
-          <Text style={styles.defaultGuideSourceHint}>오늘 등록된 일정이 없어 기본 가이드로 안내드립니다</Text>
+          <Text numberOfLines={1} style={styles.defaultGuideSourceHint}>일정 등록 시 맞춤 가이드로 바뀌어요</Text>
         </View>
       )}
       {defaultActivityGuides.length > 0 && (
         <View style={styles.activityGuideList}>
           {defaultActivityGuides.map((guide) => (
-            <Pressable
-              accessibilityLabel={`기본 가이드, ${guide.title}. ${guide.detail}. 일정 추가하러 가기`}
+            <View
+              accessibilityLabel={`기본 가이드, ${guide.title}. ${guide.detail}`}
               key={guide.key}
-              onPress={onOpenCalendar}
-              style={({ pressed }) => [styles.activityGuideRow, pressed && styles.pressedFeedback]}
+              style={styles.activityGuideRow}
             >
               <View style={[styles.activityGuideIconBox, { backgroundColor: guide.caution ? semanticColors.weather.caution.soft : bauhausColors.blueSoft }]}>
                 <AppActionIcon name={guide.icon} size={30} />
@@ -57,7 +56,7 @@ export function HomeActivityGuideList({
                 <Text numberOfLines={1} style={styles.activityGuideRowTitle}>{guide.title}</Text>
                 <Text numberOfLines={2} style={styles.activityGuideRowDesc}>{guide.detail}</Text>
               </View>
-            </Pressable>
+            </View>
           ))}
         </View>
       )}
@@ -66,10 +65,9 @@ export function HomeActivityGuideList({
           const completed = item.isCompleted;
           return (
             <View key={item.id} style={styles.activityGuideItemGroup}>
-              <Pressable
-                accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''}, 캘린더에서 보기`}
-                onPress={onOpenCalendar}
-                style={({ pressed }) => [styles.activityGuideRow, completed && styles.activityGuideRowCompleted, pressed && styles.pressedFeedback]}
+              <View
+                accessibilityLabel={`${item.title}${completed ? ', 완료한 일정' : ''}`}
+                style={[styles.activityGuideRow, completed && styles.activityGuideRowCompleted]}
               >
                 <View
                   accessibilityLabel={item.forecastLabel || undefined}
@@ -122,7 +120,7 @@ export function HomeActivityGuideList({
                 >
                   <AppActionIcon name="delete" size={22} />
                 </Pressable>
-              </Pressable>
+              </View>
             </View>
           );
         })}

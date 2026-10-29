@@ -110,6 +110,10 @@ export function getHourlyDust(params: { region: RegionState; date: string }) {
   });
 }
 
+export function getHolidays(year: number) {
+  return fetchJson<{ items?: unknown }>('/dust/calendar/holidays/', { year });
+}
+
 export function getKoreaStations() {
   return fetchJson<{ items?: unknown[] }>('/dust/korea-stations/');
 }

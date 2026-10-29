@@ -146,6 +146,10 @@ sudo tail -f /var/log/mysql/weathertodo-slow.log
 ```bash
 deploy/collect_hourly.sh
 ```
+공휴일(올해·내년)도 처음 한 번 받는다. 이후에는 아침 7시 타이머가 매일 다시 받는다(공공데이터포털에서 `한국천문연구원_특일 정보` 활용 신청 필요):
+```bash
+venv/bin/python manage.py collect_holidays
+```
 
 ## 6-3. 접속 기록 보관 기간 30일 (개인정보 처리방침 3번)
 
@@ -194,6 +198,12 @@ curl -s -H "X-App-Test-Token: <토큰>" "https://dust.vmv-lab.com/dust/current/?
 curl -s -o /dev/null -w "%{http_code}\n" https://dust.vmv-lab.com/admin/          # 404여야 함(관리자 페이지 닫힘)
 curl -s -o /dev/null -w "%{http_code}\n" https://dust.vmv-lab.com/privacy/        # 200이어야 함(개인정보 처리방침, 토큰 없이 공개)
 ```
+
+### 네이버 지역 검색 API HUB
+
+일정 지도 검색은 서버에서 네이버 지역 검색 API를 호출한다. 새 NAVER API HUB 앱을 등록하고 지역 검색 권한을 켠 뒤 서버 환경 변수 `NAVER_API_HUB_CLIENT_ID`, `NAVER_API_HUB_CLIENT_SECRET`을 설정한다. 값은 앱 빌드 변수에 넣지 않는다. 서버를 재시작하면 새 API HUB 주소와 인증 헤더를 사용한다. 두 값이 없으면 기존 `NAVER_SEARCH_CLIENT_ID`, `NAVER_SEARCH_CLIENT_SECRET` 방식으로 동작한다.
+
+지역 검색 API는 지도 중심 좌표를 받지 않는다. 앱은 지도 중심의 시·구·동 이름을 검색어에 붙이고, API 결과의 제공 순서를 그대로 표시한다. 실제 지도 범위만 검색하거나 거리순 정렬하는 기능은 제공하지 않는다. API HUB의 요금과 호출 한도를 콘솔에서 확인한다.
 
 ## 9. 앱이 이 서버를 보게 하기
 

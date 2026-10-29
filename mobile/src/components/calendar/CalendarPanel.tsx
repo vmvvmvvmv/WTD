@@ -42,7 +42,6 @@ export function CalendarPanel({
   onRemoveFollowingEvents,
   onUpdateEvent,
   onUpdateEventSeries,
-  openEditorOnMount = false,
   outfitEnabled,
   outfitFigure,
   outfitSensitivity,
@@ -65,7 +64,6 @@ export function CalendarPanel({
   onRemoveFollowingEvents: (event: CalendarEvent) => void;
   onUpdateEvent?: (event: CalendarEvent) => void;
   onUpdateEventSeries?: (event: CalendarEvent) => void;
-  openEditorOnMount?: boolean;
   outfitEnabled: boolean;
   outfitFigure: OutfitFigure;
   outfitSensitivity: OutfitSensitivity;
@@ -78,7 +76,8 @@ export function CalendarPanel({
 }) {
   const windowSize = useWindowDimensions();
   const draft = useCalendarEventDraft(todayDateLabel, defaultLocation);
-  const sheet = useCalendarDaySheet(windowSize.height);
+  const [panelHeight, setPanelHeight] = useState(windowSize.height);
+  const sheet = useCalendarDaySheet(panelHeight);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   // Android 뒤로가기: 펼친 일정 추가 버튼 → 날짜 시트 순서로 닫고, 둘 다 닫혀 있으면 앱 쪽 처리(홈으로)로 넘깁니다.
@@ -114,12 +113,6 @@ export function CalendarPanel({
     visibleMonth,
     weekStart,
   } = useCalendarNavigation(todayDateLabel, sheet.close);
-  // 첫 실행 환영 시트의 "첫 일정 추가하기"로 왔으면 일정 추가 화면을 바로 엽니다.
-  useEffect(() => {
-    if (openEditorOnMount) draft.openEditor(selectedDate);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const sortedEvents = useMemo(
     () => [...events].sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
     [events],
@@ -283,7 +276,7 @@ export function CalendarPanel({
   };
 
   return (
-    <View style={styles.calendarPanel}>
+    <View onLayout={(event) => setPanelHeight(event.nativeEvent.layout.height)} style={styles.calendarPanel}>
       <Reanimated.View style={[styles.calendarFullStage, sheet.stageStyle]}>
         <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
@@ -340,7 +333,7 @@ export function CalendarPanel({
       {sheet.shouldRender && (
         <CalendarDaySheet
           events={selectedEvents}
-          onAddEvent={() => draft.openEditor(selectedDate)}
+          onAddEvent={() => setIsAddMenuOpen(true)}
           isExpanded={sheet.isExpanded}
           onDismiss={() => sheet.setIsOpen(false)}
           onEditEvent={editEvent}
@@ -369,7 +362,7 @@ export function CalendarPanel({
         </Reanimated.View>
       )}
       {isAddMenuOpen && (
-        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.addDockStyle]}>
+        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.isOpen ? { bottom: 20, paddingBottom: 0 } : sheet.addDockStyle]}>
           {[
             { icon: 'calendar-outline' as const, label: '직접 일정 등록', onPress: () => draft.openEditor(selectedDate), primary: false },
             { icon: 'sparkles' as const, label: 'AI 일정 등록', onPress: () => setIsMemoOpen(true), primary: true },
@@ -400,7 +393,8 @@ export function CalendarPanel({
           ))}
         </Reanimated.View>
       )}
-      <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
+      {/* 날짜 시트가 열려 있으면 숨깁니다. 시트 위로 떠서 달력 마지막 줄 날짜를 가리기 때문. 시트 머리의 "일정 추가"를 씁니다. */}
+      {!sheet.isOpen && <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
         <Pressable
           accessibilityLabel={isAddMenuOpen ? '일정 추가 접기' : '일정 추가'}
           accessibilityState={{ expanded: isAddMenuOpen }}
@@ -415,7 +409,7 @@ export function CalendarPanel({
         >
           {isAddMenuOpen ? <Ionicons color={accentTone} name="close" size={30} /> : <AppActionIcon name="schedule" size={38} />}
         </Pressable>
-      </Reanimated.View>
+      </Reanimated.View>}
       <CalendarMemoSheet
         calendarEvents={events}
         isOpen={isMemoOpen}
@@ -449,10 +443,12 @@ export function CalendarPanel({
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
+        defaultLocation={defaultLocation}
         endDate={draft.endDate}
         endTime={draft.endTime}
         isRepeatLocked={draft.isRepeatLocked}
         isOpen={draft.isEditorOpen}
+        location={draft.location}
         mapPickerUrl={mapPickerUrl}
         memo={draft.memo}
         onChangeActivityInput={draft.setActivityInput}

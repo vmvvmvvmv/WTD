@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Animated, Pressable, ScrollView, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
@@ -32,7 +32,7 @@ type Props = {
   weather: WeatherState | null;
 };
 
-// 홈 맨 위(스크롤해도 붙어 있음): 지역 이름·지역 검색·날씨 칩, 기준 시각(또는 오류), 즐겨찾기 지역 바꾸기.
+// 홈 맨 위: 지역 이름·지역 검색·날씨 칩, 기준 시각(또는 오류), 즐겨찾기 지역 바꾸기.
 export function HomeHeader({
   currentItem,
   error,
@@ -49,16 +49,18 @@ export function HomeHeader({
   showFavoritePicker,
   weather,
 }: Props) {
+  const { width } = useWindowDimensions();
+  const isCompactHeader = width < 340;
   return (
     <View style={styles.homeHeader}>
-      <View ref={tutorialTarget('homeRegion')} style={styles.homeTitleRow}>
+      <View ref={tutorialTarget('homeRegion')} style={[styles.homeTitleRow, isCompactHeader && styles.homeTitleRowCompact]}>
         <Pressable
           accessibilityLabel={favoriteRegions.length === 0 ? '지역 검색 열기' : '즐겨찾기 지역 선택'}
           onPress={favoriteRegions.length === 0 ? onOpenSearch : onToggleFavoritePicker}
-          style={({ pressed }) => [styles.homeTitleButton, pressed && styles.pressedFeedback]}
+          style={({ pressed }) => [styles.homeTitleButton, isCompactHeader && styles.homeTitleButtonCompact, pressed && styles.pressedFeedback]}
         >
           <View style={styles.homeTitleInline}>
-            <Text numberOfLines={1} style={[styles.title, styles.homeRegionTitle]}>{selectedRegion.city} {selectedRegion.region}</Text>
+            <Text numberOfLines={1} style={[styles.title, styles.homeRegionTitle, isCompactHeader && styles.homeRegionTitleCompact]}>{selectedRegion.city} {selectedRegion.region}</Text>
             <Ionicons color="#141821" name="chevron-down" size={20} style={styles.homeTitleChevron} />
           </View>
         </Pressable>

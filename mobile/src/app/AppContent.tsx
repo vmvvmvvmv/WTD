@@ -49,6 +49,7 @@ import { accentTone } from '../theme/appTheme';
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  const [tabBarTop, setTabBarTop] = useState<number>();
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
   const [homeRegionSearchText, setHomeRegionSearchText] = useState('');
@@ -56,15 +57,10 @@ export function AppContent() {
   const { showToast: setNotificationMessage, toast } = useToast();
   const [hasLoadedRegionStore, setHasLoadedRegionStore] = useState(false);
   const [hasTriedInitialLocation, setHasTriedInitialLocation] = useState(false);
-  const [openCalendarEditor, setOpenCalendarEditor] = useState(false);
   const {
-    addFirstEvent, calendarTipSeen, continueTutorialInCalendar, dismissCalendarTip, finishTutorial,
+    calendarTipSeen, continueTutorialInCalendar, dismissCalendarTip, finishTutorial,
     hydrate: hydrateTutorial, setTutorialMode, skipTutorialForNow, tutorialMode,
-  } = useAppTutorial({ notify: setNotificationMessage, openCalendarEditor: () => setOpenCalendarEditor(true), switchTab: (tab) => switchTab(tab) });
-  // 캘린더를 떠나면 끕니다. 다시 와도 일정 추가 화면이 또 열리지 않게.
-  useEffect(() => {
-    if (activeTab !== 'calendar') setOpenCalendarEditor(false);
-  }, [activeTab]);
+  } = useAppTutorial({ notify: setNotificationMessage, switchTab: (tab) => switchTab(tab) });
   useAppNavigationEvents(activeTab, setActiveTab, setNotificationMessage);
 
   const todayDateLabel = useTodayLabel();
@@ -189,7 +185,6 @@ export function AppContent() {
   const applyRegion = (region: RegionState, message?: string) => {
     closeHomeRegionPanels();
     if (message) setLocationMessage(message);
-    setActiveTab('home');
     if (selectedRegion && isSameRegion(region, selectedRegion)) {
       if (!currentItem || !prediction || pastItems.length === 0) {
         regionTransition.start();
@@ -225,11 +220,9 @@ export function AppContent() {
   // 홈에서 지역 검색 패널을 열고, 필요하면 측정소 목록을 먼저 불러옵니다.
   const openHomeRegionSearch = () => {
     const willOpen = !showHomeRegionSearch;
+    if (willOpen) mainScrollRef.current?.scrollTo({ animated: false, y: 0 });
     setShowHomeRegionSearch(willOpen);
     setShowFavoritePicker(false);
-    if (willOpen) {
-      requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ animated: true, y: 0 }));
-    }
     if (stationItems.length === 0) loadStations();
   };
 
@@ -347,6 +340,7 @@ export function AppContent() {
     <AppTabBar
       activeTab={activeTab}
       onNavigate={switchTab}
+      onTopMeasured={setTabBarTop}
     />
   );
 
@@ -359,7 +353,7 @@ export function AppContent() {
     <>
       <BottomToast message={toast?.message ?? ''} showId={toast?.id ?? 0} />
       {activeTab === 'home' && tutorialMode === 'welcome' && (
-        <WelcomeSheet onAddEvent={addFirstEvent} onLater={skipTutorialForNow} onStart={() => setTutorialMode('tour')} />
+        <WelcomeSheet onLater={skipTutorialForNow} onStart={() => setTutorialMode('tour')} />
       )}
       {activeTab === 'home' && tutorialMode === 'tour' && (
         <TutorialTour hasHourlyForecast={weatherHourlyItems.length > 0 ? true : weatherForecastResolved ? false : undefined}onContinueCalendar={continueTutorialInCalendar} onFinish={finishTutorial} scrollHome={(y) => mainScrollRef.current?.scrollTo({ animated: true, y })} />
@@ -430,7 +424,6 @@ export function AppContent() {
               currentPm10={currentPm10}
               hourlyItems={hourlyItems}
               mapPickerUrl={calendarMapPickerUrl}
-              openEditorOnMount={openCalendarEditor}
               onAddEvent={addCalendarEvent}
               onAddEvents={addCalendarEvents}
               onRemoveEvent={removeCalendarEvent}
@@ -467,30 +460,47 @@ export function AppContent() {
       >
       <ScreenTransition transitionKey={activeTab}>
       <ScrollView
+        key={activeTab}
         ref={mainScrollRef}
         style={styles.screenTransitionScroll}
         contentContainerStyle={[styles.screen, styles.edgeToEdgeScreen]}
         keyboardShouldPersistTaps="handled"
-        stickyHeaderIndices={activeTab === 'home' ? [0] : undefined}
-        refreshControl={<RefreshControl colors={[accentTone]} refreshing={isRefreshingCurrent} tintColor={accentTone} onRefresh={loadCurrentDust} />}
+       refreshControl={<RefreshControl colors={[accentTone]} refreshing={isRefreshingCurrent} tintColor={accentTone} onRefresh={loadCurrentDust} />}
       >
         {activeTab === 'home' ? (
-          <HomeHeader
-            currentItem={currentItem}
-            error={error}
-            favoriteRegions={favoriteRegions}
-            gpsRegion={gpsRegion}
-            isSearchOpen={showHomeRegionSearch}
-            onApplyRegion={applyRegion}
-            onOpenSearch={openHomeRegionSearch}
-            onRemoveFavorite={removeFavoriteRegion}
-            onRetry={() => void loadDashboard(true)}
-            onToggleFavoritePicker={toggleFavoritePicker}
-            panelAnimation={homePanelAnimation}
-            selectedRegion={selectedRegion}
-            showFavoritePicker={showFavoritePicker}
-            weather={weather}
-          />
+          <View>
+            <HomeHeader
+              currentItem={currentItem}
+              error={error}
+              favoriteRegions={favoriteRegions}
+              gpsRegion={gpsRegion}
+              isSearchOpen={showHomeRegionSearch}
+              onApplyRegion={applyRegion}
+              onOpenSearch={openHomeRegionSearch}
+              onRemoveFavorite={removeFavoriteRegion}
+              onRetry={() => void loadDashboard(true)}
+              onToggleFavoritePicker={toggleFavoritePicker}
+              panelAnimation={homePanelAnimation}
+              selectedRegion={selectedRegion}
+              showFavoritePicker={showFavoritePicker}
+              weather={weather}
+            />
+            {showHomeRegionSearch && (
+              <HomeRegionSearchPanel
+                favoriteRegions={favoriteRegions}
+                gpsRegion={gpsRegion}
+                isLoadingStations={isLoadingStations}
+                onApplyRegion={applyRegion}
+                onChangeText={setHomeRegionSearchText}
+                onSelectStation={selectHomeRegionSuggestion}
+                onToggleFavorite={toggleStationFavorite}
+                panelAnimation={homePanelAnimation}
+                searchText={homeRegionSearchText}
+                selectedRegion={selectedRegion}
+                suggestions={homeRegionSuggestions}
+              />
+            )}
+          </View>
         ) : (
           <View style={styles.tabPageHeader}>
             <View>
@@ -499,24 +509,9 @@ export function AppContent() {
             <Ionicons color={bauhausColors.blue} name="options-outline" size={24} />
           </View>
         )}
-        {activeTab === 'home' && showHomeRegionSearch && (
-          <HomeRegionSearchPanel
-            favoriteRegions={favoriteRegions}
-            gpsRegion={gpsRegion}
-            isLoadingStations={isLoadingStations}
-            onApplyRegion={applyRegion}
-            onChangeText={setHomeRegionSearchText}
-            onSelectStation={selectHomeRegionSuggestion}
-            onToggleFavorite={toggleStationFavorite}
-            panelAnimation={homePanelAnimation}
-            searchText={homeRegionSearchText}
-            selectedRegion={selectedRegion}
-            suggestions={homeRegionSuggestions}
-          />
-        )}
-
         {activeTab === 'home' && (
           <HomePanel
+            tabBarTop={tabBarTop}
             currentPm10={currentPm10}
             currentPm25={currentPm25}
             currentO3={currentO3}

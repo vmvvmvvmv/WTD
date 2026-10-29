@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import Reanimated, {
   cancelAnimation,
   FadeIn,
@@ -19,6 +19,7 @@ import Reanimated, {
 
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -169,6 +170,9 @@ export function CalendarDaySheet({
   weatherRisks = [],
   weatherLabel,
 }: Props) {
+  const { width } = useWindowDimensions();
+  const isCompact = width < 430;
+  const holidays = useHolidayNames(Number(selectedDate.slice(0, 4)));
   const dragHandlers = useCalendarDaySheetDrag({ isExpanded, onDismiss, onExpandStateChange });
   // 옷차림 카드는 기본으로 접어 두고, 펼친 일정만 추천을 불러옵니다(일정마다 요청이 가지 않게).
   const [openOutfitIds, setOpenOutfitIds] = useState<string[]>([]);
@@ -181,14 +185,31 @@ export function CalendarDaySheet({
       <View style={styles.calendarDaySheetDragArea} {...dragHandlers}>
         <View style={styles.calendarSelectionHandle} />
       </View>
-      <View style={styles.calendarSelectionTopRow}>
+      <View style={[styles.calendarSelectionTopRow, isCompact && styles.calendarSelectionTopRowCompact]}>
         <View style={styles.calendarSelectionTitleGroup}>
-          <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
-            {formatSelectedDateTitle(selectedDate)}
+          {/* 시트가 열려 있을 때는 떠 있는 추가 버튼을 숨기고(날짜 칸을 가려서) 여기 날짜 옆 버튼으로 추가합니다. */}
+          <View style={styles.calendarSelectionDateRow}>
+            <Text style={[styles.calendarSelectionDateText, { color: selectedDate === todayDateLabel ? accentTone : textColors.primary }]}>
+              {formatSelectedDateTitle(selectedDate)}
+            </Text>
+            {onAddEvent && (
+              <Pressable
+                accessibilityLabel="이 날짜에 일정 추가"
+                accessibilityRole="button"
+                onPress={onAddEvent}
+                style={({ pressed }) => [styles.calendarEmptyAddButton, pressed && styles.pressedFeedback]}
+              >
+                <Ionicons color={accentTone} name="add" size={17} />
+                <Text style={[styles.calendarEmptyAddText, { color: accentTone }]}>일정 추가</Text>
+              </Pressable>
+            )}
+          </View>
+          <Text style={styles.calendarSelectionSubText}>
+            {formatDateDisplay(selectedDate)}
+            {!!holidays[selectedDate] && <Text style={styles.calendarHolidayText}>{`  ${holidays[selectedDate]}`}</Text>}
           </Text>
-          <Text style={styles.calendarSelectionSubText}>{formatDateDisplay(selectedDate)}</Text>
         </View>
-        <View style={styles.calendarSelectionWeatherRow}>
+        <View style={[styles.calendarSelectionWeatherRow, isCompact && styles.calendarSelectionWeatherRowCompact]}>
           {typeof pm10 === 'number' && (
             <MetricChip icon="leaf" label="미세먼지" tone={accentTone} value={`${Math.round(pm10)}㎍/m³`} />
           )}
@@ -225,17 +246,6 @@ export function CalendarDaySheet({
             <View style={styles.calendarEventBody}>
               <Text style={styles.calendarSelectionEmptyTitle}>{TEXT.emptyTitle}</Text>
             </View>
-            {onAddEvent && (
-              <Pressable
-                accessibilityLabel="이 날짜에 일정 추가"
-                accessibilityRole="button"
-                onPress={onAddEvent}
-                style={({ pressed }) => [styles.calendarEmptyAddButton, pressed && styles.pressedFeedback]}
-              >
-                <Ionicons color={accentTone} name="add" size={17} />
-                <Text style={[styles.calendarEmptyAddText, { color: accentTone }]}>일정 추가</Text>
-              </Pressable>
-            )}
           </View>
         ) : events.map((event, index) => {
           const risk = riskByEvent?.[event.id];
@@ -253,38 +263,42 @@ export function CalendarDaySheet({
               key={event.id}
               style={styles.calendarEventGroup}
             >
-              <View style={[styles.calendarEventRow, index === 0 && { borderTopWidth: 0 }]}>
-                <View accessibilityLabel={forecastLabel || undefined} style={[styles.calendarEventIcon, { backgroundColor: weatherIconStyle.background }]}>
-                  <WeatherIcon kind={weatherIconStyle.kind} size={30} />
+              <View style={[styles.calendarEventRow, isCompact && styles.calendarEventRowCompact, index === 0 && { borderTopWidth: 0 }]}>
+                <View style={[styles.calendarEventMainRow, isCompact && styles.calendarEventMainRowCompact]}>
+                  <View accessibilityLabel={forecastLabel || undefined} style={[styles.calendarEventIcon, { backgroundColor: weatherIconStyle.background }]}>
+                    <WeatherIcon kind={weatherIconStyle.kind} size={30} />
+                  </View>
+                  <View style={styles.calendarEventBody}>
+                    <Text style={styles.calendarEventTitle}>{event.title}</Text>
+                    <Text style={styles.calendarEventMeta}>
+                      {eventDateLabel(event)} {event.time}{event.endTime ? `~${event.endTime}` : ''} · {activityLabel(event)}
+                    </Text>
+                    {!!eventLocationMeta(event) && <Text style={styles.calendarEventMeta}>{eventLocationMeta(event)}</Text>}
+                    {!!forecastLabel && <Text numberOfLines={1} style={[styles.calendarEventForecast, { color: activityForecastColor(weatherKind) }]}>{forecastLabel}</Text>}
+                    {!!risk?.desc && <Text style={styles.calendarEventMemo}>{risk.desc}</Text>}
+                    {!!event.memo && <Text style={styles.calendarEventMemo}>{event.memo}</Text>}
+                  </View>
                 </View>
-                <View style={styles.calendarEventBody}>
-                  <Text style={styles.calendarEventTitle}>{event.title}</Text>
-                  <Text style={styles.calendarEventMeta}>
-                    {eventDateLabel(event)} {event.time}{event.endTime ? `~${event.endTime}` : ''} · {activityLabel(event)}
-                  </Text>
-                  {!!eventLocationMeta(event) && <Text style={styles.calendarEventMeta}>{eventLocationMeta(event)}</Text>}
-                  {!!forecastLabel && <Text numberOfLines={1} style={[styles.calendarEventForecast, { color: activityForecastColor(weatherKind) }]}>{forecastLabel}</Text>}
-                  {!!risk?.desc && <Text style={styles.calendarEventMemo}>{risk.desc}</Text>}
-                  {!!event.memo && <Text style={styles.calendarEventMemo}>{event.memo}</Text>}
+                <View style={[styles.calendarEventActions, isCompact && styles.calendarEventActionsCompact]}>
+                  <View style={styles.calendarBadgeStack}>
+                    {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: bauhausColors.blueSoft, color: bauhausColors.blue }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
+                    <Text style={[styles.calendarGuideBadge, { backgroundColor: `${tone}14`, color: tone }]}>{risk?.badge ?? impactLabel(event)}</Text>
+                  </View>
+                  <Pressable
+                    accessibilityLabel={`${event.title} 일정 편집`}
+                    onPress={() => onEditEvent?.(event)}
+                    style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
+                  >
+                    <AppActionIcon name="edit" size={24} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityLabel={`${event.title} 일정 삭제`}
+                    onPress={() => onRemoveEvent(event)}
+                    style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
+                  >
+                    <AppActionIcon name="delete" size={24} />
+                  </Pressable>
                 </View>
-                <View style={styles.calendarBadgeStack}>
-                  {eventRangeLength(event) > 1 && <Text style={[styles.calendarGuideBadge, { backgroundColor: bauhausColors.blueSoft, color: bauhausColors.blue }]}>{`${eventRangeLength(event)}${TEXT.day}`}</Text>}
-                  <Text style={[styles.calendarGuideBadge, { backgroundColor: `${tone}14`, color: tone }]}>{risk?.badge ?? impactLabel(event)}</Text>
-                </View>
-                <Pressable
-                  accessibilityLabel={`${event.title} 일정 편집`}
-                  onPress={() => onEditEvent?.(event)}
-                  style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
-                >
-                  <AppActionIcon name="edit" size={24} />
-                </Pressable>
-                <Pressable
-                  accessibilityLabel={`${event.title} 일정 삭제`}
-                  onPress={() => onRemoveEvent(event)}
-                  style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
-                >
-                  <AppActionIcon name="delete" size={24} />
-                </Pressable>
               </View>
               {outfitEnabled && (
                 <Pressable

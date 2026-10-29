@@ -1,27 +1,29 @@
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { styles } from '../../styles/appStyles';
 import { accentTone } from '../../theme/appTheme';
 import { AppActionIcon } from '../shared/AppActionIcon';
 
 const MAP_PREVIEW_MIN_HEIGHT = 156;
-// 지도 아래에 남겨야 하는 높이: 지도 링크 줄 44 + 섹션 아래 여백 20 + 스크롤 아래 여백 30 + 하단 탭 바 69
-const MAP_PREVIEW_BOTTOM_RESERVE = 44 + 20 + 30 + 69;
+const MAP_PREVIEW_BOTTOM_RESERVE = 44 + 8;
 
 // 홈 '날씨 지도' 탭: 지도 미리보기(실패하면 최대 3번 다시 불러옴). 누르면 전체 지도로 갑니다.
-export function HomeMapPreview({ active, mapPreviewUrl, onOpenMap }: { active: boolean; mapPreviewUrl: string; onOpenMap: () => void }) {
-  const { height: windowHeight } = useWindowDimensions();
+export function HomeMapPreview({ active, mapPreviewUrl, onOpenMap, tabBarTop }: { active: boolean; mapPreviewUrl: string; onOpenMap: () => void; tabBarTop?: number }) {
   // 지도 탭을 열면 지도가 하단 탭 바 바로 위까지 닿도록, 화면에서 지도가 시작하는 위치를 재서 높이를 정합니다.
   const mapPaneRef = useRef<View>(null);
   const [mapFrameHeight, setMapFrameHeight] = useState(MAP_PREVIEW_MIN_HEIGHT);
-  const measureMapPane = () => {
+  const measureMapPane = useCallback(() => {
+    if (tabBarTop === undefined) return;
     mapPaneRef.current?.measureInWindow((_x, y) => {
-      setMapFrameHeight(Math.max(MAP_PREVIEW_MIN_HEIGHT, Math.round(windowHeight - y - MAP_PREVIEW_BOTTOM_RESERVE)));
+      setMapFrameHeight(Math.max(MAP_PREVIEW_MIN_HEIGHT, Math.round(tabBarTop - y - MAP_PREVIEW_BOTTOM_RESERVE)));
     });
-  };
+  }, [tabBarTop]);
+  useEffect(() => {
+    if (active) measureMapPane();
+  }, [active, measureMapPane]);
   const [mapPreviewFailed, setMapPreviewFailed] = useState(false);
   const [mapPreviewRetryCount, setMapPreviewRetryCount] = useState(0);
   useEffect(() => {
