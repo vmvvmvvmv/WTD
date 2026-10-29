@@ -120,6 +120,12 @@ android {
             def enablePngCrunchInRelease = findProperty('android.enablePngCrunchInReleaseBuilds') ?: 'true'
             crunchPngs enablePngCrunchInRelease.toBoolean()
         }
+        internal {
+            initWith release
+            matchingFallbacks = ['release']
+            applicationIdSuffix '.internal'
+            versionNameSuffix '-internal'
+        }
     }
     packagingOptions {
         jniLibs {
@@ -182,3 +188,8 @@ dependencies {
 }
 
 apply plugin: 'com.google.gms.google-services'
+
+// The local internal APK has its own app ID and does not register for push.
+tasks.matching { it.name == 'processInternalGoogleServices' }.configureEach {
+    enabled = false
+}
