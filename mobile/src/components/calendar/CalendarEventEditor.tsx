@@ -10,7 +10,7 @@ import { searchPlacesNear } from '../../features/places/placeSearch';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
-import { compareDateTime, formatDate, parseDateParts } from './calendarUtils';
+import { compareDateTime, dayLabel, formatDate, parseDateParts } from './calendarUtils';
 import type { CalendarLocationCandidate } from './calendarLocation';
 import type { CalendarRepeatMode } from './calendarRepeat';
 import { ActivityTypeSelector, type CalendarActivityInput } from './editor/ActivityTypeSelector';
@@ -399,19 +399,27 @@ export function CalendarEventEditor({
             </View>
             </View>
           </ScrollView>
+          {/* 하단 바: 왼쪽엔 일정 요약(날짜·시간, 장소), 오른쪽엔 알약 버튼 '저장'. 지도 선택의 아래 칸과 같은 모양입니다. 제목이 비어 있으면 저장을 막습니다. */}
+          <View style={[styles.calendarMapPickerConfirmBar, styles.calendarEditorBottomBar, { paddingBottom: isKeyboardOpen ? 10 : Math.max(12, insets.bottom + 8) }]}>
+            <View style={styles.calendarMapPickerConfirmTextGroup}>
+              <Text numberOfLines={1} style={styles.calendarMapPickerConfirmTitle}>
+                {dayLabel(startDate)} {startTime}~{endDate !== startDate ? `${dayLabel(endDate)} ` : ''}{endTime}
+              </Text>
+              {!!location && <Text numberOfLines={1} style={styles.calendarMapPickerConfirmMeta}>{location}</Text>}
+            </View>
+            <Pressable
+              disabled={!title.trim()}
+              onPress={onSave}
+              style={({ pressed }) => [
+                styles.calendarMapPickerConfirmButton,
+                { backgroundColor: title.trim() ? accentTone : textColors.disabled },
+                pressed && title.trim() && styles.pressedFeedback,
+              ]}
+            >
+              <Text style={[styles.calendarMapPickerConfirmButtonText, styles.calendarEditorSaveText]}>저장</Text>
+            </Pressable>
+          </View>
         </KeyboardAvoidingView>
-        <Pressable
-          accessibilityLabel="일정 저장"
-          disabled={!title.trim()}
-          onPress={onSave}
-          style={({ pressed }) => [
-            styles.calendarEditorSaveFab,
-            { backgroundColor: title.trim() ? accentTone : textColors.disabled, bottom: Math.max(18, insets.bottom + 14), shadowColor: accentTone },
-            pressed && title.trim() && styles.pressedFeedback,
-          ]}
-        >
-          <Ionicons color="#ffffff" name="checkmark" size={32} />
-        </Pressable>
         <Modal
           animationType="slide"
           visible={isMapPickerOpen}
