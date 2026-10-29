@@ -10,6 +10,7 @@ import {
   DEVICE_ID_STORAGE_KEY,
   MEMO_HISTORY_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
+  HOLIDAYS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
   MAP_RECENT_SEARCHES_STORAGE_KEY,
   NOTIFICATION_SETTINGS_STORAGE_KEY,
@@ -125,6 +126,19 @@ export async function loadMemoHistory(): Promise<string[]> {
 
 export function saveMemoHistory(history: string[]) {
   return saveString(MEMO_HISTORY_STORAGE_KEY, JSON.stringify(history));
+}
+
+// 공휴일 {날짜: 이름}. 서버가 안 될 때도 마지막으로 받은 값으로 달력을 칠합니다.
+export async function loadHolidayCache(): Promise<unknown> {
+  try {
+    return JSON.parse((await safeGet(HOLIDAYS_STORAGE_KEY)) ?? '{}');
+  } catch {
+    return {};
+  }
+}
+
+export function saveHolidayCache(holidays: Record<string, string>) {
+  return saveString(HOLIDAYS_STORAGE_KEY, JSON.stringify(holidays));
 }
 
 function saveJson(key: string, value: unknown) {

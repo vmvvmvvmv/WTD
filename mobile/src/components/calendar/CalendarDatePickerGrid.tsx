@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Reanimated, { FadeIn, ReduceMotion } from 'react-native-reanimated';
 
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { styles } from '../../styles/appStyles';
 import { buildMonthCells, formatDate, monthLabel, parseDateParts, weekdayLabels } from './calendarUtils';
 import { accentSoftTone, accentTone } from '../../theme/appTheme';
@@ -15,6 +16,7 @@ export function CalendarDatePickerGrid({ onChange, value }: {
 }) {
   const selected = parseDateParts(value);
   const [visible, setVisible] = useState({ month: selected.month, year: selected.year });
+  const holidays = useHolidayNames(visible.year);
   const cells = buildMonthCells(visible.year, visible.month);
   const now = new Date();
   const today = formatDate(now.getFullYear(), now.getMonth(), now.getDate());
@@ -51,7 +53,7 @@ export function CalendarDatePickerGrid({ onChange, value }: {
           const isToday = cell.date === today;
           return (
             <Pressable
-              accessibilityLabel={`${cell.date}${isToday ? ', 오늘' : ''}`}
+              accessibilityLabel={`${cell.date}${holidays[cell.date] ? `, ${holidays[cell.date]}` : ''}${isToday ? ', 오늘' : ''}`}
               accessibilityRole="button"
               accessibilityState={{ selected: isSelected }}
               key={cell.date}
@@ -65,7 +67,7 @@ export function CalendarDatePickerGrid({ onChange, value }: {
                 <Text
                   style={[
                     styles.calendarDatePickerDayText,
-                    index % 7 === 0 && styles.calendarDatePickerSunday,
+                    (index % 7 === 0 || !!holidays[cell.date]) && styles.calendarDatePickerSunday,
                     isToday && { color: accentTone },
                     isSelected && styles.calendarDatePickerDayTextSelected,
                   ]}

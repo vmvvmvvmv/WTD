@@ -19,6 +19,7 @@ import Reanimated, {
 
 import { ACTIVITY_WEATHER_ICONS, activityForecastColor } from '../../features/dashboard/activityWeatherIcons';
 import { activityForecastLabel, activityWeatherKind } from '../../features/dashboard/homeActivityGuidePresenter';
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -171,6 +172,7 @@ export function CalendarDaySheet({
 }: Props) {
   const { width } = useWindowDimensions();
   const isCompact = width < 430;
+  const holidays = useHolidayNames(Number(selectedDate.slice(0, 4)));
   const dragHandlers = useCalendarDaySheetDrag({ isExpanded, onDismiss, onExpandStateChange });
   // 옷차림 카드는 기본으로 접어 두고, 펼친 일정만 추천을 불러옵니다(일정마다 요청이 가지 않게).
   const [openOutfitIds, setOpenOutfitIds] = useState<string[]>([]);
@@ -202,7 +204,10 @@ export function CalendarDaySheet({
               </Pressable>
             )}
           </View>
-          <Text style={styles.calendarSelectionSubText}>{formatDateDisplay(selectedDate)}</Text>
+          <Text style={styles.calendarSelectionSubText}>
+            {formatDateDisplay(selectedDate)}
+            {!!holidays[selectedDate] && <Text style={styles.calendarHolidayText}>{`  ${holidays[selectedDate]}`}</Text>}
+          </Text>
         </View>
         <View style={[styles.calendarSelectionWeatherRow, isCompact && styles.calendarSelectionWeatherRowCompact]}>
           {typeof pm10 === 'number' && (

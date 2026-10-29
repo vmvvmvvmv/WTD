@@ -19,6 +19,7 @@ from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
 from dust.notification_registry import notification_device_response, upsert_notification_device
 from dust.services.common import _dfs_grid_from_lat_lng, _parse_measure_date, _to_float
 from dust.services.dust_history import _fetch_past_dust_items_by_station, _latest_past_item_date, _load_recent_realtime_hourly_dust, _load_stored_past_dust, _load_stored_realtime_daily_dust, _load_stored_realtime_hourly_dust, _merge_past_items, _store_past_dust_items
+from dust.services.holidays import holidays_for_year
 from dust.services.places import PlaceSearchFailed, PlaceSearchUnavailable, search_naver_places
 from dust.services.stations import dust_cache_version, _find_air_quality_station, _find_current_realtime_value, _load_latest_daily_station_values, _load_realtime_station_values, _load_station_locations, _resolve_station_name, _station_lookup_name
 from dust.services.weather import _latest_weather_by_grid_for_locations, _nearest_asos_station, _serialize_asos_daily_item, _serialize_midterm_forecast, _weather_measurement_to_response
@@ -583,3 +584,17 @@ def past_dust(request):
         "saved_count": saved_count,
         "source": "stored_first",
     })
+
+
+@api_view(['GET'])
+def holidays(request):
+    # 저장된 공휴일만 읽는다. 천문연구원 API 호출은 collect_holidays(매일 아침)가 맡는다.
+    try:
+        year = int(request.GET.get("year") or timezone.localdate().year)
+    except ValueError:
+        year = 0
+    if not 2000 <= year <= 2100:
+        return error_response(400, "year는 2000~2100 사이 숫자여야 합니다.")
+    response = Response({"year": year, "items": holidays_for_year(year)})
+    response["Cache-Control"] = "public, max-age=3600"
+    return response

@@ -3,6 +3,7 @@ import { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/calendar';
+import { useHolidayNames } from '../../features/calendar/useHolidayNames';
 import { CalendarDayCell } from './CalendarDayCell';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import type { CalendarMonthCell } from './calendarUtils';
@@ -47,6 +48,7 @@ export function CalendarMonthGrid({
   const weekRows = Array.from({ length: Math.max(1, Math.ceil(monthCells.length / 7)) }, (_, rowIndex) => (
     monthCells.slice(rowIndex * 7, rowIndex * 7 + 7)
   ));
+  const holidays = useHolidayNames(Number((monthCells.find(Boolean)?.date ?? todayDateLabel).slice(0, 4)));
   const { animatedStyle: monthAnimatedStyle, swipeHandlers } = useCalendarSlide(monthTitle, transitionDirection, onMoveMonth);
 
   const handlePressEmptyDay = () => {
@@ -87,6 +89,7 @@ export function CalendarMonthGrid({
                   eventCount={eventCountByDate[cell.date] ?? 0}
                   eventItems={eventItemsByDate[cell.date] ?? []}
                   getEventTone={getEventTone}
+                  holidayName={holidays[cell.date]}
                   isRangeAnchor={false}
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}

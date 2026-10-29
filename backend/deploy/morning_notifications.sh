@@ -7,5 +7,7 @@ exec 9>/tmp/weathertodo-collect.lock
 flock 9
 PY=venv/bin/python
 "$PY" manage.py collect_realtime_weather --workers 8 --forecast-hours 96 || echo "weather collect failed, sending with stored data"
+# 공휴일(올해·내년). 임시공휴일은 발표가 늦어 매일 다시 받는다.
+"$PY" manage.py collect_holidays || echo "holiday collect failed"
 "$PY" manage.py purge_old_records || echo "purge failed"
 exec "$PY" manage.py send_dust_notifications

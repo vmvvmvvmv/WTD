@@ -59,6 +59,9 @@ export const calendarStyles = StyleSheet.create({
   calendarAgendaEmptyText: { color: textColors.muted, fontSize: 13, fontWeight: '600', paddingBottom: 8 },
   calendarWeekRow: { flexDirection: 'row', marginBottom: 4, paddingHorizontal: 0 },
   calendarWeekTextSunday: { color: '#E05263' },
+  // 공휴일: 일요일과 같은 빨강. 칸 안 이름은 일정 글자보다 작게.
+  calendarHolidayText: { color: '#E05263' },
+  calendarDayHolidayName: { color: '#E05263', fontSize: 10, fontWeight: '700', lineHeight: 13, paddingHorizontal: 2 },
   calendarWeekTextSaturday: { color: bauhausColors.blueText },
   calendarWeekText: { color: textColors.muted, flex: 1, fontSize: 11, fontWeight: '700', textAlign: 'center' },
   calendarGrid: { borderColor: '#dfe5ec', flex: 1, minHeight: 0 },
