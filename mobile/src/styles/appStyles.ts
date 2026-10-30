@@ -136,7 +136,8 @@ const appStyles = StyleSheet.create({
   homeMapPreviewFooter: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 44 },
   homeMapPreviewLink: { fontSize: 12, fontWeight: '700' },
   metricValue: { color: '#141821', fontSize: 24, fontWeight: '900', marginTop: 8 },
-  // 홈 '오늘 일정' 줄(HomeTodayScheduleCard)의 '+ 추가'. 줄 모양은 homeBestOutingRow를 같이 씁니다.
+  // 홈 '일정 가이드' 탭 맨 위 '오늘 일정 없음 · + 추가' 줄(HomeTodayScheduleCard).
+  homeTodayRow: { alignItems: 'center', flexDirection: 'row', gap: 6, minHeight: 44, paddingHorizontal: 2, paddingVertical: 8 },
   homeTodayAddText: { fontSize: 13, fontWeight: '700' },
   homeSectionCard: { backgroundColor: '#FFFFFF', borderBottomColor: '#E7EDF5', borderBottomWidth: 1, marginTop: 12, paddingBottom: 20, paddingHorizontal: 20 },
   homeSectionTabRow: { borderBottomColor: '#E7EDF5', borderBottomWidth: 1, flexDirection: 'row', marginBottom: 14 },
@@ -149,9 +150,6 @@ const appStyles = StyleSheet.create({
   homeSectionTabTextSelected: { color: textColors.heading, fontWeight: '900' },
   homeSectionHidden: { display: 'none' },
   homeSectionMeta: { color: textColors.muted, fontSize: 11, fontWeight: '600', marginBottom: 10 },
-  defaultGuideSourceRow: { alignItems: 'center', flexDirection: 'row', gap: 5, marginBottom: 6, minHeight: 20 },
-  defaultGuideSourceTitle: { color: textColors.secondary, fontSize: 13, fontWeight: '700' },
-  defaultGuideSourceHint: { color: textColors.muted, flex: 1, fontSize: 10, fontWeight: '600', lineHeight: 15 },
   activityGuideList: { gap: 2 },
   activityGuideItemGroup: { gap: 6 },
   activityGuideRow: { alignItems: 'center', borderTopColor: '#EDF1F6', borderTopWidth: 1, flexDirection: 'row', gap: 12, minHeight: 88, paddingVertical: 12 },
