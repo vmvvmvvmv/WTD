@@ -52,6 +52,8 @@ import { accentTone } from '../theme/appTheme';
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  // 홈 '오늘 일정' 카드의 추가 버튼으로 캘린더를 열면, 오늘 창과 일정 추가 메뉴를 펼친 채로 엽니다.
+  const [calendarAddToday, setCalendarAddToday] = useState(false);
   const [tabBarTop, setTabBarTop] = useState<number>();
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
@@ -432,6 +434,8 @@ export function AppContent() {
         <View style={[styles.screen, styles.calendarOnlyScreen]}>
           <View style={styles.tabPageContent}>
             <CalendarPanel
+              openAddForToday={calendarAddToday}
+              onOpenedAddForToday={() => setCalendarAddToday(false)}
               events={calendarEvents}
               defaultLocation={calendarDefaultLocation}
               eventLocationForecasts={calendarLocationForecasts}
@@ -535,6 +539,10 @@ export function AppContent() {
             eventLocationForecasts={calendarLocationForecasts}
             onDeleteCalendarEvent={removeCalendarEvent}
             onDeleteFollowingCalendarEvents={removeFollowingCalendarEvents}
+            onAddToday={() => {
+              setCalendarAddToday(true);
+              setActiveTab('calendar');
+            }}
             onOpenCalendar={() => setActiveTab('calendar')}
             onOpenMap={() => {
               if (stationItems.length === 0) loadStations();

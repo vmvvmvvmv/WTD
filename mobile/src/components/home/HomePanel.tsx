@@ -18,6 +18,7 @@ import { HomeActivityGuideList } from './HomeActivityGuideList';
 import { HomeHeroBanner } from './HomeHeroBanner';
 import { HomeMapPreview } from './HomeMapPreview';
 import { HomeSectionTabBar, type HomeSectionKey } from './HomeSectionTabBar';
+import { HomeTodayScheduleCard } from './HomeTodayScheduleCard';
 
 const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
   { icon: 'schedule', key: 'guide', label: '일정 가이드' },
@@ -35,6 +36,7 @@ export function HomePanel({
   calendarEvents,
   eventLocationForecasts,
   onDeleteCalendarEvent,
+  onAddToday,
   onDeleteFollowingCalendarEvents,
   onOpenCalendar,
   onOpenMap,
@@ -64,6 +66,8 @@ export function HomePanel({
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   onDeleteCalendarEvent?: (eventId: string) => void;
   onDeleteFollowingCalendarEvents?: (event: CalendarEvent) => void;
+  // 오늘 날짜로 일정 추가(캘린더를 열고 오늘 창과 직접·AI 등록 메뉴를 펼침).
+  onAddToday?: () => void;
   onOpenCalendar?: () => void;
   onOpenMap: () => void;
   outfitEnabled: boolean;
@@ -173,6 +177,7 @@ export function HomePanel({
   };
   return (
     <View>
+      <HomeTodayScheduleCard activityGuideRows={activityGuideRows} onAddToday={onAddToday} onOpenCalendar={onOpenCalendar} />
       <HomeHeroBanner
         bestOutingWindow={bestOutingWindow}
         currentO3={currentO3}
