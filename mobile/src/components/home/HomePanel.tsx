@@ -177,9 +177,9 @@ export function HomePanel({
   };
   return (
     <View>
-      <HomeTodayScheduleCard activityGuideRows={activityGuideRows} onAddToday={onAddToday} onOpenCalendar={onOpenCalendar} />
       <HomeHeroBanner
         bestOutingWindow={bestOutingWindow}
+        footer={<HomeTodayScheduleCard activityGuideRows={activityGuideRows} onAddToday={onAddToday} onOpenCalendar={onOpenCalendar} />}
         currentO3={currentO3}
         currentPm10={currentPm10}
         currentPm25={currentPm25}
