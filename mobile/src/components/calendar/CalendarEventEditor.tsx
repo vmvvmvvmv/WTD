@@ -296,7 +296,8 @@ export function CalendarEventEditor({
           <View style={styles.calendarEditorHeaderButton} />
         </View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.calendarSheetKeyboardArea}>
+        {/* 안드로이드는 키보드가 닫힌 뒤에도 줄어든 높이가 남아 하단 바 아래가 비므로, 키보드가 열려 있을 때만 맞춥니다. */}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} enabled={Platform.OS === 'ios' || isKeyboardOpen} style={styles.calendarSheetKeyboardArea}>
           <ScrollView contentContainerStyle={styles.calendarSheetScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.calendarSheetScroll}>
             <View style={styles.calendarSheet}>
             <View style={styles.calendarSheetTitleRow}>
