@@ -136,15 +136,16 @@ const appStyles = StyleSheet.create({
   homeMapPreviewFooter: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', minHeight: 44 },
   homeMapPreviewLink: { fontSize: 12, fontWeight: '700' },
   metricValue: { color: '#141821', fontSize: 24, fontWeight: '900', marginTop: 8 },
-  // 홈 배너 위 '오늘 일정' 접기 띠(HomeTodayScheduleCard): 얇은 띠(homeTodayHandle)를 누르면 위에 한 줄(homeTodayLine)이 열립니다.
+  // 홈 배너 위 '오늘 일정'(HomeTodayScheduleCard): 손잡이 탭(homeTodayTab)을 누르면 헤더 아래에 한 줄(homeTodayLine)이 열립니다.
   homeTodayLineWrap: { backgroundColor: '#FFFFFF', overflow: 'hidden' },
   homeTodayLine: { alignItems: 'center', flexDirection: 'row', gap: 8, height: 44, paddingHorizontal: 20 },
   homeTodayLineText: { color: textColors.primary, flex: 1, fontSize: 13, fontWeight: '700' },
   homeTodayAddText: { fontSize: 13, fontWeight: '700' },
-  homeTodayHandle: { alignItems: 'center', backgroundColor: '#FFFFFF', borderBottomColor: '#E7EDF5', borderBottomWidth: 1, flexDirection: 'row', gap: 6, height: 26, justifyContent: 'flex-end', paddingLeft: 20, paddingRight: 16 },
-  // 띠 문구는 왼쪽부터, 손잡이는 오른쪽에 고정(문구가 나타나고 사라져도 손잡이가 움직이지 않게).
-  homeTodayHandleText: { color: textColors.secondary, flex: 1, fontSize: 11, fontWeight: '700' },
-  homeTodayGrip: { alignItems: 'center', borderRadius: 999, height: 16, justifyContent: 'center', width: 30 },
+  // 손잡이 탭: 띠(또는 헤더) 아래 가운데에 매달려 배너 위를 20만큼 덮습니다. 배너보다 위에 그리도록 묶음에 zIndex.
+  homeTodayWrap: { zIndex: 10 },
+  homeTodayTabRow: { alignItems: 'center', bottom: -20, left: 0, position: 'absolute', right: 0 },
+  homeTodayTab: { alignItems: 'center', backgroundColor: '#FFFFFF', borderBottomLeftRadius: 12, borderBottomRightRadius: 12, elevation: 3, flexDirection: 'row', gap: 4, height: 20, justifyContent: 'center', maxWidth: '86%', minWidth: 44, paddingHorizontal: 12, shadowColor: '#0F172A', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.12, shadowRadius: 4 },
+  homeTodayHandleText: { color: textColors.secondary, flexShrink: 1, fontSize: 11, fontWeight: '700' },
   homeTodayCounter: { color: textColors.muted, fontSize: 11, fontVariant: ['tabular-nums'], fontWeight: '700' },
   defaultGuideSourceRow: { alignItems: 'center', flexDirection: 'row', gap: 5, marginBottom: 6, minHeight: 20 },
   defaultGuideSourceTitle: { color: textColors.secondary, fontSize: 13, fontWeight: '700' },
