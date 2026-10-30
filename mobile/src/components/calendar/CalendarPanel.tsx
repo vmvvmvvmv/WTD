@@ -36,6 +36,8 @@ export function CalendarPanel({
   mapPickerUrl,
   onAddEvent,
   onAddEvents,
+  onOpenedAddForToday,
+  openAddForToday,
   onRemoveEvent,
   onRemoveFollowingEvents,
   onUpdateEvent,
@@ -56,6 +58,9 @@ export function CalendarPanel({
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   hourlyItems?: HourlyDustItem[];
   mapPickerUrl?: string;
+  // true로 열리면 오늘 날짜 창과 일정 추가 메뉴를 펼친 채로 시작하고 onOpenedAddForToday를 부릅니다.
+  onOpenedAddForToday?: () => void;
+  openAddForToday?: boolean;
   onAddEvent: (event: CalendarEvent) => void;
   onAddEvents?: (events: CalendarEvent[]) => void;
   onRemoveEvent: (eventId: string) => void;
@@ -207,6 +212,20 @@ export function CalendarPanel({
     setSelectedDate(nextDate);
     sheet.setIsOpen(options?.openSheet !== false);
   };
+
+  // 홈 '오늘 일정' 카드에서 추가를 눌러 왔으면 화면이 자리 잡은 뒤 오늘 창을 열고, 창이 다 올라오면 직접·AI 등록 메뉴를 펼칩니다.
+  // 캘린더 화면은 탭을 열 때마다 새로 만들어지므로 처음 한 번만 봅니다.
+  useEffect(() => {
+    if (!openAddForToday) return;
+    onOpenedAddForToday?.();
+    const openSheet = setTimeout(() => selectDate(todayDateLabel), 450);
+    const openMenu = setTimeout(() => setIsAddMenuOpen(true), 750);
+    return () => {
+      clearTimeout(openSheet);
+      clearTimeout(openMenu);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveEvent = () => {
     draft.saveEvent({
