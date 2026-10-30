@@ -19,6 +19,8 @@ export const TUTORIAL_SEEN_STORAGE_KEY = 'dust.tutorial-seen';
 export const CALENDAR_TIP_SEEN_STORAGE_KEY = 'dust.calendar-tip-seen';
 export const DEVICE_ID_STORAGE_KEY = 'dust.device-id';
 export const MEMO_HISTORY_STORAGE_KEY = 'dust.memo-history';
+// 홈 배너 위 '오늘 일정' 띠를 열어 두었는지('1'/'0').
+export const HOME_TODAY_OPEN_STORAGE_KEY = 'dust.home-today-open';
 export const HOLIDAYS_STORAGE_KEY = 'dust.holidays';
 
 export const DEFAULT_NOTIFICATION_SETTINGS: NotificationSettings = {

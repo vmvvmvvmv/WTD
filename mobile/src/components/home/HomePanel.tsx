@@ -18,6 +18,7 @@ import { HomeActivityGuideList } from './HomeActivityGuideList';
 import { HomeHeroBanner } from './HomeHeroBanner';
 import { HomeMapPreview } from './HomeMapPreview';
 import { HomeSectionTabBar, type HomeSectionKey } from './HomeSectionTabBar';
+import { HomeTodayScheduleCard } from './HomeTodayScheduleCard';
 
 const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
   { icon: 'schedule', key: 'guide', label: '일정 가이드' },
@@ -176,6 +177,7 @@ export function HomePanel({
   };
   return (
     <View>
+      <HomeTodayScheduleCard activityGuideRows={activityGuideRows} onAddToday={onAddToday} onOpenCalendar={onOpenCalendar} />
       <HomeHeroBanner
         bestOutingWindow={bestOutingWindow}
         currentO3={currentO3}
@@ -210,7 +212,6 @@ export function HomePanel({
           activityGuideRows={activityGuideRows}
           defaultActivityGuides={defaultActivityGuides}
           hidden={activeHomeSection !== 'guide'}
-          onAddToday={onAddToday}
           onDeleteCalendarEvent={onDeleteCalendarEvent}
           onDeleteFollowingCalendarEvents={onDeleteFollowingCalendarEvents}
           onOpenCalendar={onOpenCalendar}
