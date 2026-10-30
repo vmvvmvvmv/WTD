@@ -938,3 +938,37 @@ class ExpoAccessTokenTests(SimpleTestCase):
             with patch.dict('os.environ', {'EXPO_ACCESS_TOKEN': ''}):
                 module.send_expo_push('ExponentPushToken[a]', 't', 'b', {})
             self.assertEqual(post.call_args.kwargs['headers'], {})
+
+
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
+class CollectedWeatherGridTests(TestCase):
+    """수집기가 시·군·구 대표 격자만 모으므로, 자료 없는 격자는 가장 가까운 모으는 격자로 대신한다(울주군 삼남읍 사례)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _row(self, nx, ny, hours=-1, temperature=10):
+        from datetime import timedelta
+        from dust.models import WeatherHourlyMeasurement
+        return WeatherHourlyMeasurement.objects.create(nx=nx, ny=ny, measured_at=timezone.now() + timedelta(hours=hours), temperature=temperature)
+
+    def test_keeps_own_grid_and_falls_back_to_nearest(self):
+        from dust.services.weather import collected_weather_grid
+        self._row(102, 81)
+        self._row(110, 90)
+        self.assertEqual(collected_weather_grid({'nx': 102, 'ny': 81}), {'nx': 102, 'ny': 81})
+        self.assertEqual(collected_weather_grid({'nx': 98, 'ny': 84}), {'nx': 102, 'ny': 81})
+        # 6칸보다 멀면 원래 격자를 그대로 둔다.
+        self.assertEqual(collected_weather_grid({'nx': 60, 'ny': 127}), {'nx': 60, 'ny': 127})
+
+    def test_hourly_endpoint_uses_nearest_collected_grid(self):
+        from dust.services.common import _dfs_grid_from_lat_lng
+        lat, lng = 35.5384, 129.1700
+        grid = _dfs_grid_from_lat_lng(lat, lng)
+        self._row(grid['nx'] + 3, grid['ny'] - 2, hours=-1, temperature=11)
+        self._row(grid['nx'] + 3, grid['ny'] - 2, hours=2, temperature=13)
+        data = self.client.get('/dust/weather/hourly/', {'lat': lat, 'lng': lng}).json()
+        self.assertEqual(data['requestedGrid']['nx'], grid['nx'])
+        self.assertEqual(data['grid'], {'nx': grid['nx'] + 3, 'ny': grid['ny'] - 2})
+        self.assertEqual([item['temperature'] for item in data['forecastItems']], [13])

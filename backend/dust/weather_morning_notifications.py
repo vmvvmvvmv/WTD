@@ -12,6 +12,7 @@ from django.utils import timezone
 from dust.models import AirQualityStation, DustNotificationLog, ExpoPushTicket, NotificationDevice, WeatherHourlyMeasurement
 from dust.services.common import _dfs_grid_from_lat_lng
 from dust.services.stations import _current_station_location, _find_air_quality_station, _resolve_station_name
+from dust.services.weather import collected_weather_grid
 
 
 EXPO_PUSH_URL = "https://exp.host/--/api/v2/push/send"
@@ -98,7 +99,8 @@ def _grid_for_region(city: str, region: str) -> dict | None:
     location = _current_station_location(station.sido, station.name)
     if not location:
         return None
-    return _dfs_grid_from_lat_lng(location["lat"], location["lng"])
+    # 이 측정소 격자를 모으지 않으면 가장 가까운 모으는 격자(collected_weather_grid 참고).
+    return collected_weather_grid(_dfs_grid_from_lat_lng(location["lat"], location["lng"]))
 
 
 def _is_rain(point: WeatherHourlyMeasurement) -> bool:

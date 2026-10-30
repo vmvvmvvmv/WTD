@@ -10,6 +10,22 @@ from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
 from dust.services.common import _dfs_grid_from_lat_lng, _haversine_km, _to_float
 from dust.services.stations import _current_station_location
 
+
+# 날씨 수집기는 시·군·구마다 대표 측정소 한 곳의 격자만 모은다(예: 울산 울주군은 덕신리 격자).
+# 그래서 같은 군의 다른 곳(예: 삼남읍)은 격자에 자료가 없다. 그 격자에 최근(6시간) 자료가 없으면
+# 최근 자료가 있는 가장 가까운 격자를 돌려준다. 5km 칸으로 6칸(약 30km)보다 멀면 원래 격자를 그대로 둔다.
+def collected_weather_grid(grid, now=None, max_cells=6):
+    now = now or timezone.now()
+    recent = WeatherHourlyMeasurement.objects.filter(measured_at__gte=now - timedelta(hours=6))
+    if recent.filter(nx=grid["nx"], ny=grid["ny"]).exists():
+        return grid
+    best = None
+    for nx, ny in recent.values_list("nx", "ny").distinct():
+        distance = (nx - grid["nx"]) ** 2 + (ny - grid["ny"]) ** 2
+        if distance <= max_cells ** 2 and (best is None or distance < best[0]):
+            best = (distance, nx, ny)
+    return {"nx": best[1], "ny": best[2]} if best else grid
+
 logger = logging.getLogger(__name__)
 
 
