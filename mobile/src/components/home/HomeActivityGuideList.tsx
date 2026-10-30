@@ -2,7 +2,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 import { styles } from '../../styles/appStyles';
-import { bauhausColors, textColors } from '../../theme/bauhaus';
+import { bauhausColors } from '../../theme/bauhaus';
 import { semanticColors } from '../../theme/semanticColors';
 import { accentTone } from '../../theme/appTheme';
 import type { CalendarEvent } from '../../types/calendar';
@@ -12,12 +12,14 @@ import type { buildHomeActivityGuideItems } from '../../features/dashboard/homeA
 import { confirmCalendarEventRemoval } from '../calendar/confirmCalendarEventRemoval';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { WeatherIcon } from '../shared/WeatherIcon';
+import { HomeTodayScheduleCard } from './HomeTodayScheduleCard';
 
 // 홈 '활동 가이드' 탭: 오늘 일정마다 날씨 판단을 보여 주고, 일정이 없으면 오늘 날씨로 만든 기본 가이드를 보여 줍니다.
 export function HomeActivityGuideList({
   activityGuideRows,
   defaultActivityGuides,
   hidden,
+  onAddToday,
   onDeleteCalendarEvent,
   onDeleteFollowingCalendarEvents,
   onOpenCalendar,
@@ -26,6 +28,7 @@ export function HomeActivityGuideList({
   activityGuideRows: ReturnType<typeof buildHomeActivityGuideItems>;
   defaultActivityGuides: ReturnType<typeof buildDefaultActivityGuides>;
   hidden: boolean;
+  onAddToday?: () => void;
   onDeleteCalendarEvent?: (eventId: string) => void;
   onDeleteFollowingCalendarEvents?: (event: CalendarEvent) => void;
   onOpenCalendar?: () => void;
@@ -33,14 +36,8 @@ export function HomeActivityGuideList({
 }) {
   return (
     <View style={hidden && styles.homeSectionHidden}>
-      {/* 일정이 없을 때는 기본 가이드라는 것을 먼저 알립니다. */}
-      {activityGuideRows.length === 0 && (
-        <View accessibilityLabel="기본 가이드. 오늘 등록된 일정이 없어 기본 가이드를 보여 줍니다. 일정을 등록하면 그 일정에 맞는 가이드로 바뀝니다" accessible style={styles.defaultGuideSourceRow}>
-          <Ionicons color={textColors.secondary} name="compass-outline" size={15} />
-          <Text style={styles.defaultGuideSourceTitle}>기본 가이드</Text>
-          <Text numberOfLines={1} style={styles.defaultGuideSourceHint}>일정 등록 시 맞춤 가이드로 바뀌어요</Text>
-        </View>
-      )}
+      {/* 오늘 일정이 없으면 맨 위에 '오늘 일정 없음 · + 추가' 줄을 둡니다. 아래 기본 가이드는 오늘 날씨로 만든 것입니다. */}
+      {activityGuideRows.length === 0 && <HomeTodayScheduleCard onAddToday={onAddToday} />}
       {defaultActivityGuides.length > 0 && (
         <View style={styles.activityGuideList}>
           {defaultActivityGuides.map((guide) => (

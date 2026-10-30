@@ -8,7 +8,7 @@ import { bauhausColors, textColors } from '../../theme/bauhaus';
 import { AppActionIcon } from './AppActionIcon';
 import { WeatherIcon } from './WeatherIcon';
 
-// 튜토리얼 스토리보드: 환영 시트 → 홈 투어(시간별 예보가 있으면 6단계, 없으면 5단계) → 캘린더 오늘 날짜 말풍선.
+// 튜토리얼 스토리보드: 환영 시트 → 홈 투어(시간별 예보가 있으면 5단계, 없으면 4단계) → 캘린더 오늘 날짜 말풍선.
 // 움직임은 말풍선 페이드만. 강조 영역은 다음 자리로 바로 옮기고, 단계 사이에 화면을 다시 덮지 않는다.
 // 강조할 요소에는 ref={tutorialTarget('이름')}을 붙인다.
 
@@ -16,8 +16,7 @@ const TOUR_STEPS = [
   { body: '지역 이름을 눌러 바꾸고, 지역 검색에서 다른 곳을 찾아볼 수 있어요.', target: 'homeRegion', title: '지역 바꾸기·검색' },
   { body: '지금 날씨와 미세먼지를 보여 줘요. 옆으로 밀면 다른 정보도 볼 수 있어요.', target: 'homeBanner', title: '날씨 배너' },
   { body: '날짜를 누르면 시간별 예보가 열려요. 시간을 고르면 위 배너가 바뀌어요.', target: 'homeHourly', title: '4일 예보' },
-  { body: '오늘 다음 일정과 그때 날씨를 보여 줘요. 일정이 없으면 여기서 바로 추가할 수 있어요.', target: 'homeToday', title: '오늘 일정' },
-  { body: '일정 가이드, 추천 옷차림, 날씨 지도를 여기서 골라 볼 수 있어요.', target: 'homeSections', title: '홈에서 골라 보기' },
+  { body: '일정 가이드, 추천 옷차림, 날씨 지도를 여기서 골라 볼 수 있어요. 일정 가이드에서 오늘 일정을 바로 추가할 수도 있어요.', target: 'homeSections', title: '홈에서 골라 보기' },
   { body: '이어서 캘린더를 열어 볼게요. 일정을 적으면 그때 날씨도 같이 볼 수 있어요.', target: 'tabCalendar', title: '캘린더에서 일정 추가' },
 ];
 

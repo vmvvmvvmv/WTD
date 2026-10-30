@@ -1,7 +1,7 @@
 import { Animated, Easing, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useReducedMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
@@ -36,7 +36,6 @@ export function HomeHeroBanner({
   currentO3,
   currentPm10,
   currentPm25,
-  footer,
   loadFailed,
   loading,
   pastItems,
@@ -50,8 +49,6 @@ export function HomeHeroBanner({
   currentO3?: number;
   currentPm10?: number;
   currentPm25?: number;
-  // '산책하기 좋은 시간' 줄 바로 밑에 붙이는 줄(홈의 '오늘 일정').
-  footer?: ReactNode;
   loadFailed: boolean;
   loading: boolean;
   pastItems: PastDustItem[];
@@ -354,7 +351,6 @@ export function HomeHeroBanner({
                 )}
               </View>
             )}
-            {footer}
           </View>
         </View>
       </View>
