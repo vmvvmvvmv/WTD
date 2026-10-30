@@ -9,6 +9,7 @@ import type { PastDustItem } from '../../types/dust';
 import type { WeatherHourlyItem, WeatherState } from '../../types/weather';
 import { toNumber } from '../../utils/format';
 import { addDays, toIsoDate } from '../../utils/date';
+import { weekdayLabels } from '../calendar/calendarUtils';
 import { bestOutingWindowText, type findBestOutingWindow } from '../../features/dashboard/bestOutingWindow';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { getWeatherVisualKind } from '../../utils/weather';
@@ -108,11 +109,13 @@ export function HomeHeroBanner({
   const bannerForecastItems = hourlyForecastItems;
   const [selectedForecastDate, setSelectedForecastDate] = useState<string | null>(null);
   const forecastDays = Array.from({ length: 4 }, (_, index) => {
-    const date = toIsoDate(addDays(new Date(`${todayDateLabel}T12:00:00`), index));
+    const day = addDays(new Date(`${todayDateLabel}T12:00:00`), index);
+    const date = toIsoDate(day);
     const items = bannerForecastItems.filter((item) => item.date === date);
     const summary = items.reduce((best, item) => Math.abs(Number(item.hour.slice(0, 2)) - 12) < Math.abs(Number(best.hour.slice(0, 2)) - 12) ? item : best, items[0]);
     const temperatures = items.map((item) => item.temperature).filter((value): value is number => value !== undefined);
-    return { date, items, label: ['오늘', '내일', '모레', '글피'][index], summary, temperatures };
+    // 오늘만 '오늘', 나머지는 날짜로 적습니다(예: 31일(토)).
+    return { date, items, label: index === 0 ? '오늘' : `${day.getDate()}일(${weekdayLabels[day.getDay()]})`, summary, temperatures };
   });
   // 시간별 예보 줄에서 고른 시간. null이면 "지금"입니다. 고른 시간이 지나가 목록에서 빠지면 저절로 "지금"으로 돌아갑니다.
   const [selectedForecastKey, setSelectedForecastKey] = useState<string | null>(null);
