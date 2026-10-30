@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Reanimated, { Easing, FadeIn, FadeOut, ReduceMotion, interpolate, useAnimatedStyle, useReducedMotion, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
-import { accentSoftTone, accentTone } from '../../theme/appTheme';
+import { accentTone } from '../../theme/appTheme';
 import type { buildHomeActivityGuideItems } from '../../features/dashboard/homeActivityGuidePresenter';
 import { loadHomeTodayOpen, saveHomeTodayOpen } from '../../storage/appStorage';
 import { AppActionIcon } from '../shared/AppActionIcon';
@@ -36,8 +36,8 @@ function useRotation(count: number, active: boolean, withGap: boolean, resetKey:
 }
 
 // 홈 배너 위 '오늘 일정' 접기 띠.
-// - 접힘(기본): 얇은 띠에 남은 일정이 하나씩 5초 보이고 5초 쉬며 번갈아 나옵니다(없으면 '오늘 일정 없음').
-// - 손잡이를 누르면 위로 한 줄이 미끄러지듯 열립니다: 남은 일정을 가까운 순서대로 5초마다 넘기며 그때 날씨와 함께(누르면 캘린더),
+// - 접힘(기본): 띠 없이 배너 위 가운데에 작은 손잡이 탭만 매달립니다. 탭 안에 남은 일정이 하나씩 5초 보이고 5초 쉽니다(없으면 '오늘 일정 없음').
+// - 탭을 누르면 위로 한 줄이 미끄러지듯 열립니다: 남은 일정을 가까운 순서대로 5초마다 넘기며 그때 날씨와 함께(누르면 캘린더),
 //   없으면 '오늘 일정이 없습니다 · 일정 추가'(누르면 오늘 날짜로 일정 추가).
 // 열림·닫힘은 기억해서 다음에 앱을 열어도 그대로입니다.
 export function HomeTodayScheduleCard({
@@ -83,7 +83,7 @@ export function HomeTodayScheduleCard({
   const peekText = peekIndex === null ? null : peekTexts[peekIndex % peekTexts.length];
 
   return (
-    <View ref={tutorialTarget('homeToday')}>
+    <View ref={tutorialTarget('homeToday')} style={styles.homeTodayWrap}>
       <Reanimated.View pointerEvents={open ? 'auto' : 'none'} style={[styles.homeTodayLineWrap, lineStyle]}>
         {shown ? (
           <Pressable
@@ -114,26 +114,26 @@ export function HomeTodayScheduleCard({
           </Pressable>
         )}
       </Reanimated.View>
-      <Pressable
-        accessibilityLabel={open ? '오늘 일정 접기' : `오늘 일정 펼치기. ${peekTexts.join(', ')}`}
-        accessibilityRole="button"
-        accessibilityState={{ expanded: open }}
-        hitSlop={{ bottom: 6, top: 6 }}
-        onPress={toggle}
-        style={({ pressed }) => [styles.homeTodayHandle, pressed && styles.pressedFeedback]}
-      >
-        {!open && !!peekText && (
-          <Reanimated.Text entering={fadeIn} exiting={fadeOut} key={`${peekIndex}-${peekText}`} numberOfLines={1} style={styles.homeTodayHandleText}>
-            {peekText}
-          </Reanimated.Text>
-        )}
-        {/* 손잡이: 연한 알약 안의 작은 화살표. 열리면 위를 향해 돕니다. */}
-        <View style={[styles.homeTodayGrip, { backgroundColor: accentSoftTone }]}>
+      {/* 손잡이 탭: 띠 아래 가운데에 매달려 배너 윗부분만 살짝(20) 덮습니다. 접혀 있으면 5초마다 일정이 탭 안에 잠깐 보입니다. */}
+      <View pointerEvents="box-none" style={styles.homeTodayTabRow}>
+        <Pressable
+          accessibilityLabel={open ? '오늘 일정 접기' : `오늘 일정 펼치기. ${peekTexts.join(', ')}`}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: open }}
+          hitSlop={{ bottom: 8, left: 12, right: 12, top: 4 }}
+          onPress={toggle}
+          style={({ pressed }) => [styles.homeTodayTab, pressed && styles.pressedFeedback]}
+        >
+          {!open && !!peekText && (
+            <Reanimated.Text entering={fadeIn} exiting={fadeOut} key={`${peekIndex}-${peekText}`} numberOfLines={1} style={styles.homeTodayHandleText}>
+              {peekText}
+            </Reanimated.Text>
+          )}
           <Reanimated.View style={handleIconStyle}>
-            <Ionicons color={accentTone} name="chevron-down" size={13} />
+            <Ionicons color={accentTone} name="chevron-down" size={14} />
           </Reanimated.View>
-        </View>
-      </Pressable>
+        </Pressable>
+      </View>
     </View>
   );
 }
