@@ -141,8 +141,11 @@ const appStyles = StyleSheet.create({
   homeTodayLine: { alignItems: 'center', flexDirection: 'row', gap: 8, height: 44, paddingHorizontal: 20 },
   homeTodayLineText: { color: textColors.primary, flex: 1, fontSize: 13, fontWeight: '700' },
   homeTodayAddText: { fontSize: 13, fontWeight: '700' },
-  homeTodayHandle: { alignItems: 'center', backgroundColor: '#FFFFFF', borderBottomColor: '#E7EDF5', borderBottomWidth: 1, flexDirection: 'row', gap: 4, height: 24, justifyContent: 'center', paddingHorizontal: 20 },
-  homeTodayHandleText: { color: textColors.secondary, flexShrink: 1, fontSize: 11, fontWeight: '700' },
+  homeTodayHandle: { alignItems: 'center', backgroundColor: '#FFFFFF', borderBottomColor: '#E7EDF5', borderBottomWidth: 1, flexDirection: 'row', gap: 6, height: 26, justifyContent: 'flex-end', paddingLeft: 20, paddingRight: 16 },
+  // 띠 문구는 왼쪽부터, 손잡이는 오른쪽에 고정(문구가 나타나고 사라져도 손잡이가 움직이지 않게).
+  homeTodayHandleText: { color: textColors.secondary, flex: 1, fontSize: 11, fontWeight: '700' },
+  homeTodayGrip: { alignItems: 'center', borderRadius: 999, height: 16, justifyContent: 'center', width: 30 },
+  homeTodayCounter: { color: textColors.muted, fontSize: 11, fontVariant: ['tabular-nums'], fontWeight: '700' },
   defaultGuideSourceRow: { alignItems: 'center', flexDirection: 'row', gap: 5, marginBottom: 6, minHeight: 20 },
   defaultGuideSourceTitle: { color: textColors.secondary, fontSize: 13, fontWeight: '700' },
   defaultGuideSourceHint: { color: textColors.muted, flex: 1, fontSize: 10, fontWeight: '600', lineHeight: 15 },
