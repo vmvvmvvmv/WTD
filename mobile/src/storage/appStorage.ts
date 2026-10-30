@@ -9,6 +9,7 @@ import {
   DEFAULT_OUTFIT_SETTINGS,
   DEVICE_ID_STORAGE_KEY,
   MEMO_HISTORY_STORAGE_KEY,
+  HOME_TODAY_OPEN_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
   HOLIDAYS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
@@ -126,6 +127,15 @@ export async function loadMemoHistory(): Promise<string[]> {
 
 export function saveMemoHistory(history: string[]) {
   return saveString(MEMO_HISTORY_STORAGE_KEY, JSON.stringify(history));
+}
+
+// 홈 배너 위 '오늘 일정' 띠를 열어 두었는지. 처음엔 닫힘.
+export async function loadHomeTodayOpen() {
+  return (await safeGet(HOME_TODAY_OPEN_STORAGE_KEY)) === '1';
+}
+
+export function saveHomeTodayOpen(open: boolean) {
+  return saveString(HOME_TODAY_OPEN_STORAGE_KEY, open ? '1' : '0');
 }
 
 // 공휴일 {날짜: 이름}. 서버가 안 될 때도 마지막으로 받은 값으로 달력을 칠합니다.
