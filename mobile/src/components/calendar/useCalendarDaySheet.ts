@@ -18,7 +18,8 @@ export function useCalendarDaySheet(panelHeight: number) {
   const progress = useSharedValue(0);
   const sizeProgress = useSharedValue(0);
 
-  const compactHeight = Math.min(380, Math.max(DAY_SHEET_HEIGHT, Math.round(panelHeight * 0.42)), Math.max(0, panelHeight - 64));
+  // 화면의 절반쯤(최소 240, 최대 440). 비율이 작으면 큰 글씨·작은 화면 폰에서 일정 내용이 잘려서 0.5로 둡니다.
+  const compactHeight = Math.min(440, Math.max(DAY_SHEET_HEIGHT, Math.round(panelHeight * 0.5)), Math.max(0, panelHeight - 64));
   const expandedHeight = Math.max(compactHeight, panelHeight - 48);
 
   const close = () => {
