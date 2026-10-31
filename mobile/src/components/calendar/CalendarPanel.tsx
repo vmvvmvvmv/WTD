@@ -22,6 +22,8 @@ import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLay
 import type { CalendarLocationCandidate } from './calendarLocation';
 import { addDays, buildMonthCells, buildWeekCells, dayLabel, eventTone, isDateInEventRange, monthLabel, parseDateParts, weekLabel } from './calendarUtils';
 import { dailyPrecipitationIndicator, dailyWeatherByDate as buildDailyWeatherByDate, topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { withoutFollowingOccurrences } from './calendarRepeat';
+import { recentLocationCandidates } from './calendarLocation';
 import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
@@ -97,6 +99,13 @@ export function CalendarPanel({
 
   // AI 일정 등록으로 추가한 뒤 잠깐 띄우는 알림. '되돌리기'를 누르면 방금 넣은 일정을 모두 뺍니다.
   const [addedNotice, setAddedNotice] = useState<{ ids: string[]; key: number } | null>(null);
+  // 일정을 지운 뒤 5초 동안 띄우는 알림. '되돌리기'를 누르면 지운 일정을 그대로 되살립니다.
+  const [removedNotice, setRemovedNotice] = useState<{ events: CalendarEvent[]; key: number } | null>(null);
+  useEffect(() => {
+    if (!removedNotice) return;
+    const timer = setTimeout(() => setRemovedNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [removedNotice]);
   useEffect(() => {
     if (!addedNotice) return;
     const timer = setTimeout(() => setAddedNotice(null), 5000);
@@ -286,10 +295,28 @@ export function CalendarPanel({
     weatherMidTermItems,
   });
 
+  // 한 번만 있는 일정은 묻지 않고 바로 지우고 '되돌리기'를 띄웁니다. 반복 일정은 '이 일정만 / 이후 모두'를 먼저 고릅니다.
+  const recentLocations = useMemo(() => recentLocationCandidates(events), [events]);
+
   const removeEvent = (event: CalendarEvent) => {
+    const removeOne = () => {
+      onRemoveEvent(event.id);
+      setAddedNotice(null);
+      setRemovedNotice({ events: [event], key: Date.now() });
+    };
+    if (!event.repeatGroupId) {
+      removeOne();
+      return;
+    }
     confirmCalendarEventRemoval(event, {
-      removeFollowing: () => onRemoveFollowingEvents(event),
-      removeOne: () => onRemoveEvent(event.id),
+      removeFollowing: () => {
+        const kept = new Set(withoutFollowingOccurrences(events, event));
+        const removed = events.filter((item) => !kept.has(item));
+        onRemoveFollowingEvents(event);
+        setAddedNotice(null);
+        setRemovedNotice({ events: removed, key: Date.now() });
+      },
+      removeOne,
     });
   };
 
@@ -468,6 +495,30 @@ export function CalendarPanel({
           </Pressable>
         </Reanimated.View>
       )}
+      {removedNotice && !addedNotice && (
+        <Reanimated.View
+          entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOut.duration(150).reduceMotion(ReduceMotion.System)}
+          key={removedNotice.key}
+          style={styles.calendarUndoToast}
+        >
+          <Text numberOfLines={1} style={[styles.calendarUndoText, { flexShrink: 1 }]}>
+            {removedNotice.events.length > 1 ? `일정 ${removedNotice.events.length}개를 지웠어요` : `'${removedNotice.events[0]?.title ?? ''}' 지웠어요`}
+          </Text>
+          <Pressable
+            accessibilityLabel="지운 일정 되돌리기"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => {
+              if (onAddEvents) onAddEvents(removedNotice.events);
+              else removedNotice.events.forEach(onAddEvent);
+              setRemovedNotice(null);
+            }}
+          >
+            <Text style={styles.calendarUndoAction}>되돌리기</Text>
+          </Pressable>
+        </Reanimated.View>
+      )}
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
@@ -493,6 +544,7 @@ export function CalendarPanel({
         onChangeTitle={draft.setTitle}
         onClose={closeEditor}
         onSave={saveEvent}
+        recentLocations={recentLocations}
         repeatEndDate={draft.repeatEndDate}
         repeatMode={draft.repeatMode}
         repeatWeekdays={draft.repeatWeekdays}

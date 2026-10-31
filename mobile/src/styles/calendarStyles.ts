@@ -105,6 +105,9 @@ export const calendarStyles = StyleSheet.create({
   calendarDurationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   calendarDurationChip: { alignItems: 'center', borderColor: '#DCE5F0', borderRadius: 999, borderWidth: 1, justifyContent: 'center', minHeight: 34, paddingHorizontal: 12 },
   calendarDurationChipText: { color: textColors.secondary, fontSize: 12, fontWeight: '700' },
+  // 일정 입력 장소 줄 아래 '최근' 장소 칩 줄.
+  calendarRecentPlaces: { alignItems: 'center', gap: 6, paddingBottom: 10, paddingLeft: 36 },
+  calendarRecentPlacesLabel: { color: textColors.muted, fontSize: 12, fontWeight: '700', marginRight: 2 },
   // 캘린더의 모든 선택 칩(반복·활동·알림·요일·길이)은 고르면 강조색으로 채우고 이 흰 글자를 씁니다.
   calendarChipTextSelected: { color: '#ffffff' },
   calendarDatePicker: { paddingBottom: 4, paddingTop: 2 },
