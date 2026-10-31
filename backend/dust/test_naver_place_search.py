@@ -6,6 +6,10 @@ from dust.services import places
 
 
 class NaverPlaceSearchTests(SimpleTestCase):
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
     @patch.object(places, "NAVER_API_HUB_CLIENT_ID", "hub-id")
     @patch.object(places, "NAVER_API_HUB_CLIENT_SECRET", "hub-secret")
     @patch.object(places, "public_api_get")
@@ -83,3 +87,28 @@ class NaverPlaceSearchTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         search.assert_called_once_with("은행", 5)
+
+    @patch.dict("os.environ", {"APP_TEST_TOKEN": ""})
+    @patch("dust.views.geocode_address", return_value=[])
+    @patch("dust.views.search_naver_places", return_value=[{"label": "코엑스", "lat": 37.5, "lng": 127.0}])
+    def test_same_query_is_cached(self, search, _geocode):
+        for query in ("코엑스", "  코엑스 ", "코엑스"):
+            self.assertEqual(self.client.get("/dust/places/naver-search/", {"query": query}).status_code, 200)
+        search.assert_called_once()
+
+    @patch.dict("os.environ", {"APP_TEST_TOKEN": ""})
+    @patch("dust.views.PLACE_SEARCH_IP_LIMIT", 2)
+    @patch("dust.views.geocode_address", return_value=[])
+    @patch("dust.views.search_naver_places", return_value=[])
+    def test_too_many_uncached_searches_from_one_ip_get_429(self, search, _geocode):
+        codes = [self.client.get("/dust/places/naver-search/", {"query": f"검색{i}"}).status_code for i in range(3)]
+        self.assertEqual(codes, [200, 200, 429])
+        self.assertEqual(search.call_count, 2)
+
+    @patch.dict("os.environ", {"APP_TEST_TOKEN": ""})
+    @patch("dust.views.geocode_address", return_value=[{"label": "서울특별시 강남구 영동대로 513", "lat": 37.5, "lng": 127.0}])
+    @patch("dust.views.search_naver_places", side_effect=places.PlaceSearchFailed())
+    def test_partial_failure_is_not_cached(self, search, _geocode):
+        for _ in range(2):
+            self.client.get("/dust/places/naver-search/", {"query": "영동대로 513"})
+        self.assertEqual(search.call_count, 2)
