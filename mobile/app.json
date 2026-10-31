@@ -4,7 +4,7 @@
     "slug": "Dust-health-AI-Mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/weather-todo-icon.png",
+    "icon": "./assets/weather-todo-icon-v2.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -18,8 +18,8 @@
     "android": {
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/weather-todo-adaptive.png",
-        "backgroundColor": "#F4F8FC"
+        "foregroundImage": "./assets/weather-todo-icon-v2.png",
+        "backgroundColor": "#2F7BEA"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
