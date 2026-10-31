@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { Animated, Pressable, Text, View } from 'react-native';
 import { LayoutAnimationConfig } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/calendar';
 import { useHolidayNames } from '../../features/calendar/useHolidayNames';
+import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarDayCell } from './CalendarDayCell';
 import { CalendarPeriodHeader } from './CalendarPeriodHeader';
 import type { CalendarMonthCell } from './calendarUtils';
@@ -50,6 +52,9 @@ export function CalendarMonthGrid({
   ));
   const holidays = useHolidayNames(Number((monthCells.find(Boolean)?.date ?? todayDateLabel).slice(0, 4)));
   const { animatedStyle: monthAnimatedStyle, swipeHandlers } = useCalendarSlide(monthTitle, transitionDirection, onMoveMonth);
+  // 한 줄 높이. 공휴일 이름(날짜 아래 top 28 + 줄 높이 13)이 다 들어가지 않으면 이름을 숨깁니다.
+  const [rowHeight, setRowHeight] = useState(0);
+  const hideHolidayName = rowHeight > 0 && rowHeight < 42;
 
   const handlePressEmptyDay = () => {
     onSelectDate(todayDateLabel, { openSheet: false, trackTap: false });
@@ -64,7 +69,7 @@ export function CalendarMonthGrid({
         ))}
       </View>
       <LayoutAnimationConfig skipEntering>
-      <Animated.View style={[styles.calendarGrid, monthAnimatedStyle]} {...swipeHandlers}>
+      <Animated.View onLayout={(event) => setRowHeight(event.nativeEvent.layout.height / weekRows.length)} style={[styles.calendarGrid, monthAnimatedStyle]} {...swipeHandlers}>
         {weekRows.map((week, rowIndex) => (
           <View key={`week-${rowIndex}`} style={styles.calendarGridWeekRow}>
             {week.map((cell, columnIndex) => {
@@ -89,6 +94,7 @@ export function CalendarMonthGrid({
                   eventCount={eventCountByDate[cell.date] ?? 0}
                   eventItems={eventItemsByDate[cell.date] ?? []}
                   getEventTone={getEventTone}
+                  hideHolidayName={hideHolidayName}
                   holidayName={holidays[cell.date]}
                   isRangeAnchor={false}
                   isSelected={cell.date === selectedDate}
@@ -96,6 +102,8 @@ export function CalendarMonthGrid({
                   key={cell.date}
                   onLongPress={() => onSelectDate(cell.date)}
                   onPress={() => onSelectDate(cell.date)}
+                  // 캘린더를 처음 열 때 안내 말풍선이 오늘 날짜 칸을 가리킨다(CalendarTip).
+                  onRef={cell.date === todayDateLabel ? tutorialTarget('calendarToday') : undefined}
                   range={null}
                   style={styles.calendarGridDayFill}
                   weatherRisk={weatherRiskByDate?.[cell.date]}

@@ -7,6 +7,7 @@ from dust.airkorea_forecast import GRADE_PM10, forecast_grade_for
 from dust.current_dust_service import canonical_sido_name
 
 from dust.models import AirQualityStation, RealtimeDustMeasurement, WeatherHourlyMeasurement
+from dust.services.weather import collected_weather_grid
 
 from .aggregation import AirPoint, WeatherPoint, aggregate_schedule_window
 from .context_builder import OutfitRequest
@@ -68,6 +69,12 @@ def _weather_grid_candidates(request: OutfitRequest, station: AirQualityStation 
         station_grid = _dfs_grid(station.lat, station.lng)
         if station_grid not in candidates:
             candidates.append(station_grid)
+    # 수집기는 시·군·구 대표 격자 위주로 모으므로, 위 격자들에 자료가 없으면 가장 가까운 모으는 격자도 본다.
+    for nx, ny in list(candidates):
+        nearby = collected_weather_grid({"nx": nx, "ny": ny})
+        nearby_key = (nearby["nx"], nearby["ny"])
+        if nearby_key not in candidates:
+            candidates.append(nearby_key)
     return candidates
 
 

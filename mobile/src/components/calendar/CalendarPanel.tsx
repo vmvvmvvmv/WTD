@@ -8,8 +8,6 @@ import type { CalendarEvent } from '../../types/calendar';
 import type { HourlyDustItem, PredictionResponse } from '../../types/dust';
 import type { OutfitFigure, OutfitSensitivity } from '../../types/outfit';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
-import { AppActionIcon } from '../shared/AppActionIcon';
-import { tutorialTarget } from '../shared/TutorialTour';
 import { CalendarAgendaList } from './CalendarAgendaList';
 import { CalendarDaySheet } from './CalendarDaySheet';
 import { CalendarEventEditor } from './CalendarEventEditor';
@@ -38,6 +36,8 @@ export function CalendarPanel({
   mapPickerUrl,
   onAddEvent,
   onAddEvents,
+  onOpenedAddForToday,
+  openAddForToday,
   onRemoveEvent,
   onRemoveFollowingEvents,
   onUpdateEvent,
@@ -58,6 +58,9 @@ export function CalendarPanel({
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   hourlyItems?: HourlyDustItem[];
   mapPickerUrl?: string;
+  // true로 열리면 오늘 날짜 창과 일정 추가 메뉴를 펼친 채로 시작하고 onOpenedAddForToday를 부릅니다.
+  onOpenedAddForToday?: () => void;
+  openAddForToday?: boolean;
   onAddEvent: (event: CalendarEvent) => void;
   onAddEvents?: (events: CalendarEvent[]) => void;
   onRemoveEvent: (eventId: string) => void;
@@ -209,6 +212,20 @@ export function CalendarPanel({
     setSelectedDate(nextDate);
     sheet.setIsOpen(options?.openSheet !== false);
   };
+
+  // 홈 '오늘 일정' 카드에서 추가를 눌러 왔으면 화면이 자리 잡은 뒤 오늘 창을 열고, 창이 다 올라오면 직접·AI 등록 메뉴를 펼칩니다.
+  // 캘린더 화면은 탭을 열 때마다 새로 만들어지므로 처음 한 번만 봅니다.
+  useEffect(() => {
+    if (!openAddForToday) return;
+    onOpenedAddForToday?.();
+    const openSheet = setTimeout(() => selectDate(todayDateLabel), 450);
+    const openMenu = setTimeout(() => setIsAddMenuOpen(true), 750);
+    return () => {
+      clearTimeout(openSheet);
+      clearTimeout(openMenu);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const saveEvent = () => {
     draft.saveEvent({
@@ -362,7 +379,7 @@ export function CalendarPanel({
         </Reanimated.View>
       )}
       {isAddMenuOpen && (
-        <Reanimated.View pointerEvents="box-none" style={[styles.calendarAddDial, sheet.isOpen ? { bottom: 20, paddingBottom: 0 } : sheet.addDockStyle]}>
+        <Reanimated.View pointerEvents="box-none" style={styles.calendarAddDial}>
           {[
             { icon: 'calendar-outline' as const, label: '직접 일정 등록', onPress: () => draft.openEditor(selectedDate), primary: false },
             { icon: 'sparkles' as const, label: 'AI 일정 등록', onPress: () => setIsMemoOpen(true), primary: true },
@@ -393,23 +410,6 @@ export function CalendarPanel({
           ))}
         </Reanimated.View>
       )}
-      {/* 날짜 시트가 열려 있으면 숨깁니다. 시트 위로 떠서 달력 마지막 줄 날짜를 가리기 때문. 시트 머리의 "일정 추가"를 씁니다. */}
-      {!sheet.isOpen && <Reanimated.View style={[styles.calendarFloatingAddDock, sheet.addDockStyle]}>
-        <Pressable
-          accessibilityLabel={isAddMenuOpen ? '일정 추가 접기' : '일정 추가'}
-          accessibilityState={{ expanded: isAddMenuOpen }}
-          onPress={() => setIsAddMenuOpen((current) => !current)}
-          ref={tutorialTarget('calendarAdd')}
-          style={({ pressed }) => [
-            styles.calendarFloatingAddButton,
-            styles.calendarFloatingAddButtonDocked,
-            { backgroundColor: '#ffffff', borderColor: accentTone, shadowColor: accentTone },
-            pressed && styles.pressedFeedback,
-          ]}
-        >
-          {isAddMenuOpen ? <Ionicons color={accentTone} name="close" size={30} /> : <AppActionIcon name="schedule" size={38} />}
-        </Pressable>
-      </Reanimated.View>}
       <CalendarMemoSheet
         calendarEvents={events}
         isOpen={isMemoOpen}
@@ -443,7 +443,6 @@ export function CalendarPanel({
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
-        defaultLocation={defaultLocation}
         endDate={draft.endDate}
         endTime={draft.endTime}
         isRepeatLocked={draft.isRepeatLocked}

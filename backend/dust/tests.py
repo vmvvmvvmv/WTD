@@ -43,7 +43,7 @@ class NotificationCalendarPrivacyTests(SimpleTestCase):
             'city': '서울',
             'region': '송파구',
             'weatherMorningAlerts': morning_alerts,
-            'calendarEvents': [{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00'}],
+            'calendarEvents': [{'title': '병원 진료', 'date': '2026-10-09', 'time': '09:00', 'endTime': '10:30'}],
         }
         with patch('dust.notification_registry.NotificationDevice.objects.update_or_create', return_value=(object(), True)) as save:
             upsert_notification_device(payload)
@@ -53,8 +53,8 @@ class NotificationCalendarPrivacyTests(SimpleTestCase):
         self.assertEqual(self._saved_calendar_events(False), [])
 
     def test_only_date_and_time_are_stored_when_morning_alerts_are_on(self):
-        # 예전 앱 버전이 제목을 보내도 서버는 날짜·시간만 저장한다.
-        self.assertEqual(self._saved_calendar_events(True), [{'date': '2026-10-09', 'time': '09:00'}])
+        # 예전 앱 버전이 제목을 보내도 서버는 날짜·시작·끝 시간만 저장한다.
+        self.assertEqual(self._saved_calendar_events(True), [{'date': '2026-10-09', 'time': '09:00', 'endTime': '10:30'}])
 
 
 class OutfitClientKeyTests(SimpleTestCase):
@@ -705,7 +705,7 @@ class MorningEventLinesTests(SimpleTestCase):
         points = [WeatherHourlyMeasurement(measured_at=dj_timezone.make_aware(datetime(2026, 10, 24, hour), tz), temperature=15, rain_mm=2, rain_probability=90, label='비', precipitation_type='1') for hour in range(8, 20)]
         events = [{'date': '2026-10-24', 'time': time} for time in ('09:00', '09:00', '09:00', '10:00', '11:00', '12:00', '13:00')]
         _title, body = build_weather_morning_message('대신동', points, events)
-        lines = [line for line in body.splitlines() if '일정 때' in line]
+        lines = [line for line in body.splitlines() if ' 일정 ' in line]
         self.assertEqual(len(lines), 3)
         self.assertEqual(len(set(lines)), 3)
 
@@ -938,3 +938,76 @@ class ExpoAccessTokenTests(SimpleTestCase):
             with patch.dict('os.environ', {'EXPO_ACCESS_TOKEN': ''}):
                 module.send_expo_push('ExponentPushToken[a]', 't', 'b', {})
             self.assertEqual(post.call_args.kwargs['headers'], {})
+
+
+@patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
+class CollectedWeatherGridTests(TestCase):
+    """수집기가 시·군·구 대표 격자만 모으므로, 자료 없는 격자는 가장 가까운 모으는 격자로 대신한다(울주군 삼남읍 사례)."""
+
+    def setUp(self):
+        from django.core.cache import cache
+        cache.clear()
+
+    def _row(self, nx, ny, hours=-1, temperature=10):
+        from datetime import timedelta
+        from dust.models import WeatherHourlyMeasurement
+        return WeatherHourlyMeasurement.objects.create(nx=nx, ny=ny, measured_at=timezone.now() + timedelta(hours=hours), temperature=temperature)
+
+    def test_keeps_own_grid_and_falls_back_to_nearest(self):
+        from dust.services.weather import collected_weather_grid
+        self._row(102, 81)
+        self._row(110, 90)
+        self.assertEqual(collected_weather_grid({'nx': 102, 'ny': 81}), {'nx': 102, 'ny': 81})
+        self.assertEqual(collected_weather_grid({'nx': 98, 'ny': 84}), {'nx': 102, 'ny': 81})
+        # 6칸보다 멀면 원래 격자를 그대로 둔다.
+        self.assertEqual(collected_weather_grid({'nx': 60, 'ny': 127}), {'nx': 60, 'ny': 127})
+
+    def test_hourly_endpoint_uses_nearest_collected_grid(self):
+        from dust.services.common import _dfs_grid_from_lat_lng
+        lat, lng = 35.5384, 129.1700
+        grid = _dfs_grid_from_lat_lng(lat, lng)
+        self._row(grid['nx'] + 3, grid['ny'] - 2, hours=-1, temperature=11)
+        self._row(grid['nx'] + 3, grid['ny'] - 2, hours=2, temperature=13)
+        data = self.client.get('/dust/weather/hourly/', {'lat': lat, 'lng': lng}).json()
+        self.assertEqual(data['requestedGrid']['nx'], grid['nx'])
+        self.assertEqual(data['grid'], {'nx': grid['nx'] + 3, 'ny': grid['ny'] - 2})
+        self.assertEqual([item['temperature'] for item in data['forecastItems']], [13])
+
+
+class DustBackfillQuotaTests(TestCase):
+    """채우기가 하루 호출 한도를 다 써 버리지 않게: 값을 안 주는 측정소 때문에 매시간이 빈 시각이 되지 않고, 한도에 걸리면 멈춘다."""
+
+    def _setup(self):
+        from datetime import datetime, timedelta, timezone as dt_timezone
+        from dust.models import AirQualityStation, RealtimeDustMeasurement
+        now = datetime(2026, 10, 31, 12, 30, tzinfo=dt_timezone.utc)
+        hours = [now.replace(minute=0) - timedelta(hours=h) for h in range(24, -1, -1)]
+        reporting = [AirQualityStation.objects.create(sido='부산', name=f'정상{i}', lat=35.1, lng=129.0 + i * 0.01) for i in range(8)]
+        for i in range(4):  # 활성이지만 실시간 값을 한 번도 안 주는 측정소
+            AirQualityStation.objects.create(sido='부산', name=f'무응답{i}', lat=35.2, lng=129.0 + i * 0.01)
+        outage = set(hours[10:12])
+        for station in reporting:
+            for hour in hours:
+                if hour not in outage:
+                    RealtimeDustMeasurement.objects.create(station=station, measured_at=hour, pm10_value=20)
+        return now, outage
+
+    def test_silent_stations_do_not_make_every_hour_a_gap(self):
+        from dust.services import dust_backfill
+        now, outage = self._setup()
+        self.assertEqual(dust_backfill.find_gap_hours(now), sorted(outage))
+
+    def test_stops_on_quota_and_skips_silent_stations(self):
+        from dust.services import dust_backfill
+        now, _ = self._setup()
+        called = []
+
+        def limited(station):
+            called.append(station.name)
+            raise dust_backfill.AirKoreaLimited(station.name)
+
+        with patch.object(dust_backfill, '_hourly_rows_for_station', side_effect=limited):
+            filled, created, _left = dust_backfill.backfill_missing_dust(limit=20, now=now)
+        self.assertEqual((filled, created), (0, 0))
+        self.assertEqual(len(called), 1)  # 한도에 걸리면 바로 멈춘다.
+        self.assertTrue(called[0].startswith('정상'))

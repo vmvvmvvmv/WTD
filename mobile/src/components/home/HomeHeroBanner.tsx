@@ -9,12 +9,14 @@ import type { PastDustItem } from '../../types/dust';
 import type { WeatherHourlyItem, WeatherState } from '../../types/weather';
 import { toNumber } from '../../utils/format';
 import { addDays, toIsoDate } from '../../utils/date';
+import { weekdayLabels } from '../calendar/calendarUtils';
 import { bestOutingWindowText, type findBestOutingWindow } from '../../features/dashboard/bestOutingWindow';
 import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresenter';
 import { getWeatherVisualKind } from '../../utils/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { tutorialTarget } from '../shared/TutorialTour';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
+import { HomeForecastHourStrip } from './HomeForecastHourStrip';
 import { HomeBannerSkeleton } from './HomeBannerSkeleton';
 import { getHomeWeatherMotionKind, HOME_METRIC_BACKGROUND_COLORS, HomeBannerScene } from './HomeWeatherScene';
 import { HomeInfoGaugeSlide } from './HomeMetricGauge';
@@ -34,24 +36,29 @@ export function HomeHeroBanner({
   currentO3,
   currentPm10,
   currentPm25,
+  dataResolved = true,
   loadFailed,
   loading,
   pastItems,
   todayDateLabel,
   weather,
   weatherHourlyItems,
+  weatherTodayPastItems = [],
   yesterdayWeather,
 }: {
   bestOutingWindow: ReturnType<typeof findBestOutingWindow>;
   currentO3?: number;
   currentPm10?: number;
   currentPm25?: number;
+  // 첫 불러오기가 끝났는지. 끝나기 전 빈 값은 '불러오는 중'(게이지가 돌아감), 끝난 뒤 빈 값은 '자료 없음'.
+  dataResolved?: boolean;
   loadFailed: boolean;
   loading: boolean;
   pastItems: PastDustItem[];
   todayDateLabel: string;
   weather?: WeatherState | null;
   weatherHourlyItems: WeatherHourlyItem[];
+  weatherTodayPastItems?: WeatherHourlyItem[];
   yesterdayWeather?: WeatherState | null;
 }) {
   const { width: windowWidth } = useWindowDimensions();
@@ -68,7 +75,12 @@ export function HomeHeroBanner({
   const infoGaugeSize = infoSlideWidth < 290 ? 106 : infoSlideWidth < 350 ? 114 : 120;
   const infoSlideHeight = Math.max(146, infoGaugeSize + 34);
   const now = new Date();
-  const hourlyForecastItems = weatherHourlyItems
+  // 오늘 이미 지난 시간(실측)을 앞에 붙여 '오늘' 칸에서 00시부터 볼 수 있게 합니다. 지금 시각부터는 원래 예보 목록을 씁니다.
+  const pastToday = weatherTodayPastItems.filter((item) => (
+    (item.date || item.measuredAt?.slice(0, 10)) === todayDateLabel
+    && Number((item.hour || item.measuredAt?.slice(11, 13) || '99').slice(0, 2)) < now.getHours()
+  ));
+  const hourlyForecastItems = [...pastToday, ...weatherHourlyItems]
     .map((item, index) => {
       const itemDate = item.date || item.measuredAt?.slice(0, 10) || '';
       const itemTime = item.hour?.slice(0, 5) || item.measuredAt?.slice(11, 16) || '--:--';
@@ -79,6 +91,7 @@ export function HomeHeroBanner({
         date: itemDate,
         hour: itemTime,
         isCurrent,
+        isPast: index < pastToday.length,
         // 비·눈이 예보됐거나 강수확률 60% 이상인 시간은 파란색으로 강조합니다.
         isRainy: visualKind === 'rain' || visualKind === 'snow' || (rainProbability ?? 0) >= 60 || (toNumber(item.rain_mm) ?? 0) > 0,
         key: `${itemDate || item.measuredAt || 'hour'}-${item.hour || index}`,
@@ -99,11 +112,13 @@ export function HomeHeroBanner({
   const bannerForecastItems = hourlyForecastItems;
   const [selectedForecastDate, setSelectedForecastDate] = useState<string | null>(null);
   const forecastDays = Array.from({ length: 4 }, (_, index) => {
-    const date = toIsoDate(addDays(new Date(`${todayDateLabel}T12:00:00`), index));
+    const day = addDays(new Date(`${todayDateLabel}T12:00:00`), index);
+    const date = toIsoDate(day);
     const items = bannerForecastItems.filter((item) => item.date === date);
     const summary = items.reduce((best, item) => Math.abs(Number(item.hour.slice(0, 2)) - 12) < Math.abs(Number(best.hour.slice(0, 2)) - 12) ? item : best, items[0]);
     const temperatures = items.map((item) => item.temperature).filter((value): value is number => value !== undefined);
-    return { date, items, label: ['오늘', '내일', '모레', '글피'][index], summary, temperatures };
+    // 오늘만 '오늘', 나머지는 날짜로 적습니다(예: 31일(토)).
+    return { date, items, label: index === 0 ? '오늘' : `${day.getDate()}일(${weekdayLabels[day.getDay()]})`, summary, temperatures };
   });
   // 시간별 예보 줄에서 고른 시간. null이면 "지금"입니다. 고른 시간이 지나가 목록에서 빠지면 저절로 "지금"으로 돌아갑니다.
   const [selectedForecastKey, setSelectedForecastKey] = useState<string | null>(null);
@@ -124,14 +139,16 @@ export function HomeHeroBanner({
       : weather,
     yesterdayWeather,
   }).map((slide) => {
-    if (loadFailed && (slide.value === '-' || slide.value === '--')) {
-      return { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' };
+    if (slide.value === '-' || slide.value === '--') {
+      if (loadFailed) return { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' };
+      if (!dataResolved) return { ...slide, comparison: '최신 값을 받아오고 있어요', pending: true, status: '불러오는 중' };
+      return { ...slide, comparison: '이 지역은 아직 값이 없어요', status: '자료 없음' };
     }
     if (!peekForecast) return slide;
     if (slide.label === '기온') return { ...slide, comparison: comparedToNow(peekForecast.temperature, weather?.temperature, '°', 0) };
     if (slide.label === '강수량') return { ...slide, comparison: comparedToNow(peekForecast.rainMm, weather?.rainMm, 'mm', 1) };
     return { ...slide, title: `${slide.title} · 지금` };
-  }), [currentO3, currentPm10, currentPm25, infoGaugeSize, loadFailed, pastItems, peekForecast, todayDateLabel, weather, yesterdayWeather]);
+  }), [currentO3, currentPm10, currentPm25, dataResolved, infoGaugeSize, loadFailed, pastItems, peekForecast, todayDateLabel, weather, yesterdayWeather]);
   const infoSlideCount = infoSlides.length;
   const carouselSlides = [infoSlides[infoSlideCount - 1], ...infoSlides, infoSlides[0]];
   const visibleSlideLabels = [infoSlides[activeInfoSlide]?.label, carouselSlides[carouselIndex]?.label].filter((label): label is string => !!label);
@@ -226,6 +243,12 @@ export function HomeHeroBanner({
               onTouchStart={() => {
                 pauseCarouselUntil.current = Date.now() + 15000;
               }}
+              // 손으로 밀기 시작하면 양옆 슬라이드를 미리 채웁니다. 멈춘 뒤에야 차오르면 넘기는 동안 값이 비어 보여서.
+              onScrollBeginDrag={() => {
+                const neighbors = [carouselSlides[carouselIndexRef.current - 1]?.label, carouselSlides[carouselIndexRef.current + 1]?.label]
+                  .filter((label): label is string => !!label);
+                setRevealedSlides((current) => (neighbors.every((label) => current.has(label)) ? current : new Set([...current, ...neighbors])));
+              }}
               style={[styles.homeInfoCarousel, { height: infoSlideHeight, width: infoSlideWidth }]}
               showsHorizontalScrollIndicator={false}
               onMomentumScrollEnd={(event) => {
@@ -296,39 +319,21 @@ export function HomeHeroBanner({
                     );
                   })}
                 </View>
-                {selectedForecastDate && (
-                  forecastDays.find((day) => day.date === selectedForecastDate)?.items.length ? <ScrollView
-                    horizontal
-                    nestedScrollEnabled
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.homeHeroBannerForecastContent}
-                    style={styles.homeHeroBannerForecastScroll}
-                  >
-                  {bannerForecastItems.map((item, index) => {
-                  if (item.date !== selectedForecastDate) return null;
-                  const selected = index === shownForecastIndex;
+                {selectedForecastDate && (() => {
+                  const dayItems = bannerForecastItems
+                    .map((item, index) => ({ ...item, index }))
+                    .filter((item) => item.date === selectedForecastDate);
+                  if (!dayItems.length) return <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>;
                   return (
-                  <Pressable
-                    key={item.key}
-                    accessibilityLabel={`${item.timeLabel} ${item.label} ${item.temperature === undefined ? '' : `${Math.round(item.temperature)}도`}`}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected }}
-                    onPress={() => selectForecastIndex(index)}
-                    style={[styles.homeHeroBannerForecastItem, selected && styles.homeHeroBannerForecastItemCurrent]}
-                  >
-                    <Text style={[styles.homeHeroBannerForecastTime, selected && styles.homeHeroBannerForecastTimeCurrent]}>{item.timeLabel}</Text>
-                    <WeatherIcon kind={weatherIconKind(item.label)} size={23} />
-                    <Text style={styles.homeHeroBannerForecastTemp}>
-                      {item.temperature === undefined ? '-' : `${Math.round(item.temperature)}°`}
-                    </Text>
-                    <Text style={[styles.homeHeroBannerForecastRain, item.isRainy && styles.homeHeroBannerForecastRainActive]}>
-                      {item.rainProbability === undefined ? '강수 -' : `강수 ${Math.round(item.rainProbability)}%`}
-                    </Text>
-                  </Pressable>
+                    <HomeForecastHourStrip
+                      dayKey={selectedForecastDate}
+                      items={dayItems}
+                      onSelect={selectForecastIndex}
+                      selectedIndex={shownForecastIndex}
+                      startIndex={Math.max(0, dayItems.findIndex((item) => item.isCurrent))}
+                    />
                   );
-                })}
-                  </ScrollView> : <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>
-                )}
+                })()}
               </>
             ) : (
               <View style={styles.homeHeroBannerForecastEmpty}>

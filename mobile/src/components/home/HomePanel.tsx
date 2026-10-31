@@ -18,6 +18,7 @@ import { HomeActivityGuideList } from './HomeActivityGuideList';
 import { HomeHeroBanner } from './HomeHeroBanner';
 import { HomeMapPreview } from './HomeMapPreview';
 import { HomeSectionTabBar, type HomeSectionKey } from './HomeSectionTabBar';
+import { HomeTodayScheduleCard } from './HomeTodayScheduleCard';
 
 const HOME_SECTION_TABS: { icon: AppActionIconName; key: HomeSectionKey; label: string }[] = [
   { icon: 'schedule', key: 'guide', label: '일정 가이드' },
@@ -35,6 +36,7 @@ export function HomePanel({
   calendarEvents,
   eventLocationForecasts,
   onDeleteCalendarEvent,
+  onAddToday,
   onDeleteFollowingCalendarEvents,
   onOpenCalendar,
   onOpenMap,
@@ -48,8 +50,10 @@ export function HomePanel({
   pastItems,
   loadFailed = false,
   loading = false,
+  dataResolved,
   weatherHourlyItems,
   weatherMidTermItems,
+  weatherTodayPastItems,
   prediction,
   todayDateLabel,
   weather,
@@ -63,6 +67,8 @@ export function HomePanel({
   eventLocationForecasts?: Record<string, CalendarLocationForecast>;
   onDeleteCalendarEvent?: (eventId: string) => void;
   onDeleteFollowingCalendarEvents?: (event: CalendarEvent) => void;
+  // 오늘 날짜로 일정 추가(캘린더를 열고 오늘 창과 직접·AI 등록 메뉴를 펼침).
+  onAddToday?: () => void;
   onOpenCalendar?: () => void;
   onOpenMap: () => void;
   outfitEnabled: boolean;
@@ -75,9 +81,12 @@ export function HomePanel({
   pastItems: PastDustItem[];
   // 서버에 연결하지 못해 보여줄 데이터가 없는 상태입니다. 단순히 아직 불러오는 중인 것과 구분합니다.
   loadFailed?: boolean;
+  // 첫 불러오기(날씨까지)가 끝났는지. 배너의 '불러오는 중'/'자료 없음'을 가릅니다.
+  dataResolved?: boolean;
   // 지역을 바꿔 새 데이터를 불러오는 중이면 배너 자리에 뼈대를 보여줍니다.
   loading?: boolean;
   weatherHourlyItems: WeatherHourlyItem[];
+  weatherTodayPastItems?: WeatherHourlyItem[];
   weatherMidTermItems?: WeatherMidTermItem[];
   prediction: PredictionResponse | null;
   todayDateLabel: string;
@@ -171,17 +180,20 @@ export function HomePanel({
   };
   return (
     <View>
+      <HomeTodayScheduleCard activityGuideRows={activityGuideRows} onAddToday={onAddToday} onOpenCalendar={onOpenCalendar} />
       <HomeHeroBanner
         bestOutingWindow={bestOutingWindow}
         currentO3={currentO3}
         currentPm10={currentPm10}
         currentPm25={currentPm25}
+        dataResolved={dataResolved}
         loadFailed={loadFailed}
         loading={loading}
         pastItems={pastItems}
         todayDateLabel={todayDateLabel}
         weather={weather}
         weatherHourlyItems={weatherHourlyItems}
+        weatherTodayPastItems={weatherTodayPastItems}
         yesterdayWeather={yesterdayWeather}
       />
 

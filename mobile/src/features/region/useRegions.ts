@@ -6,7 +6,8 @@ import { saveFavoriteRegions, saveGpsRegion, saveSelectedRegion } from '../../st
 import type { StationDustItem } from '../../types/dust';
 import type { RegionState } from '../../types/region';
 import { isSameRegion } from './regionUtils';
-import { haversineKm, normalizeLatLng } from '../../utils/geo';
+import { normalizeLatLng } from '../../utils/geo';
+import { nearestStation } from '../stations/stationUtils';
 
 const MAX_FAVORITES = 15;
 
@@ -87,15 +88,7 @@ export function useRegions(hasLoadedStore: boolean, notify: (message: string) =>
       }
 
       setLocationMessage('가까운 측정소를 찾는 중입니다.');
-      const nearest = (await ensureMapStations())
-        .map((station) => {
-          const stationCoords = normalizeLatLng(station.lat, station.lng);
-          return stationCoords
-            ? { distance: haversineKm(gpsCoords.lat, gpsCoords.lng, stationCoords.lat, stationCoords.lng), station }
-            : null;
-        })
-        .filter((item): item is { distance: number; station: StationDustItem } => item !== null)
-        .sort((a, b) => a.distance - b.distance)[0];
+      const nearest = nearestStation(await ensureMapStations(), gpsCoords.lat, gpsCoords.lng);
       if (!nearest) {
         setLocationMessage('가까운 측정소를 찾지 못했습니다.');
         return null;

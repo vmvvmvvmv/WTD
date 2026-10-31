@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -161,8 +161,13 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
     onClose();
   };
 
-  // 미리보기에서 뒤로 가기는 메모 고치기로 돌아갑니다.
+  // 뒤로 가기: 키보드가 열려 있으면 키보드만 닫습니다(Android 모달은 키보드가 열려 있어도 창을 닫으려 해서).
+  // 미리보기에서는 메모 고치기로 돌아갑니다.
   const handleRequestClose = () => {
+    if (Keyboard.isVisible()) {
+      Keyboard.dismiss();
+      return;
+    }
     if (events) setEvents(null);
     else close();
   };
@@ -289,6 +294,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
               ))}
             </ScrollView>
           ) : (
+            <>
             <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={local.inputScroll}>
               <View style={local.inputBox}>
                 <TextInput
@@ -329,7 +335,8 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                 ))}
               </ScrollView>
               )}
-              {/* AI로 보내기 전 주의사항은 한 줄로 두고, 누르면 펼쳐 봅니다. 서버도 개인정보와 민감한 단어를 가려서 보냅니다. */}
+            </ScrollView>
+              {/* AI로 보내기 전 주의사항은 한 줄로 두고, 누르면 펼쳐 봅니다. 스크롤 밖에 둬서 작은 화면에서 키보드가 올라와도 늘 보입니다. 서버도 개인정보와 민감한 단어를 가려서 보냅니다. */}
               <Pressable
                 accessibilityHint="눌러서 주의사항 보기"
                 accessibilityRole="button"
@@ -348,7 +355,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                   <Text style={local.cautionText}>{caution}</Text>
                 </View>
               ))}
-            </ScrollView>
+            </>
           )}
 
           {!!message && <Text style={local.message}>{message}</Text>}

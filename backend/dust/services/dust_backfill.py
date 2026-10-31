@@ -20,12 +20,13 @@ BACKFILL_HOURS = 24
 GAP_RATIO = 0.9
 
 
+class AirKoreaLimited(Exception):
+    """에어코리아가 호출 한도 초과(HTTP 429, quota exceeded)로 막았다. 더 보내면 한도만 더 깎인다."""
+
+
 def find_gap_hours(now=None):
     """최근 24시간 중 수집이 빠진 정시 목록(오래된 것부터)."""
     now = now or timezone.now()
-    active = AirQualityStation.objects.filter(is_active=True).count()
-    if not active:
-        return []
     start = (now - timedelta(hours=BACKFILL_HOURS)).replace(minute=0, second=0, microsecond=0)
     counts = dict(
         RealtimeDustMeasurement.objects.filter(measured_at__gte=start, station__is_active=True)
@@ -33,11 +34,15 @@ def find_gap_hours(now=None):
     )
     if not counts:
         return []
+    # 기준은 '활성 측정소 수'가 아니라 이 24시간 중 가장 많이 모인 시각의 수다.
+    # 활성으로 등록돼 있어도 실시간 값을 안 주는 측정소가 많으면, 활성 수 기준으로는 매시간이 빈 시각으로 잡혀
+    # 채우기가 매시간 측정소 수십~수백 곳을 불러 하루 호출 한도를 다 써 버린다(2026-10-31 HTTP 429).
+    reference = max(counts.values())
     # 가장 최근에 모은 시각까지만 본다(지금 시각은 에어코리아가 아직 채우는 중일 수 있음).
     hours = []
     hour = start
     while hour <= max(counts):
-        if counts.get(hour, 0) < active * GAP_RATIO:
+        if counts.get(hour, 0) < reference * GAP_RATIO:
             hours.append(hour)
         hour += timedelta(hours=1)
     return hours
@@ -58,7 +63,9 @@ def _hourly_rows_for_station(station):
         ("serviceKey/json/ver1.3", {"serviceKey": key, "returnType": "json", "numOfRows": "100", "pageNo": "1", "stationName": station.name, "dataTerm": "DAILY", "ver": "1.3"})
         for key in _airkorea_service_keys()
     ]
-    items, _debug = _request_items(STATION_HOURLY_DUST_URL, params, {"station": station.name})
+    items, debug = _request_items(STATION_HOURLY_DUST_URL, params, {"station": station.name})
+    if not items and any(row.get("status") == 429 or "quota" in str(row.get("raw_error") or "").lower() for row in debug):
+        raise AirKoreaLimited(station.name)
     return items
 
 
@@ -71,8 +78,13 @@ def backfill_missing_dust(limit=100, now=None):
     existing = set(
         RealtimeDustMeasurement.objects.filter(measured_at__in=gaps).values_list('station_id', 'measured_at')
     )
+    # 이 24시간 동안 한 번이라도 값이 온(실제로 값을 주는) 측정소만 채운다. 안 주는 측정소는 불러도 빈손이다.
+    reporting = set(
+        RealtimeDustMeasurement.objects.filter(measured_at__gte=min(gaps) - timedelta(hours=BACKFILL_HOURS))
+        .values_list('station_id', flat=True).distinct()
+    )
     stations = [
-        station for station in AirQualityStation.objects.filter(is_active=True)
+        station for station in AirQualityStation.objects.filter(is_active=True, id__in=reporting)
         if any((station.id, hour) not in existing for hour in gaps)
     ]
     priority = _priority_station_ids()
@@ -81,7 +93,11 @@ def backfill_missing_dust(limit=100, now=None):
     # ponytail: 채운 값에는 '주변 측정소보다 혼자 튄 값' 걸러내기를 적용하지 않는다(시각마다 주변 값이 아직 다 없음). 문제가 되면 채운 뒤 시각별로 다시 거른다.
     for station in stations[:limit]:
         made = 0
-        for item in _hourly_rows_for_station(station):
+        try:
+            station_rows = _hourly_rows_for_station(station)
+        except AirKoreaLimited:
+            break  # 한도에 걸렸으면 남은 측정소는 다음 회차에 채운다.
+        for item in station_rows:
             measured_at = _parse_airkorea_datetime(item.get('dataTime'))
             if measured_at not in gap_set or (station.id, measured_at) in existing:
                 continue

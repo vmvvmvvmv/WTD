@@ -3,7 +3,8 @@ import logging
 import re
 
 from dust.config import (NAVER_API_HUB_CLIENT_ID, NAVER_API_HUB_CLIENT_SECRET,
-                         NAVER_API_HUB_LOCAL_SEARCH_URL, NAVER_LOCAL_SEARCH_URL,
+                         NAVER_API_HUB_LOCAL_SEARCH_URL, NAVER_GEOCODE_URL, NAVER_LOCAL_SEARCH_URL,
+                         NAVER_MAP_CLIENT_ID, NAVER_MAP_CLIENT_SECRET,
                          NAVER_SEARCH_CLIENT_ID, NAVER_SEARCH_CLIENT_SECRET)
 from dust.external_api import public_api_get
 from dust.services.common import _to_float
@@ -28,6 +29,55 @@ def _naver_coord(value):
     if number is None:
         return None
     return number / 10000000 if abs(number) > 1000 else number
+
+
+# 숫자가 있거나 '~로·~길·~동·~읍·~면·~리·~가'로 끝나는 말이 있으면 주소일 수 있어 주소 검색도 한다.
+# ('코엑스'·'강남역' 같은 장소 이름에는 주소 검색을 부르지 않아 호출 수를 아낀다.)
+_ADDRESS_HINT = re.compile(r"\d|[가-힣](?:로|길|동|읍|면|리|가)(?:\s|$)")
+
+
+def looks_like_address(query):
+    return bool(_ADDRESS_HINT.search(query or ""))
+
+
+def geocode_address(query, count=2, timeout=4):
+    """네이버 지도 주소 검색. 장소 검색 결과와 같은 모양으로 돌려준다. 키가 없거나 실패하면 빈 목록."""
+    if not (NAVER_MAP_CLIENT_ID and NAVER_MAP_CLIENT_SECRET) or not looks_like_address(query):
+        return []
+    try:
+        response = public_api_get(NAVER_GEOCODE_URL, params={"query": query, "count": count}, headers={
+            "X-NCP-APIGW-API-KEY-ID": NAVER_MAP_CLIENT_ID,
+            "X-NCP-APIGW-API-KEY": NAVER_MAP_CLIENT_SECRET,
+        }, timeout=timeout)
+        data = response.json() if response.status_code < 400 else {}
+    except Exception:
+        # 주소 검색이 안 돼도 장소 검색은 그대로 보여 준다.
+        logger.warning("Naver geocode request failed")
+        return []
+    if response.status_code >= 400:
+        logger.warning("Naver geocode returned %s", response.status_code)
+    addresses = data.get("addresses") if isinstance(data, dict) else None
+    items = []
+    for index, address in enumerate(addresses if isinstance(addresses, list) else []):
+        if not isinstance(address, dict):
+            continue
+        lat = _to_float(address.get("y"))
+        lng = _to_float(address.get("x"))
+        road = address.get("roadAddress") or ""
+        jibun = address.get("jibunAddress") or ""
+        if lat is None or lng is None or not (road or jibun):
+            continue
+        items.append({
+            "id": f"geocode:{address.get('x')}:{address.get('y')}:{index}",
+            "label": road or jibun,
+            "address": jibun if road and jibun else "",
+            "category": "주소",
+            "link": "",
+            "lat": lat,
+            "lng": lng,
+            "source": "naver_geocode",
+        })
+    return items[:count]
 
 
 def search_naver_places(query, display=5, timeout=6):

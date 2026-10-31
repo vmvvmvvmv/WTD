@@ -65,3 +65,21 @@ class CollectRealtimeWeatherFailureTests(TestCase):
     @patch(f"{WEATHER_CMD}._collect_grid_weather", return_value=(72, ""))
     def test_all_grids_stored_succeeds(self, _collect):
         self.run_command()
+
+
+class FarStationGridTests(SimpleTestCase):
+    """대표 격자에서 3칸(15km)보다 먼 측정소 격자만 더 모은다."""
+
+    def test_adds_only_far_station_grids(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from dust.management.commands import collect_realtime_weather as cmd
+
+        grids = {(100, 80): {"nx": 100, "ny": 80}}
+        stations = [SimpleNamespace(lat=1, lng=1, name="가까움"), SimpleNamespace(lat=2, lng=2, name="멂"), SimpleNamespace(lat=3, lng=3, name="멂 옆")]
+        fake_grids = {1: {"nx": 102, "ny": 81}, 2: {"nx": 110, "ny": 80}, 3: {"nx": 111, "ny": 81}}
+        with patch.object(cmd, "_dfs_grid_from_lat_lng", side_effect=lambda lat, lng: fake_grids[lat]):
+            added = cmd._add_far_station_grids(grids, stations)
+        # 가까운 곳(2칸)은 더하지 않고, 먼 곳은 더하며, 그 바로 옆(1칸)은 방금 더한 격자로 충분해 더하지 않는다.
+        self.assertEqual(added, 1)
+        self.assertEqual(set(grids), {(100, 80), (110, 80)})

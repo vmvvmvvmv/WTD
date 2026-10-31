@@ -1,17 +1,17 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Keyboard, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import type { WebView as WebViewType } from 'react-native-webview';
 
-import { searchNaverPlaces } from '../../api/dustEndpoints';
+import type { SearchNear } from '../../features/places/naverPlaces';
+import { searchPlacesNear } from '../../features/places/placeSearch';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
-import { compareDateTime, formatDate, parseDateParts } from './calendarUtils';
+import { compareDateTime, dayLabel, formatDate, parseDateParts } from './calendarUtils';
 import type { CalendarLocationCandidate } from './calendarLocation';
-import { nearbyPlaceQueries, type MapPlaceSearchContext } from './calendarNearbyPlaces';
 import type { CalendarRepeatMode } from './calendarRepeat';
 import { ActivityTypeSelector, type CalendarActivityInput } from './editor/ActivityTypeSelector';
 import { DateTimePicker } from './editor/DateTimePicker';
@@ -39,7 +39,6 @@ const defaultActivityGuides: Record<CalendarActivityInput, { desc: string; icon:
 
 type Props = {
   activityInput: CalendarActivityInput;
-  defaultLocation?: CalendarLocationCandidate | null;
   endDate: string;
   endTime: string;
   isRepeatLocked?: boolean;
@@ -73,7 +72,6 @@ type Props = {
 
 export function CalendarEventEditor({
   activityInput,
-  defaultLocation,
   endDate,
   endTime,
   isRepeatLocked = false,
@@ -111,7 +109,6 @@ export function CalendarEventEditor({
   const [mapPickerSearchMessage, setMapPickerSearchMessage] = useState('');
   const [mapPickerSearchResults, setMapPickerSearchResults] = useState<CalendarLocationCandidate[]>([]);
   const [mapPickerSearchText, setMapPickerSearchText] = useState('');
-  const [mapPickerSearchContext, setMapPickerSearchContext] = useState<MapPlaceSearchContext | null>(null);
   const [pendingLocation, setPendingLocation] = useState<CalendarLocationCandidate | null>(null);
   // 지도를 움직이는 동안 가운데 핀을 살짝 띄웁니다. 멈추면 내려앉고 그 자리 주소가 아래 카드에 뜹니다.
   const [isMapMoving, setIsMapMoving] = useState(false);
@@ -120,8 +117,9 @@ export function CalendarEventEditor({
     Animated.spring(pinLift, { friction: 6, tension: 120, toValue: isMapMoving ? 1 : 0, useNativeDriver: true }).start();
   }, [isMapMoving, pinLift]);
   const mapPickerWebViewRef = useRef<WebViewType>(null);
-  const mapPlaceSelectionCommittedRef = useRef(false);
-  const mapPickerHasReceivedContextRef = useRef(false);
+  // 지금 지도 가운데 좌표(지도가 멈출 때마다 갱신). 검색 결과를 여기서 가까운 순으로 보여 줍니다.
+  // 가운데 주소의 시·도와 동 이름도 두어, 흔한 이름이라 먼 결과만 나오면 이 지역 이름을 붙여 다시 찾습니다.
+  const mapPickerCenterRef = useRef<SearchNear | null>(null);
 
   useEffect(() => {
     const showSubscription = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardOpen(true));
@@ -142,8 +140,6 @@ export function CalendarEventEditor({
   }, [onChangeRepeatEndDate, repeatEndDate, startDate]);
 
   const mapPickerSource = mapPickerUrl ? `${mapPickerUrl}${mapPickerUrl.includes('?') ? '&' : '?'}picker=1` : '';
-  const fallbackCity = defaultLocation?.city || '';
-  const fallbackDistrict = defaultLocation?.region || '';
 
   useEffect(() => {
     if (!isMapPickerOpen || !isMapPickerSearchOpen) return;
@@ -153,55 +149,18 @@ export function CalendarEventEditor({
       setMapPickerSearchMessage('');
       return;
     }
-    const searchContext = mapPickerSearchContext ?? (!mapPickerHasReceivedContextRef.current && (fallbackCity || fallbackDistrict) ? {
-      city: fallbackCity,
-      district: fallbackDistrict,
-      neighborhood: '',
-    } : null);
-    if (!searchContext) {
-      setMapPickerSearchResults([]);
-      setMapPickerSearchMessage('지도 위치를 확인하는 중입니다.');
-      const timeout = setTimeout(() => setMapPickerSearchMessage('지도 위치를 확인할 수 없습니다. 잠시 후 다시 시도해 주세요.'), 1500);
-      return () => clearTimeout(timeout);
-    }
-    const searchQueries = nearbyPlaceQueries(query, searchContext);
-    if (searchQueries.length === 0) {
-      setMapPickerSearchResults([]);
-      setMapPickerSearchMessage('지도 주변 위치를 확인할 수 없습니다. 지도를 다시 움직여 주세요.');
-      return;
-    }
-
+    // 홈·지도 지역 검색과 같은 방식: 친 검색어 그대로 찾고, 결과가 모두 지도 가운데서 멀면 그 지역 이름을 붙여 다시 찾은 뒤 가까운 순으로.
     let cancelled = false;
     setMapPickerSearchResults([]);
-    setMapPickerSearchMessage('지도 주변을 검색 중입니다.');
+    setMapPickerSearchMessage('검색 중입니다.');
     const timer = setTimeout(async () => {
       let results: CalendarLocationCandidate[] = [];
       try {
-        for (const nearbyQuery of searchQueries) {
-          const response = await searchNaverPlaces({ query: nearbyQuery, size: 5 });
-          if (cancelled) return;
-          const items = Array.isArray(response?.items) ? response.items : [];
-          const candidates = items.flatMap((item) => {
-            const place = item && typeof item === 'object' ? item as Record<string, unknown> : null;
-            if (!place || typeof place.label !== 'string' || !place.label || typeof place.lat !== 'number' || typeof place.lng !== 'number') return [];
-            return [{
-              address: typeof place.address === 'string' ? place.address : undefined,
-              category: typeof place.category === 'string' ? place.category : undefined,
-              label: place.label,
-              lat: place.lat,
-              lng: place.lng,
-              link: typeof place.link === 'string' ? place.link : undefined,
-              source: 'naver_local',
-            } satisfies CalendarLocationCandidate];
-          });
-          if (candidates.length > 0) {
-            results = candidates;
-            break;
-          }
-        }
+        results = (await searchPlacesNear(query, mapPickerCenterRef.current))
+          .map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
         if (cancelled) return;
         setMapPickerSearchResults(results);
-        setMapPickerSearchMessage(results.length === 0 ? '검색 결과가 없습니다.' : '');
+        setMapPickerSearchMessage(results.length === 0 ? '찾는 장소가 없습니다. 다른 이름이나 주소로 찾아보세요.' : '');
       } catch {
         if (!cancelled) {
           setMapPickerSearchResults(results);
@@ -214,7 +173,7 @@ export function CalendarEventEditor({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [isMapPickerOpen, isMapPickerSearchOpen, mapPickerSearchContext, mapPickerSearchText, fallbackCity, fallbackDistrict]);
+  }, [isMapPickerOpen, isMapPickerSearchOpen, mapPickerSearchText]);
 
   useEffect(() => {
     if (!isMapPickerOpen) return;
@@ -250,7 +209,6 @@ export function CalendarEventEditor({
     try {
       const payload = JSON.parse(event.nativeEvent.data) as {
         location?: Partial<CalendarLocationCandidate>;
-        searchContext?: Partial<MapPlaceSearchContext>;
         station?: Record<string, unknown>;
         type?: string;
       };
@@ -258,21 +216,7 @@ export function CalendarEventEditor({
         setIsMapMoving(true);
         return;
       }
-      if (payload.type === 'map-search-context-pending') {
-        setMapPickerSearchContext(null);
-        setMapPickerSearchResults([]);
-      }
-      if (payload.type === 'map-search-context' && payload.searchContext) {
-        mapPickerHasReceivedContextRef.current = true;
-        const context = payload.searchContext;
-        setMapPickerSearchContext({
-          city: typeof context.city === 'string' ? context.city : '',
-          district: typeof context.district === 'string' ? context.district : '',
-          neighborhood: typeof context.neighborhood === 'string' ? context.neighborhood : '',
-        });
-      }
       if ((payload.type === 'map-picked' || payload.type === 'map-place-selected') && payload.location) {
-        if (mapPlaceSelectionCommittedRef.current) return;
         setIsMapMoving(false);
         // 지도가 멈출 때마다 오는 가운데 주소(naver_map)로는 검색창·키보드를 닫지 않습니다. 키보드가 열리며 지도 크기가 바뀌어도 닫히지 않게.
         if (payload.location.source !== 'naver_map') {
@@ -300,12 +244,15 @@ export function CalendarEventEditor({
           region,
           source: payload.location.source || 'naver_map',
         };
-        if (payload.type === 'map-place-selected') {
-          mapPlaceSelectionCommittedRef.current = true;
-          applyPickedLocation(candidate);
-        } else {
-          setPendingLocation(candidate);
-        }
+        if (candidate.source === 'naver_map') mapPickerCenterRef.current = { areaName: [city, region].filter(Boolean).join(' ') || undefined, lat, lng };
+        // 검색 결과에서 고른 장소는 업종을 되살려 간략 정보에 보여 줍니다(지도에서 오는 값엔 업종이 없음).
+        const match = candidate.source === 'naver_local'
+          ? mapPickerSearchResults.find((place) => place.label === candidate.label && Math.abs(place.lat - lat) < 0.0003 && Math.abs(place.lng - lng) < 0.0003)
+          : undefined;
+        const picked = match ? { ...candidate, category: match.category } : candidate;
+        // 지도 위 검색 마커를 누르면 바로 정하지 않고, 그 장소로 지도를 옮겨 아래에 간략 정보만 띄웁니다.
+        if (payload.type === 'map-place-selected') focusMapPickerPlace(match ?? picked);
+        else setPendingLocation(picked);
       }
       if (payload.type === 'station-selected' && payload.station) {
         const station = payload.station;
@@ -349,7 +296,8 @@ export function CalendarEventEditor({
           <View style={styles.calendarEditorHeaderButton} />
         </View>
 
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.calendarSheetKeyboardArea}>
+        {/* 안드로이드는 키보드가 닫힌 뒤에도 줄어든 높이가 남아 하단 바 아래가 비므로, 키보드가 열려 있을 때만 맞춥니다. */}
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} enabled={Platform.OS === 'ios' || isKeyboardOpen} style={styles.calendarSheetKeyboardArea}>
           <ScrollView contentContainerStyle={styles.calendarSheetScrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={styles.calendarSheetScroll}>
             <View style={styles.calendarSheet}>
             <View style={styles.calendarSheetTitleRow}>
@@ -422,13 +370,10 @@ export function CalendarEventEditor({
                   accessibilityLabel={location ? `장소 ${location}, 지도에서 바꾸기` : '지도에서 장소 선택'}
                   onPress={() => {
                     Keyboard.dismiss();
-                    mapPlaceSelectionCommittedRef.current = false;
-                    mapPickerHasReceivedContextRef.current = false;
                     setPendingLocation(null);
                     setIsMapMoving(false);
                     setMapPickerSearchText('');
                     setMapPickerSearchResults([]);
-                    setMapPickerSearchContext(null);
                     setIsMapPickerSearchOpen(false);
                     setIsMapPickerOpen(true);
                   }}
@@ -455,20 +400,35 @@ export function CalendarEventEditor({
             </View>
             </View>
           </ScrollView>
+          {/* 하단 바: 왼쪽엔 일정 요약(첫 줄 시간, 둘째 줄 날짜·장소), 오른쪽엔 알약 버튼 '저장'. 지도 선택의 아래 칸과 같은 모양입니다. 제목이 비어 있으면 저장을 막습니다. */}
+          <View style={[styles.calendarMapPickerConfirmBar, styles.calendarEditorBottomBar, { paddingBottom: isKeyboardOpen ? 10 : Math.max(12, insets.bottom + 8) }]}>
+            <View style={styles.calendarMapPickerConfirmTextGroup}>
+              <Text adjustsFontSizeToFit minimumFontScale={0.8} numberOfLines={1} style={styles.calendarMapPickerConfirmTitle}>
+                {startTime} ~ {endDate !== startDate ? `${dayLabel(endDate)} ` : ''}{endTime}
+              </Text>
+              <Text numberOfLines={1} style={styles.calendarMapPickerConfirmMeta}>
+                {[dayLabel(startDate), location].filter(Boolean).join(' · ')}
+              </Text>
+            </View>
+            <Pressable
+              disabled={!title.trim()}
+              onPress={onSave}
+              style={({ pressed }) => [
+                styles.calendarMapPickerConfirmButton,
+                { backgroundColor: title.trim() ? accentTone : textColors.disabled },
+                pressed && title.trim() && styles.pressedFeedback,
+              ]}
+            >
+              <Text style={[styles.calendarMapPickerConfirmButtonText, styles.calendarEditorSaveText]}>저장</Text>
+            </Pressable>
+          </View>
         </KeyboardAvoidingView>
-        <Pressable
-          accessibilityLabel="일정 저장"
-          disabled={!title.trim()}
-          onPress={onSave}
-          style={({ pressed }) => [
-            styles.calendarEditorSaveFab,
-            { backgroundColor: title.trim() ? accentTone : textColors.disabled, bottom: Math.max(18, insets.bottom + 14), shadowColor: accentTone },
-            pressed && title.trim() && styles.pressedFeedback,
-          ]}
+        <Modal
+          animationType="slide"
+          visible={isMapPickerOpen}
+          // 검색 키보드가 열려 있으면 뒤로 가기는 키보드만 닫습니다.
+          onRequestClose={() => (Keyboard.isVisible() ? Keyboard.dismiss() : setIsMapPickerOpen(false))}
         >
-          <Ionicons color="#ffffff" name="checkmark" size={32} />
-        </Pressable>
-        <Modal animationType="slide" visible={isMapPickerOpen} onRequestClose={() => setIsMapPickerOpen(false)}>
           <View style={styles.calendarMapPickerBackdrop}>
             <View style={[styles.calendarMapPickerHeader, { paddingTop: Math.max(12, insets.top) }]}>
               <Pressable accessibilityLabel="지도 선택 닫기" onPress={() => setIsMapPickerOpen(false)} style={({ pressed }) => [styles.calendarEditorHeaderButton, pressed && styles.pressedFeedback]}>
@@ -492,7 +452,7 @@ export function CalendarEventEditor({
                     setIsMapPickerSearchOpen(false);
                     Keyboard.dismiss();
                   }}
-                  placeholder="현재 지도 지역 장소 검색"
+                  placeholder="장소, 주소, 지역 검색"
                   placeholderTextColor="#8a94a3"
                   returnKeyType="search"
                   style={styles.calendarMapPickerSearchInput}
@@ -507,14 +467,9 @@ export function CalendarEventEditor({
                         <Text style={styles.calendarMapPickerSearchResultTitle}>{place.label}</Text>
                         <Text numberOfLines={1} style={styles.calendarMapPickerSearchResultMeta}>{[place.category, place.address].filter(Boolean).join(' / ')}</Text>
                       </Pressable>
-                      {place.link && /^https?:\/\//i.test(place.link) && (
-                        <Pressable accessibilityLabel={`${place.label} 원본 보기`} onPress={() => Linking.openURL(place.link!)} style={styles.calendarMapPickerSearchResultLink}>
-                          <Text style={styles.calendarMapPickerSearchResultLinkText}>원본 보기</Text>
-                        </Pressable>
-                      )}
                     </View>
                   ))}
-                  <Text style={styles.calendarMapPickerSearchAttribution}>{mapPickerSearchContext ? '현재 지도 지역' : '지도 시작 위치'} 기준 · 네이버 지역 검색 결과</Text>
+                  <Text style={styles.calendarMapPickerSearchAttribution}>네이버 지역 검색 결과</Text>
                 </View>
               )}
               {isMapPickerSearchOpen && !!mapPickerSearchMessage && mapPickerSearchResults.length === 0 && (
@@ -550,15 +505,15 @@ export function CalendarEventEditor({
                 <Text numberOfLines={2} style={styles.calendarMapPickerConfirmTitle}>
                   {isMapMoving ? '위치 찾는 중…' : pendingLocation ? pendingLocation.label : '지도를 움직여 핀을 맞춰 주세요'}
                 </Text>
-                <Text style={styles.calendarMapPickerConfirmMeta}>
-                  {isMapMoving ? '' : pendingLocation?.source === 'naver_local' ? '네이버 지역 검색 결과' : pendingLocation ? '핀이 가리키는 위치' : ''}
+                <Text numberOfLines={2} style={styles.calendarMapPickerConfirmMeta}>
+                  {isMapMoving
+                    ? ''
+                    : pendingLocation?.source === 'naver_local'
+                      // 업종은 '생활,편의>편의점'에서 끝 단계('편의점')만 보여 줍니다.
+                      ? [pendingLocation.category?.split('>').pop(), pendingLocation.address].filter(Boolean).join(' · ') || '네이버 지역 검색 결과'
+                      : pendingLocation ? '핀이 가리키는 위치' : ''}
                 </Text>
               </View>
-              {pendingLocation?.link && /^https?:\/\//i.test(pendingLocation.link) && (
-                <Pressable accessibilityLabel="선택한 장소 원본 보기" onPress={() => Linking.openURL(pendingLocation.link!)} style={styles.calendarMapPickerSearchResultLink}>
-                  <Text style={styles.calendarMapPickerSearchResultLinkText}>원본 보기</Text>
-                </Pressable>
-              )}
               <Pressable
                 disabled={!pendingLocation || isMapMoving}
                 onPress={() => pendingLocation && applyPickedLocation(pendingLocation)}

@@ -1,5 +1,6 @@
 package com.xkvk11.DusthealthAIMobile
 
+import android.content.Context
 import android.os.Build
 import android.os.Bundle
 
@@ -11,6 +12,11 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 import expo.modules.ReactActivityDelegateWrapper
 
 class MainActivity : ReactActivity() {
+  // 글자 배율 한도(FontScale.kt). 앱 쪽과 화면 쪽 둘 다 걸어야 React Native 글자에 적용됩니다.
+  override fun attachBaseContext(newBase: Context) {
+    super.attachBaseContext(newBase.withCappedFontScale())
+  }
+
   override fun onCreate(savedInstanceState: Bundle?) {
     // Set the theme to AppTheme BEFORE onCreate to support
     // coloring the background, status bar, and navigation bar.

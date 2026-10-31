@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, Keyboard, TextInput } from 'react-native';
 import type { WebView as WebViewType } from 'react-native-webview';
 
@@ -7,17 +7,9 @@ import { saveMapRecentSearches } from '../../storage/appStorage';
 import type { StationDustItem } from '../../types/dust';
 import type { RegionState } from '../../types/region';
 import type { WeatherState } from '../../types/weather';
-import { normalizeSearchText, stationIdentity, uniqueStations } from '../../features/stations/stationUtils';
+import { useRegionPlaceSearch } from '../../features/region/useRegionPlaceSearch';
+import { stationForRegion, stationIdentity } from '../../features/stations/stationUtils';
 import { normalizeLatLng } from '../../utils/geo';
-
-export function findStationSuggestions(stations: StationDustItem[], searchText: string, limit: number) {
-  const keyword = normalizeSearchText(searchText.trim());
-  if (!keyword) return [];
-  return uniqueStations(stations.filter((station) => {
-    const target = normalizeSearchText([station.sido, station.city, station.name, station.addr].filter(Boolean).join(' '));
-    return target.includes(keyword);
-  })).slice(0, limit);
-}
 
 export function useMapSearch(
   mapStations: StationDustItem[],
@@ -41,21 +33,17 @@ export function useMapSearch(
   const mapSearchOverlayOpacity = useRef(new Animated.Value(0)).current;
   const mapSearchOverlayTranslateY = useRef(new Animated.Value(18)).current;
 
-  const searchSuggestions = useMemo(
-    () => findStationSuggestions(mapStations, mapSearchText, 5),
-    [mapSearchText, mapStations],
+  // 아무 장소·주소·지역이나 찾고, 고르면 그 근처 측정소로 지도를 옮깁니다(홈 지역 검색과 같은 방식).
+  // GPS 지역 측정소에서 가까운 결과부터 보여 줍니다.
+  const gpsStation = stationForRegion(mapStations, gpsRegion);
+  const gpsCoords = normalizeLatLng(gpsStation?.lat, gpsStation?.lng);
+  const { isSearching: isMapSearching, results: searchSuggestions } = useRegionPlaceSearch(
+    mapSearchText,
+    mapStations,
+    gpsCoords && { ...gpsCoords, areaName: gpsRegion ? `${gpsRegion.city} ${gpsRegion.region}` : undefined },
   );
 
-  const findStationForRegion = (region?: RegionState | null) => {
-    if (!region) return undefined;
-    return mapStations.find((station) => (
-      station.sido === region.city
-      && (station.city === region.region || station.name === region.region || station.name === region.label)
-    )) ?? mapStations.find((station) => (
-      station.sido === region.city
-      && [station.city, station.name, station.addr].filter(Boolean).some((value) => String(value).includes(region.region))
-    ));
-  };
+  const findStationForRegion = (region?: RegionState | null) => stationForRegion(mapStations, region);
 
   const dismissMapSearchKeyboard = () => {
     mapSearchInputRef.current?.blur();
@@ -81,7 +69,8 @@ export function useMapSearch(
     `);
   };
 
-  const focusMapStation = (station?: StationDustItem) => {
+  // label: 검색한 장소 이름. 있으면 검색창에 그 이름을 남깁니다(없으면 측정소 이름).
+  const focusMapStation = (station?: StationDustItem, label?: string) => {
     const coords = normalizeLatLng(station?.lat, station?.lng);
     if (!station || !coords) {
       setMapSearchMessage('검색 결과가 없습니다.');
@@ -91,8 +80,8 @@ export function useMapSearch(
     setShowSearchSuggestions(false);
     setIsMapSearchFocused(false);
     dismissMapSearchKeyboard();
-    setMapSearchText(station.name ?? station.city ?? mapSearchText);
-    setMapSearchMessage(`${station.sido ?? ''} ${station.name ?? station.city ?? ''}`.trim());
+    setMapSearchText(label ?? station.name ?? station.city ?? mapSearchText);
+    setMapSearchMessage(`${label ? `${label} 근처 · ` : ''}${station.sido ?? ''} ${station.name ?? station.city ?? ''}`.trim());
     setSelectedStation(null);
     setMapRecentSearches((items) => {
       const nextItems = [normalizedStation, ...items.filter((item) => !(item.sido === station.sido && item.name === station.name && item.city === station.city))];
@@ -197,7 +186,7 @@ export function useMapSearch(
 
   return {
     closeMapSearch, dismissMapSearchKeyboard, findStationForRegion, focusGpsMapRegion, focusMapStation,
-    isMapSearchFocused, mapMarkerMode, mapRecentSearches, mapSearchInputRef, mapSearchMessage,
+    isMapSearchFocused, isMapSearching, mapMarkerMode, mapRecentSearches, mapSearchInputRef, mapSearchMessage,
     mapSearchOverlayInputRef, mapSearchOverlayOpacity, mapSearchOverlayTranslateY, mapSearchText,
     mapViewKey, mapWebViewRef, removeMapRecentSearch, searchSuggestions, selectedStation,
     selectedStationWeather, setIsMapSearchFocused, setMapRecentSearches, setMapSearchMessage,
