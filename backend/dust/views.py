@@ -1,4 +1,5 @@
 """화면용 API: 요청 값을 읽고 서비스 결과를 응답으로 바꾼다. 업무 로직은 dust.services, 설정은 dust.config에 있다."""
+import hashlib
 import json
 import logging
 import math
@@ -256,28 +257,60 @@ def midterm_weather(request):
     })
 
 
+# 장소·주소 검색은 네이버 호출 한도를 쓴다. 같은 검색어는 10분 동안 캐시 결과를 쓰고,
+# 캐시에 없어 네이버까지 가는 검색은 IP마다 10분에 PLACE_SEARCH_IP_LIMIT번까지만 허용한다(남이 반복 호출해 한도를 다 쓰지 않게).
+PLACE_SEARCH_CACHE_SECONDS = 600
+PLACE_SEARCH_IP_LIMIT = 120
+PLACE_SEARCH_QUERY_MAX = 60
+
+
+def _place_search_allowed(request):
+    from dust.memo_views import _client_ip
+
+    # IP 원문은 캐시 키에도 남기지 않는다(해시만).
+    ip_key = hashlib.sha256(_client_ip(request).encode("utf-8")).hexdigest()[:24]
+    key = f"place_search_ip_{ip_key}_{int(timezone.now().timestamp() // PLACE_SEARCH_CACHE_SECONDS)}"
+    cache.add(key, 0, PLACE_SEARCH_CACHE_SECONDS)
+    try:
+        return cache.incr(key) <= PLACE_SEARCH_IP_LIMIT
+    except ValueError:
+        return True
+
+
 @api_view(['GET'])
 def naver_place_search(request):
-    query = (request.GET.get("query") or "").strip()
+    query = " ".join((request.GET.get("query") or "").split())[:PLACE_SEARCH_QUERY_MAX]
     if len(query) < 1:
         return Response({"items": []})
     try:
         display = max(1, min(int(request.GET.get("size") or 5), 5))
     except (TypeError, ValueError):
         display = 5
+    # 캐시 키는 검색어 해시라 검색어 원문은 저장하지 않는다. 값은 공개된 장소 정보뿐이다.
+    cache_key = f"place_search_v1_{display}_{hashlib.sha256(query.lower().encode('utf-8')).hexdigest()}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return Response(cached)
+    if not _place_search_allowed(request):
+        return error_response(429, "검색이 너무 잦아요. 잠시 뒤에 다시 시도해 주세요.")
     # 주소처럼 보이면 주소 검색 결과(최대 2개)를 장소 결과 앞에 둔다. 한쪽이 실패해도 다른 쪽 결과는 보여 준다.
     address_items = geocode_address(query)
+    place_failed = False
     try:
         place_items = search_naver_places(query, display)
     except PlaceSearchUnavailable:
         if not address_items:
             return error_response(503, "장소 검색을 지금 사용할 수 없습니다.")
-        place_items = []
+        place_items, place_failed = [], True
     except PlaceSearchFailed:
         if not address_items:
             return error_response(502, "장소 검색에 실패했습니다.")
-        place_items = []
-    return Response({"items": address_items + place_items})
+        place_items, place_failed = [], True
+    result = {"items": address_items + place_items}
+    # 장소 검색이 일시 실패한 결과는 캐시하지 않는다(10분 동안 반쪽 결과를 돌려주지 않게).
+    if not place_failed:
+        cache.set(cache_key, result, PLACE_SEARCH_CACHE_SECONDS)
+    return Response(result)
 
 
 @api_view(['GET'])

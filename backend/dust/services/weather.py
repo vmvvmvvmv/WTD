@@ -14,13 +14,24 @@ from dust.services.stations import _current_station_location
 # 날씨 수집기는 시·군·구마다 대표 측정소 한 곳의 격자만 모은다(예: 울산 울주군은 덕신리 격자).
 # 그래서 같은 군의 다른 곳(예: 삼남읍)은 격자에 자료가 없다. 그 격자에 최근(6시간) 자료가 없으면
 # 최근 자료가 있는 가장 가까운 격자를 돌려준다. 5km 칸으로 6칸(약 30km)보다 멀면 원래 격자를 그대로 둔다.
+def _recent_weather_grids(now):
+    # 최근 6시간 자료가 있는 격자 목록. 요청마다 수만 줄을 훑지 않게 1분 동안 캐시에 둔다(수집은 1시간마다).
+    grids = cache.get("weather_recent_grids_v1")
+    if grids is None:
+        grids = set(
+            WeatherHourlyMeasurement.objects.filter(measured_at__gte=now - timedelta(hours=6))
+            .values_list("nx", "ny").distinct()
+        )
+        cache.set("weather_recent_grids_v1", grids, 60)
+    return grids
+
+
 def collected_weather_grid(grid, now=None, max_cells=6):
-    now = now or timezone.now()
-    recent = WeatherHourlyMeasurement.objects.filter(measured_at__gte=now - timedelta(hours=6))
-    if recent.filter(nx=grid["nx"], ny=grid["ny"]).exists():
+    recent = _recent_weather_grids(now or timezone.now())
+    if (grid["nx"], grid["ny"]) in recent:
         return grid
     best = None
-    for nx, ny in recent.values_list("nx", "ny").distinct():
+    for nx, ny in recent:
         distance = (nx - grid["nx"]) ** 2 + (ny - grid["ny"]) ** 2
         if distance <= max_cells ** 2 and (best is None or distance < best[0]):
             best = (distance, nx, ny)
