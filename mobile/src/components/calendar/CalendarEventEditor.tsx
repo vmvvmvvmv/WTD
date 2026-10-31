@@ -60,6 +60,8 @@ type Props = {
   onChangeStartTime: (value: string) => void;
   onChangeTitle: (value: string) => void;
   onClose: () => void;
+  // 새 일정일 때만: 제목 옆 'AI로 입력'을 누르면 메모로 한 번에 넣는 AI 입력창으로 넘어갑니다.
+  onOpenAi?: () => void;
   onSave: () => void;
   // 최근 일정에 쓴 장소. 장소 줄 아래에 칩으로 보여 주고 누르면 바로 고릅니다.
   recentLocations?: CalendarLocationCandidate[];
@@ -95,6 +97,7 @@ export function CalendarEventEditor({
   onChangeStartTime,
   onChangeTitle,
   onClose,
+  onOpenAi,
   onSave,
   recentLocations = [],
   repeatEndDate,
@@ -313,6 +316,19 @@ export function CalendarEventEditor({
                 style={styles.calendarSheetTitleInput}
                 value={title}
               />
+              {!!onOpenAi && (
+                <Pressable
+                  accessibilityHint="메모로 날짜·시간·장소를 한 번에 넣어요"
+                  accessibilityLabel="AI로 입력"
+                  accessibilityRole="button"
+                  hitSlop={6}
+                  onPress={onOpenAi}
+                  style={({ pressed }) => [styles.calendarEditorAiButton, { borderColor: accentTone }, pressed && styles.pressedFeedback]}
+                >
+                  <Ionicons color={accentTone} name="sparkles" size={14} />
+                  <Text style={[styles.calendarEditorAiText, { color: accentTone }]}>AI로 입력</Text>
+                </Pressable>
+              )}
             </View>
             <View style={styles.calendarSheetDivider} />
             <View style={styles.calendarSheetDateTimeBlock}>

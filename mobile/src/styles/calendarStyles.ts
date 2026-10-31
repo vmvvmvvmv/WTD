@@ -94,6 +94,9 @@ export const calendarStyles = StyleSheet.create({
   calendarSheetScrollContent: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 18, paddingTop: 6 },
   calendarSheet: { alignSelf: 'stretch', backgroundColor: '#ffffff', borderRadius: 0, borderWidth: 0, elevation: 0, paddingHorizontal: 0, paddingTop: 0, shadowColor: '#141821', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0, shadowRadius: 0 },
   calendarSheetTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 68 },
+  // 새 일정 입력 창 제목 옆 'AI로 입력'.
+  calendarEditorAiButton: { alignItems: 'center', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 4, paddingHorizontal: 10, paddingVertical: 6 },
+  calendarEditorAiText: { fontSize: 12, fontWeight: '800' },
   calendarSheetTitleInput: { color: textColors.primary, flex: 1, fontSize: 22, fontWeight: '900', paddingVertical: 0 },
   calendarColorDot: { borderRadius: 999, height: 14, width: 14 },
   calendarSheetDivider: { backgroundColor: '#eef1f5', height: 1 },
@@ -232,11 +235,6 @@ export const calendarStyles = StyleSheet.create({
   calendarSelectionEmptyBar: { borderRadius: 999, height: 32, opacity: 0.75, width: 4 },
   calendarSelectionEmptyTitle: { color: textColors.secondary, fontSize: 15, fontWeight: '700' },
   // 펼친 두 버튼은 + 버튼(58) 위로 쌓입니다. bottom은 + 버튼과 같은 값(시트를 따라 움직임)을 받습니다.
-  // 일정 추가 메뉴: 날짜 창의 '+ 일정 추가'를 누르면 오른쪽 아래에 펼칩니다. 바깥을 누르면 닫힙니다.
-  calendarAddDial: { alignItems: 'flex-end', bottom: 20, gap: 10, position: 'absolute', right: 14, zIndex: 7 },
-  calendarAddDialBackdrop: { backgroundColor: 'rgba(255, 255, 255, 0.72)', bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 5 },
-  calendarAddDialOption: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, height: 46, paddingHorizontal: 18, ...bauhausMediumShadow },
-  calendarAddDialText: { fontSize: 14, fontWeight: '800' },
   calendarUndoAction: { color: '#9CC3FF', fontSize: 14, fontWeight: '800' },
   calendarUndoText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
   calendarUndoToast: { alignItems: 'center', alignSelf: 'center', backgroundColor: 'rgba(20, 24, 33, 0.86)', borderRadius: 12, bottom: 24, flexDirection: 'row', gap: 16, left: 24, paddingHorizontal: 16, paddingVertical: 12, position: 'absolute', right: 24, justifyContent: 'space-between', zIndex: 30 },
