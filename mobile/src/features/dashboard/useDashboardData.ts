@@ -34,6 +34,7 @@ export function useDashboardData({
   const [pastItems, setPastItems] = useState<PastDustItem[]>([]);
   const [hourlyItems, setHourlyItems] = useState<HourlyDustItem[]>([]);
   const [weatherHourlyItems, setWeatherHourlyItems] = useState<WeatherHourlyItem[]>([]);
+  const [weatherTodayPastItems, setWeatherTodayPastItems] = useState<WeatherHourlyItem[]>([]);
   const [weatherForecastResolved, setWeatherForecastResolved] = useState(false);
   const [weatherMidTermItems, setWeatherMidTermItems] = useState<WeatherMidTermItem[]>([]);
   const [currentItem, setCurrentItem] = useState<CurrentDustItem | null>(null);
@@ -61,6 +62,7 @@ export function useDashboardData({
     setWeather(null);
     setYesterdayWeather(null);
     setWeatherHourlyItems([]);
+    setWeatherTodayPastItems([]);
     setWeatherForecastResolved(false);
     setWeatherMidTermItems([]);
   };
@@ -84,8 +86,11 @@ export function useDashboardData({
   };
 
   // 현재값, 과거 흐름, 예측, 날씨를 한 번에 불러옵니다. 캐시가 있으면 먼저 보여 주고 뒤에서 갱신합니다.
+  // 마지막으로 불러온 시각. 다른 탭에 있다가 홈으로 왔을 때 오래됐으면 다시 불러옵니다.
+  const lastRefreshRef = useRef(0);
   const loadDashboard = async (force = false) => {
     if (!selectedRegion) return;
+    lastRefreshRef.current = Date.now();
     const region = selectedRegion;
     const requestId = ++dashboardRequestRef.current;
     const isStale = () => isStaleRegion(region) || requestId !== dashboardRequestRef.current;
@@ -96,6 +101,7 @@ export function useDashboardData({
       setPastItems(cachedDashboard.pastItems);
       setHourlyItems(cachedDashboard.hourlyItems);
       setWeatherHourlyItems(cachedDashboard.weatherHourlyItems ?? []);
+      setWeatherTodayPastItems(cachedDashboard.weatherTodayPastItems ?? []);
       setWeatherMidTermItems(cachedDashboard.weatherMidTermItems ?? []);
       setCurrentItem(cachedDashboard.currentItem);
       setWeather(cachedDashboard.weather ?? null);
@@ -123,6 +129,7 @@ export function useDashboardData({
       const storedWeather = weatherResult.value;
       if (storedWeather.stations.length > 0 && stationItems.length === 0) setStationItems(storedWeather.stations);
       setWeatherHourlyItems(storedWeather.hourlyItems);
+      setWeatherTodayPastItems(storedWeather.todayPastItems);
       setWeatherMidTermItems(storedWeather.midTermItems);
       setWeather(storedWeather.weather);
       setYesterdayWeather(storedWeather.yesterdayWeather);
@@ -153,6 +160,7 @@ export function useDashboardData({
           weather: storedWeather.weather,
           weatherHourlyItems: storedWeather.hourlyItems,
           weatherMidTermItems: storedWeather.midTermItems,
+          weatherTodayPastItems: storedWeather.todayPastItems,
           yesterdayWeather: storedWeather.yesterdayWeather,
         });
       } else {
@@ -162,6 +170,7 @@ export function useDashboardData({
           weather: cachedDashboard?.weather ?? null,
           weatherHourlyItems: cachedDashboard?.weatherHourlyItems ?? [],
           weatherMidTermItems: cachedDashboard?.weatherMidTermItems ?? [],
+          weatherTodayPastItems: cachedDashboard?.weatherTodayPastItems ?? [],
           yesterdayWeather: cachedDashboard?.yesterdayWeather ?? null,
         });
       }
@@ -180,19 +189,22 @@ export function useDashboardData({
 
   const loadDashboardRef = useRef(loadDashboard);
   loadDashboardRef.current = loadDashboard;
+  const refresh = () => {
+    void loadDashboardRef.current(true);
+  };
+  // 백그라운드에서 돌아오면 어느 탭에 있든 새로 불러옵니다(홈이 아닌 탭에서 나갔다 와도 홈이 최신이게).
   useEffect(() => {
-    if (!autoRefresh) return;
-    const refresh = () => {
-      void loadDashboardRef.current(true);
-    };
-    const timer = setInterval(refresh, AUTO_REFRESH_MS);
     const subscription = AppState.addEventListener('change', (state) => {
       if (state === 'active') refresh();
     });
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
+    return () => subscription.remove();
+  }, []);
+  // 홈에 있는 동안은 10분마다, 다른 탭에 있다가 홈으로 왔을 때는 10분이 지났으면 새로 불러옵니다.
+  useEffect(() => {
+    if (!autoRefresh) return;
+    if (lastRefreshRef.current && Date.now() - lastRefreshRef.current >= AUTO_REFRESH_MS) refresh();
+    const timer = setInterval(refresh, AUTO_REFRESH_MS);
+    return () => clearInterval(timer);
   }, [autoRefresh]);
 
   return {
@@ -209,6 +221,7 @@ export function useDashboardData({
     weatherHourlyItems,
     weatherForecastResolved,
     weatherMidTermItems,
+    weatherTodayPastItems,
     yesterdayWeather,
   };
 }

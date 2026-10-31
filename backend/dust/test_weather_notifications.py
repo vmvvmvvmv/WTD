@@ -39,12 +39,22 @@ class WeatherMorningMessageTests(SimpleTestCase):
         _, body = build_weather_morning_message('강남구', points, [])
         self.assertEqual(body, '눈 8~9시\n기온 -3~4°\n두꺼운 겉옷 챙기세요\n길이 미끄러울 수 있어요')
 
-    def test_only_events_hit_by_weather_are_mentioned(self):
+    def test_every_event_gets_its_weather_line(self):
         points = [point(9), point(15, label='비', rain_probability=80), point(16)]
         _, body = build_weather_morning_message('강남구', points, [{'time': '09:00'}, {'time': '15:30', 'title': '병원'}])
-        self.assertIn('15:30 일정 때 비', body)
-        self.assertNotIn('09:00', body)
+        self.assertIn('09:00 일정 맑음 · 18°', body)  # 날씨가 괜찮아도 일정마다 한 줄.
+        self.assertIn('15:30 일정 비 예보 · 18°', body)
         self.assertNotIn('병원', body)  # 일정 제목은 서버에 두지 않으므로 문구에도 쓰지 않는다.
+
+    def test_event_weather_covers_until_end_time(self):
+        points = [point(10, temperature=17.0), point(11, label='비', temperature=16.0), point(12, temperature=19.0)]
+        _, body = build_weather_morning_message('강남구', points, [{'time': '10:00', 'endTime': '12:00'}])
+        # 10:00에 시작해도 11시 비까지 본다. 12:00에 끝나므로 12시는 넣지 않는다.
+        self.assertIn('10:00~12:00 일정 비 예보 · 16~17°', body)
+
+    def test_past_event_without_forecast_is_skipped(self):
+        _, body = build_weather_morning_message('강남구', [point(9)], [{'time': '06:00', 'endTime': '07:00'}])
+        self.assertNotIn('06:00', body)
 
     def test_big_range_and_heat(self):
         _, body = build_weather_morning_message('강남구', [point(7, temperature=19.0), point(14, temperature=31.0)], [])

@@ -1,7 +1,19 @@
 import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
 import test from 'node:test';
 
-import { normalizeSearchText } from './stationUtils.ts';
+registerHooks({
+  resolve(specifier, context, nextResolve) {
+    try {
+      return nextResolve(specifier, context);
+    } catch (error) {
+      if (specifier.startsWith('.')) return nextResolve(`${specifier}.ts`, context);
+      throw error;
+    }
+  },
+});
+
+const { normalizeSearchText } = await import('./stationUtils.ts');
 
 const matches = (keyword, target) => normalizeSearchText(target).includes(normalizeSearchText(keyword));
 

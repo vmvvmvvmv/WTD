@@ -75,6 +75,28 @@ def _station_address_region_key(station):
     return f"{sido}:{station.name}"
 
 
+# 대표 격자만 모으면 대표 측정소에서 먼 곳(섬, 넓은 군의 끝)은 날씨가 없거나 너무 먼 격자 값을 빌려 쓴다.
+# 모으는 격자에서 이 칸 수(1칸 = 5km)보다 먼 측정소는 그 측정소 격자도 같이 모은다.
+FAR_STATION_GRID_CELLS = 3
+
+
+def _add_far_station_grids(grids, stations, max_cells=FAR_STATION_GRID_CELLS):
+    """grids({(nx, ny): grid})에 없는, 모든 격자에서 max_cells칸보다 먼 측정소 격자를 더한다. 더한 개수를 돌려준다."""
+    added = 0
+    for station in stations:
+        if station.lat is None or station.lng is None:
+            continue
+        grid = _dfs_grid_from_lat_lng(station.lat, station.lng)
+        key = (grid["nx"], grid["ny"])
+        if key in grids:
+            continue
+        nearest = min(((nx - key[0]) ** 2 + (ny - key[1]) ** 2 for nx, ny in grids), default=None)
+        if nearest is None or nearest > max_cells ** 2:
+            grids[key] = grid
+            added += 1
+    return added
+
+
 def _normalize_items(items):
     if isinstance(items, dict):
         return [items]
@@ -214,14 +236,17 @@ class Command(BaseCommand):
         if not KMA_API_KEY:
             raise CommandError("KMA_API_KEY is not configured.")
 
-        stations = list(AirQualityStation.objects.filter(is_active=True).only("sido", "name", "addr", "lat", "lng"))
-        if DEFAULT_USE_STATION_ADDRESS_REGIONS and not options["all_station_grids"]:
-            stations = list(_representative_stations_by_address_region(stations).values())
+        all_stations = list(AirQualityStation.objects.filter(is_active=True).only("sido", "name", "addr", "lat", "lng"))
+        stations = all_stations
+        use_representatives = DEFAULT_USE_STATION_ADDRESS_REGIONS and not options["all_station_grids"]
+        if use_representatives:
+            stations = list(_representative_stations_by_address_region(all_stations).values())
 
         grids = {}
         for station in stations:
             grid = _dfs_grid_from_lat_lng(station.lat, station.lng)
             grids[(grid["nx"], grid["ny"])] = grid
+        far_grids = _add_far_station_grids(grids, all_stations) if use_representatives else 0
 
         limit = options.get("limit") or 0
         grid_values = list(grids.values())
@@ -237,7 +262,7 @@ class Command(BaseCommand):
         use_ultra_short = not options["skip_ultra_short"]
         use_village_fallback = not options["no_village_fallback"]
         self.stdout.write(f"Weather source stations: {len(stations)}")
-        self.stdout.write(f"Weather grids ready: {len(grid_values)}")
+        self.stdout.write(f"Weather grids ready: {len(grid_values)} (far station grids added: {far_grids})")
         self.stdout.write(f"KMA request workers: {worker_count}")
         self.stdout.write(f"Forecast rows per grid: up to {forecast_hours}")
         self.stdout.write(f"Ultra-short forecast: {'on' if use_ultra_short else 'off'}")

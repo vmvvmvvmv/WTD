@@ -1,5 +1,5 @@
 // 홈 배너의 게이지 슬라이드: 자리마다 굴러가는 숫자와 처음 들어올 때 한 번 차오르는 호.
-import { Animated, Easing, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Easing, Text, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { useEffect, useRef } from 'react';
 
@@ -76,8 +76,9 @@ function HomeRollingValue({ animate, fontSize, lineHeight, style, value }: {
   );
 }
 
-function HomeCircularGauge({ animate, gaugeSize, large = false, progress, revealed, unit, value }: HomeCircularGaugeProps & {
+function HomeCircularGauge({ animate, gaugeSize, large = false, pending = false, progress, revealed, unit, value }: HomeCircularGaugeProps & {
   animate: boolean;
+  pending?: boolean;
   revealed: boolean;
 }) {
   const { fontScale } = useWindowDimensions();
@@ -88,8 +89,19 @@ function HomeCircularGauge({ animate, gaugeSize, large = false, progress, reveal
   const arc = circumference * 0.78;
   const safeProgress = Math.max(0.04, Math.min(1, progress));
   // 슬라이드가 처음 화면에 들어오기 전에는 비워 두고, 들어오면 값까지 한 번 차오릅니다. 그 뒤로 값이 바뀌면 이전 값에서 이어서 움직입니다.
-  const targetProgress = revealed ? safeProgress : 0;
+  const targetProgress = revealed && !pending ? safeProgress : 0;
   const shownProgress = useRef(new Animated.Value(0)).current;
+  // 값을 받아오는 동안(pending)은 짧은 호가 원을 따라 돌아 기다리는 중임을 보여 줍니다.
+  const spin = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!pending || !animate) {
+      spin.setValue(0);
+      return;
+    }
+    const loop = Animated.loop(Animated.timing(spin, { duration: 1100, easing: Easing.linear, toValue: 1, useNativeDriver: true }));
+    loop.start();
+    return () => loop.stop();
+  }, [animate, pending, spin]);
   useEffect(() => {
     if (!animate) {
       shownProgress.setValue(targetProgress);
@@ -119,7 +131,7 @@ function HomeCircularGauge({ animate, gaugeSize, large = false, progress, reveal
             strokeWidth={stroke}
             transform={`rotate(130 ${size / 2} ${size / 2})`}
           />
-          <AnimatedCircle
+          {!pending && <AnimatedCircle
             cx={size / 2}
             cy={size / 2}
             fill="none"
@@ -130,27 +142,35 @@ function HomeCircularGauge({ animate, gaugeSize, large = false, progress, reveal
             strokeLinecap="round"
             strokeWidth={stroke}
             transform={`rotate(130 ${size / 2} ${size / 2})`}
-          />
+          />}
         </Svg>
+        {pending && (
+          <Animated.View pointerEvents="none" style={{ height: size, left: 0, position: 'absolute', top: 0, transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }], width: size }}>
+            <Svg height={size} width={size} viewBox={`0 0 ${size} ${size}`}>
+              <Circle cx={size / 2} cy={size / 2} fill="none" r={radius} stroke="#ffffff" strokeDasharray={`${circumference * 0.18} ${circumference}`} strokeLinecap="round" strokeWidth={stroke} />
+            </Svg>
+          </Animated.View>
+        )}
         <View style={styles.homeCircularGaugeCenter}>
           <View style={{ marginTop: 1 }}>
-            <HomeRollingValue
+            {pending ? <ActivityIndicator accessibilityLabel="불러오는 중" color="#ffffff" size="small" /> : <HomeRollingValue
               animate={animate}
               fontSize={valueFontSize}
               lineHeight={valueLineHeight}
               style={[styles.homeCircularGaugeValue, large && styles.homeCircularGaugeValueLarge]}
               value={String(value)}
-            />
+            />}
           </View>
-          <Text style={[styles.homeCircularGaugeUnit, large && styles.homeCircularGaugeUnitLarge]}>{unit}</Text>
+          {!pending && <Text style={[styles.homeCircularGaugeUnit, large && styles.homeCircularGaugeUnitLarge]}>{unit}</Text>}
         </View>
       </View>
     </View>
   );
 }
 
-export function HomeInfoGaugeSlide({ animate, comparison, gaugeSize, progress, revealed, slideHeight, status, title, tone, unit, value, width }: {
+export function HomeInfoGaugeSlide({ animate, comparison, gaugeSize, pending, progress, revealed, slideHeight, status, title, tone, unit, value, width }: {
   animate: boolean;
+  pending?: boolean;
   revealed: boolean;
   comparison: string;
   gaugeSize: number;
@@ -167,7 +187,7 @@ export function HomeInfoGaugeSlide({ animate, comparison, gaugeSize, progress, r
   return (
     <View style={[styles.homeInfoSlide, styles.homeSplitGaugeSlide, { height: slideHeight, width }]}>
       <View style={[styles.homeSplitGaugeVisual, { width: gaugeSize + 4 }]}>
-        <HomeCircularGauge animate={animate} gaugeSize={gaugeSize} large progress={progress} revealed={revealed} unit={unit} value={value} />
+        <HomeCircularGauge animate={animate} gaugeSize={gaugeSize} large pending={pending} progress={progress} revealed={revealed} unit={unit} value={value} />
       </View>
       <View style={styles.homeSplitGaugeInfo}>
         <Text maxFontSizeMultiplier={1.2} numberOfLines={2} style={styles.homeInfoSlideTitle}>{title}</Text>

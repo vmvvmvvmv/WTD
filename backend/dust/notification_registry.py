@@ -36,7 +36,7 @@ def clean_notification_regions(regions: Any, fallback_city: str, fallback_region
 
 
 def clean_notification_calendar_events(events: Any) -> list[dict[str, str]]:
-    """Store only the date/time needed for morning push copy.
+    """Store only the date/start/end time needed for morning push copy.
 
     일정 제목은 건강·인간관계 등 민감한 내용이 담기기 쉬워 저장하지 않는다.
     예전 앱 버전이 title을 보내더라도 여기서 버린다.
@@ -54,6 +54,10 @@ def clean_notification_calendar_events(events: Any) -> list[dict[str, str]]:
         item = {"date": date[:10]}
         if time:
             item["time"] = time[:5]
+        end_time = str(event.get("endTime") or "").strip()
+        if time and end_time:
+            # 아침 알림에서 일정이 끝날 때까지의 날씨를 보려고 끝 시각도 둔다.
+            item["endTime"] = end_time[:5]
         cleaned.append(item)
     return cleaned[:30]
 

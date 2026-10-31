@@ -1,7 +1,7 @@
 import os
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from dust.services.outfit.aggregation import WeatherPoint, aggregate_schedule_window, wind_chill
 from dust.services.outfit.daily_service import merge_daily_snapshots, recommend_daily_outfit
@@ -213,3 +213,23 @@ class ShowerVsRainTests(SimpleTestCase):
         result = build_rule_result(merged, activity_type="outdoor", sensitivity="normal", occasion="casual")
         self.assertNotIn("방수", " ".join(result["outfit"]["outer"]))
         self.assertEqual(next(item for item in result["must_have"] if item["type"] == "umbrella")["level"], "required")
+
+
+class OutfitNearestCollectedGridTests(TestCase):
+    """고른 곳 격자에 날씨가 없으면(예: 울주군 삼남읍) 가장 가까운 모으는 격자의 날씨로 옷차림을 추천한다."""
+
+    def test_snapshot_uses_nearest_collected_grid(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from dust.models import WeatherHourlyMeasurement
+        from dust.services.outfit.context_builder import OutfitRequest
+        from dust.services.outfit.data_provider import _dfs_grid, load_schedule_snapshot
+
+        lat, lng = 35.5583, 129.1139
+        nx, ny = _dfs_grid(lat, lng)
+        now = timezone.now()
+        for hours in (-1, 1, 2):
+            WeatherHourlyMeasurement.objects.create(nx=nx + 3, ny=ny - 2, measured_at=now + timedelta(hours=hours), temperature=15, wind_speed=1)
+        request = OutfitRequest(schedule_id="1", title="외출", start=now, end=now + timedelta(hours=2), activity_type="outdoor", lat=lat, lng=lng, city="울산", region="삼남읍", sensitivity="normal")
+        snapshot = load_schedule_snapshot(request)
+        self.assertIsNotNone(snapshot.get("feels_avg"))

@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Animated, AppState, BackHandler, Keyboard, KeyboardAvoidingView, Platform, RefreshControl, ScrollView, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,12 +10,15 @@ import { HomePanel } from '../components/home/HomePanel';
 import { HomeRegionSearchPanel } from '../components/home/HomeRegionSearchPanel';
 import { useRegionTransition } from '../components/home/useRegionTransition';
 import { FullMapScreen } from '../components/map/FullMapScreen';
-import { findStationSuggestions, useMapSearch } from '../components/map/useMapSearch';
+import { useMapSearch } from '../components/map/useMapSearch';
+import { normalizeLatLng } from '../utils/geo';
+import type { RegionSearchResult } from '../features/region/regionPlaceSearch';
+import { useRegionPlaceSearch } from '../features/region/useRegionPlaceSearch';
 import { useMapTabLifecycle } from '../components/map/useMapTabLifecycle';
 import { RegionPanel } from '../components/settings/RegionPanel';
 import { BottomToast } from '../components/shared/BottomToast';
 import { LocationGate } from '../components/shared/LocationGate';
-import { CalendarTip, TutorialTour, WelcomeSheet } from '../components/shared/TutorialTour';
+import { CalendarTip, TutorialTour, tutorialTarget, WelcomeSheet } from '../components/shared/TutorialTour';
 import { ScreenTransition, WeatherBackdrop } from '../components/shared/ScreenChrome';
 import { IS_EXPO_GO } from '../config/runtime';
 import { DEFAULT_OUTFIT_SETTINGS } from '../constants/dust';
@@ -49,6 +52,8 @@ import { accentTone } from '../theme/appTheme';
 
 export function AppContent() {
   const [activeTab, setActiveTab] = useState<TabKey>('home');
+  // 홈 '오늘 일정' 카드의 추가 버튼으로 캘린더를 열면, 오늘 창과 일정 추가 메뉴를 펼친 채로 엽니다.
+  const [calendarAddToday, setCalendarAddToday] = useState(false);
   const [tabBarTop, setTabBarTop] = useState<number>();
   const [showFavoritePicker, setShowFavoritePicker] = useState(false);
   const [showHomeRegionSearch, setShowHomeRegionSearch] = useState(false);
@@ -104,6 +109,7 @@ export function AppContent() {
     weatherHourlyItems,
     weatherForecastResolved,
     weatherMidTermItems,
+    weatherTodayPastItems,
     yesterdayWeather,
   } = useDashboardData({
     autoRefresh: activeTab === 'home',
@@ -163,9 +169,15 @@ export function AppContent() {
   const { handleMapMessage } = useMapTabLifecycle(mapSearch, activeTab, () => switchTab('home'));
 
   // 홈 화면 지역 검색어에 맞는 측정소 후보를 계산합니다.
-  const homeRegionSuggestions = useMemo(() => {
-    return findStationSuggestions(mapStations, homeRegionSearchText, 6);
-  }, [homeRegionSearchText, mapStations]);
+  // 내 GPS 지역(없으면 지금 기준 지역) 측정소에서 가까운 결과부터 보여 줍니다.
+  const homeSearchRegion = gpsRegion ?? selectedRegion;
+  const homeSearchOriginStation = findStationForRegion(homeSearchRegion);
+  const homeSearchCoords = normalizeLatLng(homeSearchOriginStation?.lat, homeSearchOriginStation?.lng);
+  const homeRegionSearch = useRegionPlaceSearch(
+    homeRegionSearchText,
+    mapStations,
+    homeSearchCoords && { ...homeSearchCoords, areaName: homeSearchRegion ? `${homeSearchRegion.city} ${homeSearchRegion.region}` : undefined },
+  );
 
   const { calendarDefaultLocation, calendarMapPickerUrl, fullMapUrl, homeMapPreviewUrl } = useAppMapUrls({
     activeTab, findStationForRegion, gpsRegion, mapMarkerMode, selectedRegion,
@@ -232,10 +244,13 @@ export function AppContent() {
     return city && region ? { city, region, label: station.name } : null;
   };
 
-  // 홈 지역 검색 결과를 눌렀을 때 홈 기준 지역으로 적용합니다.
-  const selectHomeRegionSuggestion = (station: StationDustItem) => {
-    const region = regionFromStation(station);
-    if (region) applyRegion(region, `${region.city} ${region.region} 기준으로 변경했습니다.`);
+  // 홈 지역 검색 결과를 눌렀을 때: 그 장소 근처 측정소의 지역을 홈 기준 지역으로 적용합니다.
+  const selectHomeRegionSuggestion = (result: RegionSearchResult) => {
+    const region = regionFromStation(result.station);
+    if (!region) return;
+    applyRegion(region, result.distanceKm === null
+      ? `${region.city} ${region.region} 기준으로 변경했습니다.`
+      : `${result.title} 근처 ${region.city} ${region.region} 측정소 기준으로 변경했습니다.`);
   };
 
   // 지도·홈 검색 결과의 별표로 즐겨찾기를 추가하거나 해제합니다.
@@ -364,7 +379,7 @@ export function AppContent() {
 
   if (activeTab === 'map') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <SafeAreaView ref={tutorialTarget('appRoot')} style={styles.safeArea} edges={['top', 'left', 'right']}>
         <StatusBar style="dark" />
         <WeatherBackdrop label={weather?.label} />
         <ScreenTransition transitionKey="map">
@@ -393,6 +408,7 @@ export function AppContent() {
           onRemoveRecentSearch={mapSearch.removeMapRecentSearch}
           onRetryMap={() => setMapViewKey((key) => key + 1)}
           onToggleFavorite={toggleStationFavorite}
+          isMapSearching={mapSearch.isMapSearching}
           searchSuggestions={mapSearch.searchSuggestions}
           selectedStation={mapSearch.selectedStation}
           selectedStationWeather={mapSearch.selectedStationWeather}
@@ -412,12 +428,14 @@ export function AppContent() {
 
   if (activeTab === 'calendar') {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <SafeAreaView ref={tutorialTarget('appRoot')} style={styles.safeArea} edges={['top']}>
         <StatusBar style="dark" />
         <ScreenTransition transitionKey="calendar">
         <View style={[styles.screen, styles.calendarOnlyScreen]}>
           <View style={styles.tabPageContent}>
             <CalendarPanel
+              openAddForToday={calendarAddToday}
+              onOpenedAddForToday={() => setCalendarAddToday(false)}
               events={calendarEvents}
               defaultLocation={calendarDefaultLocation}
               eventLocationForecasts={calendarLocationForecasts}
@@ -451,7 +469,8 @@ export function AppContent() {
 
   // 홈과 설정 탭
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+    // appRoot: 튜토리얼이 강조할 자리를 재는 기준(화면 꼭대기). 탭마다 화면 뿌리가 달라 셋 다 붙인다. TutorialTour의 measureTarget 참고.
+    <SafeAreaView ref={tutorialTarget('appRoot')} style={styles.safeArea} edges={['top', 'left', 'right']}>
       <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -490,14 +509,15 @@ export function AppContent() {
                 favoriteRegions={favoriteRegions}
                 gpsRegion={gpsRegion}
                 isLoadingStations={isLoadingStations}
+                isSearching={homeRegionSearch.isSearching}
                 onApplyRegion={applyRegion}
                 onChangeText={setHomeRegionSearchText}
-                onSelectStation={selectHomeRegionSuggestion}
+                onSelectResult={selectHomeRegionSuggestion}
                 onToggleFavorite={toggleStationFavorite}
                 panelAnimation={homePanelAnimation}
                 searchText={homeRegionSearchText}
                 selectedRegion={selectedRegion}
-                suggestions={homeRegionSuggestions}
+                suggestions={homeRegionSearch.results}
               />
             )}
           </View>
@@ -519,6 +539,10 @@ export function AppContent() {
             eventLocationForecasts={calendarLocationForecasts}
             onDeleteCalendarEvent={removeCalendarEvent}
             onDeleteFollowingCalendarEvents={removeFollowingCalendarEvents}
+            onAddToday={() => {
+              setCalendarAddToday(true);
+              setActiveTab('calendar');
+            }}
             onOpenCalendar={() => setActiveTab('calendar')}
             onOpenMap={() => {
               if (stationItems.length === 0) loadStations();
@@ -534,11 +558,13 @@ export function AppContent() {
             hourlyItems={hourlyItems}
             weatherHourlyItems={weatherHourlyItems}
             weatherMidTermItems={weatherMidTermItems}
+            weatherTodayPastItems={weatherTodayPastItems}
             prediction={prediction}
             todayDateLabel={todayDateLabel}
             weather={weather}
             yesterdayWeather={yesterdayWeather}
             pastItems={pastItems}
+            dataResolved={weatherForecastResolved}
             loadFailed={!!error && !currentItem}
             loading={regionTransition.isTransitioning}
           />
