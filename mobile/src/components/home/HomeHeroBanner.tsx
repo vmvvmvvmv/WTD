@@ -36,6 +36,7 @@ export function HomeHeroBanner({
   currentO3,
   currentPm10,
   currentPm25,
+  dataResolved = true,
   loadFailed,
   loading,
   pastItems,
@@ -49,6 +50,8 @@ export function HomeHeroBanner({
   currentO3?: number;
   currentPm10?: number;
   currentPm25?: number;
+  // 첫 불러오기가 끝났는지. 끝나기 전 빈 값은 '불러오는 중'(게이지가 돌아감), 끝난 뒤 빈 값은 '자료 없음'.
+  dataResolved?: boolean;
   loadFailed: boolean;
   loading: boolean;
   pastItems: PastDustItem[];
@@ -136,14 +139,16 @@ export function HomeHeroBanner({
       : weather,
     yesterdayWeather,
   }).map((slide) => {
-    if (loadFailed && (slide.value === '-' || slide.value === '--')) {
-      return { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' };
+    if (slide.value === '-' || slide.value === '--') {
+      if (loadFailed) return { ...slide, comparison: '연결되면 다시 보여드려요', status: '연결 안 됨' };
+      if (!dataResolved) return { ...slide, comparison: '최신 값을 받아오고 있어요', pending: true, status: '불러오는 중' };
+      return { ...slide, comparison: '이 지역은 아직 값이 없어요', status: '자료 없음' };
     }
     if (!peekForecast) return slide;
     if (slide.label === '기온') return { ...slide, comparison: comparedToNow(peekForecast.temperature, weather?.temperature, '°', 0) };
     if (slide.label === '강수량') return { ...slide, comparison: comparedToNow(peekForecast.rainMm, weather?.rainMm, 'mm', 1) };
     return { ...slide, title: `${slide.title} · 지금` };
-  }), [currentO3, currentPm10, currentPm25, infoGaugeSize, loadFailed, pastItems, peekForecast, todayDateLabel, weather, yesterdayWeather]);
+  }), [currentO3, currentPm10, currentPm25, dataResolved, infoGaugeSize, loadFailed, pastItems, peekForecast, todayDateLabel, weather, yesterdayWeather]);
   const infoSlideCount = infoSlides.length;
   const carouselSlides = [infoSlides[infoSlideCount - 1], ...infoSlides, infoSlides[0]];
   const visibleSlideLabels = [infoSlides[activeInfoSlide]?.label, carouselSlides[carouselIndex]?.label].filter((label): label is string => !!label);
@@ -237,6 +242,12 @@ export function HomeHeroBanner({
               pagingEnabled
               onTouchStart={() => {
                 pauseCarouselUntil.current = Date.now() + 15000;
+              }}
+              // 손으로 밀기 시작하면 양옆 슬라이드를 미리 채웁니다. 멈춘 뒤에야 차오르면 넘기는 동안 값이 비어 보여서.
+              onScrollBeginDrag={() => {
+                const neighbors = [carouselSlides[carouselIndexRef.current - 1]?.label, carouselSlides[carouselIndexRef.current + 1]?.label]
+                  .filter((label): label is string => !!label);
+                setRevealedSlides((current) => (neighbors.every((label) => current.has(label)) ? current : new Set([...current, ...neighbors])));
               }}
               style={[styles.homeInfoCarousel, { height: infoSlideHeight, width: infoSlideWidth }]}
               showsHorizontalScrollIndicator={false}

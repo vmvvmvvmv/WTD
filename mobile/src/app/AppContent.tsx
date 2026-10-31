@@ -564,6 +564,7 @@ export function AppContent() {
             weather={weather}
             yesterdayWeather={yesterdayWeather}
             pastItems={pastItems}
+            dataResolved={weatherForecastResolved}
             loadFailed={!!error && !currentItem}
             loading={regionTransition.isTransitioning}
           />
