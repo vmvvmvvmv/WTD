@@ -17,6 +17,7 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import { useKeyboardHeight } from '../shared/BottomToast';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import type { CalendarLocationForecast } from './calendarForecast';
+import { calendarDefaultLead } from '../../features/calendar/calendarDefaultLead';
 import { isRepeatMemo, memoEventToCalendarEvent, memoSuggestions, withMemoHistory } from './calendarMemo';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import { dayLabel } from './calendarUtils';
@@ -187,7 +188,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
     try {
       const response = await postMemoEvents({ deviceId: await loadDeviceId(), text: text.trim() });
       if (requestId !== requestIdRef.current) return;
-      const next = (Array.isArray(response.events) ? response.events : []).map(memoEventToCalendarEvent);
+      const next = (Array.isArray(response.events) ? response.events : []).map((item) => memoEventToCalendarEvent(item, calendarDefaultLead()));
       if (next.length === 0) {
         setMessage('메모에서 일정을 찾지 못했어요. 날짜나 시간을 함께 적어 주세요.');
         return;

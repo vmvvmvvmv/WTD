@@ -408,6 +408,8 @@ export function CalendarPanel({
           onAddEvent={() => setIsAddMenuOpen(true)}
           isExpanded={sheet.isExpanded}
           onDismiss={() => sheet.setIsOpen(false)}
+          // 복사: 같은 내용으로 새 일정 입력을 엽니다. 반복은 빼고, 날짜만 바꿔 저장하면 됩니다.
+          onCopyEvent={(event) => draft.openEditorWithValues({ ...event, repeatGroupId: undefined, repeatMode: 'none' })}
           onEditEvent={editEvent}
           onExpandStateChange={sheet.setExpanded}
           onRemoveEvent={removeEvent}

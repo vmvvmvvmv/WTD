@@ -1,5 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Animated, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { useRef } from 'react';
+import { Animated, PanResponder, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 
 import { styles } from '../../styles/appStyles';
 import { bauhausColors, textColors } from '../../theme/bauhaus';
@@ -51,10 +53,33 @@ export function HomeHeader({
 }: Props) {
   const { width } = useWindowDimensions();
   const isCompactHeader = width < 340;
+  // 지역 이름을 옆으로 밀면 현재 위치·즐겨찾기 지역을 차례로 바꿉니다(왼쪽으로 밀면 다음, 오른쪽이면 이전).
+  const swipeRegions = [gpsRegion, ...favoriteRegions].filter((region, index, list): region is RegionState => (
+    !!region && list.findIndex((other) => !!other && isSameRegion(other, region)) === index
+  ));
+  const swipeRef = useRef({ apply: onApplyRegion, regions: swipeRegions, selected: selectedRegion });
+  swipeRef.current = { apply: onApplyRegion, regions: swipeRegions, selected: selectedRegion };
+  const regionSwipe = useRef(PanResponder.create({
+    // 버튼이 터치를 먼저 잡으므로, 옆으로 미는 게 분명하면 그 터치를 가로챕니다(그냥 누르면 원래대로 버튼).
+    onMoveShouldSetPanResponderCapture: (_event, gesture) => Math.abs(gesture.dx) > 18 && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 2,
+    onPanResponderTerminationRequest: () => false,
+    onPanResponderRelease: (_event, gesture) => {
+      const { apply, regions, selected } = swipeRef.current;
+      if (regions.length < 2 || Math.abs(gesture.dx) < 40) return;
+      const index = regions.findIndex((region) => isSameRegion(region, selected));
+      const step = gesture.dx < 0 ? 1 : -1;
+      const next = regions[((index < 0 ? 0 : index + step) + regions.length) % regions.length];
+      Haptics.selectionAsync().catch(() => {});
+      apply(next, `${next.city} ${next.region} 기준으로 변경했습니다.`);
+    },
+  })).current;
   return (
     <View style={styles.homeHeader}>
       <View ref={tutorialTarget('homeRegion')} style={[styles.homeTitleRow, isCompactHeader && styles.homeTitleRowCompact]}>
+        {/* 바깥 View가 옆으로 미는 손짓을 먼저 가로챕니다(버튼 위에 직접 걸면 버튼이 터치를 가져감). */}
+        <View {...regionSwipe.panHandlers} style={[styles.homeTitleSwipeArea, isCompactHeader && styles.homeTitleButtonCompact]}>
         <Pressable
+          accessibilityHint={swipeRegions.length > 1 ? '옆으로 밀면 즐겨찾기 지역으로 바뀌어요' : undefined}
           accessibilityLabel={favoriteRegions.length === 0 ? '지역 검색 열기' : '즐겨찾기 지역 선택'}
           onPress={favoriteRegions.length === 0 ? onOpenSearch : onToggleFavoritePicker}
           style={({ pressed }) => [styles.homeTitleButton, isCompactHeader && styles.homeTitleButtonCompact, pressed && styles.pressedFeedback]}
@@ -64,6 +89,7 @@ export function HomeHeader({
             <Ionicons color="#141821" name="chevron-down" size={20} style={styles.homeTitleChevron} />
           </View>
         </Pressable>
+        </View>
         <Pressable
           accessibilityLabel="홈에서 지역 검색"
           onPress={onOpenSearch}

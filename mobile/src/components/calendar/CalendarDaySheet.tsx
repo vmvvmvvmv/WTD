@@ -48,6 +48,8 @@ type Props = {
   events: CalendarEvent[];
   isExpanded?: boolean;
   onDismiss: () => void;
+  // 같은 내용으로 새 일정을 만듭니다(날짜만 바꿔 저장하면 복사).
+  onCopyEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
   onExpandStateChange?: (expanded: boolean) => void;
   onRemoveEvent: (event: CalendarEvent) => void;
@@ -155,6 +157,7 @@ export function CalendarDaySheet({
   isExpanded = false,
   onAddEvent,
   onDismiss,
+  onCopyEvent,
   onEditEvent,
   onExpandStateChange,
   onRemoveEvent,
@@ -295,6 +298,15 @@ export function CalendarDaySheet({
                   >
                     <AppActionIcon name="edit" size={24} />
                   </Pressable>
+                  {!!onCopyEvent && (
+                    <Pressable
+                      accessibilityLabel={`${event.title} 일정 복사`}
+                      onPress={() => onCopyEvent(event)}
+                      style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
+                    >
+                      <Ionicons color="#5B6B80" name="copy-outline" size={21} />
+                    </Pressable>
+                  )}
                   <Pressable
                     accessibilityLabel={`${event.title} 일정 삭제`}
                     onPress={() => onRemoveEvent(event)}

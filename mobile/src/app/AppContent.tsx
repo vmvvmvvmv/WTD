@@ -31,6 +31,7 @@ import { useStations } from '../features/stations/useStations';
 import { AppTabBar } from '../navigation/AppTabBar';
 import { useNotificationSettings } from '../notifications/useNotificationSettings';
 import { loadStoredAppState, saveOutfitSettings } from '../storage/appStorage';
+import { loadCalendarDefaultLead } from '../features/calendar/calendarDefaultLead';
 import { styles } from '../styles/appStyles';
 import { bauhausColors } from '../theme/bauhaus';
 import type { StationDustItem } from '../types/dust';
@@ -262,6 +263,7 @@ export function AppContent() {
   // 저장해 둔 지역·설정·일정을 불러옵니다.
   useEffect(() => {
     let cancelled = false;
+    void loadCalendarDefaultLead();
     loadStoredAppState()
       .then((storedState) => {
         if (cancelled) return;
