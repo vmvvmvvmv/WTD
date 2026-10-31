@@ -972,3 +972,42 @@ class CollectedWeatherGridTests(TestCase):
         self.assertEqual(data['requestedGrid']['nx'], grid['nx'])
         self.assertEqual(data['grid'], {'nx': grid['nx'] + 3, 'ny': grid['ny'] - 2})
         self.assertEqual([item['temperature'] for item in data['forecastItems']], [13])
+
+
+class DustBackfillQuotaTests(TestCase):
+    """채우기가 하루 호출 한도를 다 써 버리지 않게: 값을 안 주는 측정소 때문에 매시간이 빈 시각이 되지 않고, 한도에 걸리면 멈춘다."""
+
+    def _setup(self):
+        from datetime import datetime, timedelta, timezone as dt_timezone
+        from dust.models import AirQualityStation, RealtimeDustMeasurement
+        now = datetime(2026, 10, 31, 12, 30, tzinfo=dt_timezone.utc)
+        hours = [now.replace(minute=0) - timedelta(hours=h) for h in range(24, -1, -1)]
+        reporting = [AirQualityStation.objects.create(sido='부산', name=f'정상{i}', lat=35.1, lng=129.0 + i * 0.01) for i in range(8)]
+        for i in range(4):  # 활성이지만 실시간 값을 한 번도 안 주는 측정소
+            AirQualityStation.objects.create(sido='부산', name=f'무응답{i}', lat=35.2, lng=129.0 + i * 0.01)
+        outage = set(hours[10:12])
+        for station in reporting:
+            for hour in hours:
+                if hour not in outage:
+                    RealtimeDustMeasurement.objects.create(station=station, measured_at=hour, pm10_value=20)
+        return now, outage
+
+    def test_silent_stations_do_not_make_every_hour_a_gap(self):
+        from dust.services import dust_backfill
+        now, outage = self._setup()
+        self.assertEqual(dust_backfill.find_gap_hours(now), sorted(outage))
+
+    def test_stops_on_quota_and_skips_silent_stations(self):
+        from dust.services import dust_backfill
+        now, _ = self._setup()
+        called = []
+
+        def limited(station):
+            called.append(station.name)
+            raise dust_backfill.AirKoreaLimited(station.name)
+
+        with patch.object(dust_backfill, '_hourly_rows_for_station', side_effect=limited):
+            filled, created, _left = dust_backfill.backfill_missing_dust(limit=20, now=now)
+        self.assertEqual((filled, created), (0, 0))
+        self.assertEqual(len(called), 1)  # 한도에 걸리면 바로 멈춘다.
+        self.assertTrue(called[0].startswith('정상'))
