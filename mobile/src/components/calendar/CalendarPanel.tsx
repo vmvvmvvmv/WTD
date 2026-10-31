@@ -172,9 +172,11 @@ export function CalendarPanel({
     const task = InteractionManager.runAfterInteractions(() => setIsTransitionDone(true));
     return () => task.cancel();
   }, []);
-  const weatherRiskByDate = useMemo(() => {
+  // 달력 칸 구석 날씨 배지와, 비·눈·천둥이 예보된 일정('일정id:날짜') 목록. 일정 선 앞에 우산을 그립니다.
+  const { rainyEventKeys, weatherRiskByDate } = useMemo(() => {
     const next: Record<string, CalendarWeatherRiskIndicator> = {};
-    if (!isTransitionDone) return next;
+    const rainy = new Set<string>();
+    if (!isTransitionDone) return { rainyEventKeys: rainy, weatherRiskByDate: next };
     monthCells.forEach((cell) => {
       if (!cell) return;
       const dayEvents = sortedEvents
@@ -190,8 +192,13 @@ export function CalendarPanel({
       const dayRiskByEvent = buildCalendarRiskByEvent(dayEvents, forecastContext);
       const risk = topWeatherRiskForDate(cell.date, dayEvents, dayRiskByEvent);
       if (risk) next[cell.date] = risk;
+      dayEvents.forEach((event) => {
+        if (weatherRiskIndicators(dayRiskByEvent[event.id]).some((indicator) => indicator.imageKind === 'rain' || indicator.imageKind === 'snow' || indicator.imageKind === 'thunder')) {
+          rainy.add(event.id);
+        }
+      });
     });
-    return next;
+    return { rainyEventKeys: rainy, weatherRiskByDate: next };
   }, [forecastContext, isTransitionDone, monthCells, sortedEvents]);
   const dailyWeatherByDate = useMemo(
     () => buildDailyWeatherByDate({ todayDateLabel, weatherHourlyItems, weatherMidTermItems }),
@@ -361,6 +368,7 @@ export function CalendarPanel({
             todayDateLabel={todayDateLabel}
             transitionDirection={transitionDirection}
             dailyWeatherByDate={dailyWeatherByDate}
+            rainyEventKeys={rainyEventKeys}
             weatherRiskByDate={weatherRiskByDate}
           />
         )}
