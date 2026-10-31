@@ -50,6 +50,7 @@ export function HomePanel({
   pastItems,
   loadFailed = false,
   loading = false,
+  dataResolved,
   weatherHourlyItems,
   weatherMidTermItems,
   weatherTodayPastItems,
@@ -80,6 +81,8 @@ export function HomePanel({
   pastItems: PastDustItem[];
   // 서버에 연결하지 못해 보여줄 데이터가 없는 상태입니다. 단순히 아직 불러오는 중인 것과 구분합니다.
   loadFailed?: boolean;
+  // 첫 불러오기(날씨까지)가 끝났는지. 배너의 '불러오는 중'/'자료 없음'을 가릅니다.
+  dataResolved?: boolean;
   // 지역을 바꿔 새 데이터를 불러오는 중이면 배너 자리에 뼈대를 보여줍니다.
   loading?: boolean;
   weatherHourlyItems: WeatherHourlyItem[];
@@ -183,6 +186,7 @@ export function HomePanel({
         currentO3={currentO3}
         currentPm10={currentPm10}
         currentPm25={currentPm25}
+        dataResolved={dataResolved}
         loadFailed={loadFailed}
         loading={loading}
         pastItems={pastItems}
