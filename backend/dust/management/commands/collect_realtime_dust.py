@@ -46,7 +46,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--backfill-limit",
             type=int,
-            default=env_int("DUST_BACKFILL_LIMIT", 100),
+            # 한 번에 너무 많이 부르면 하루 호출 한도를 넘긴다(측정소 1곳 = 호출 1번).
+            default=env_int("DUST_BACKFILL_LIMIT", 20),
             help="Max stations to backfill per run when recent hours are missing (0 disables).",
         )
 
@@ -91,7 +92,8 @@ class Command(BaseCommand):
 
         saved = _store_realtime_values_to_db(values)
         # 서버가 멈췄던 시간 등으로 비어 있는 최근 24시간 기록을 채운다. 실패해도 이번 수집은 그대로 둔다.
-        if options["backfill_limit"] > 0:
+        # 이번 실시간 수집이 통째로 실패했으면(한도 초과·장애) 채우기도 같은 이유로 실패하니 부르지 않는다.
+        if options["backfill_limit"] > 0 and values:
             try:
                 filled, created, remaining = backfill_missing_dust(limit=options["backfill_limit"])
                 if filled:
