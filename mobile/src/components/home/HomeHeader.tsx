@@ -77,12 +77,12 @@ export function HomeHeader({
     <View style={styles.homeHeader}>
       <View ref={tutorialTarget('homeRegion')} style={[styles.homeTitleRow, isCompactHeader && styles.homeTitleRowCompact]}>
         {/* 바깥 View가 옆으로 미는 손짓을 먼저 가로챕니다(버튼 위에 직접 걸면 버튼이 터치를 가져감). */}
-        <View {...regionSwipe.panHandlers} style={[styles.homeTitleSwipeArea, isCompactHeader && styles.homeTitleButtonCompact]}>
+        <View {...regionSwipe.panHandlers} style={styles.homeTitleSwipeArea}>
         <Pressable
           accessibilityHint={swipeRegions.length > 1 ? '옆으로 밀면 즐겨찾기 지역으로 바뀌어요' : undefined}
           accessibilityLabel={favoriteRegions.length === 0 ? '지역 검색 열기' : '즐겨찾기 지역 선택'}
           onPress={favoriteRegions.length === 0 ? onOpenSearch : onToggleFavoritePicker}
-          style={({ pressed }) => [styles.homeTitleButton, isCompactHeader && styles.homeTitleButtonCompact, pressed && styles.pressedFeedback]}
+          style={({ pressed }) => [styles.homeTitleButton, pressed && styles.pressedFeedback]}
         >
           <View style={styles.homeTitleInline}>
             <Text numberOfLines={1} style={[styles.title, styles.homeRegionTitle, isCompactHeader && styles.homeRegionTitleCompact]}>{selectedRegion.city} {selectedRegion.region}</Text>
@@ -96,7 +96,7 @@ export function HomeHeader({
           style={({ pressed }) => [styles.regionAddButton, pressed && styles.pressedFeedback]}
         >
           <AppActionIcon name="search" size={22} />
-          <Text style={[styles.regionAddText, isSearchOpen && { color: accentTone }]}>지역 검색</Text>
+          {!isCompactHeader && <Text style={[styles.regionAddText, isSearchOpen && { color: accentTone }]}>지역 검색</Text>}
         </Pressable>
         {/* 기온을 아직 모르면 "--° 날씨" 같은 빈 칩 대신 아예 숨깁니다. */}
         {typeof weather?.temperature === 'number' && (
@@ -108,7 +108,7 @@ export function HomeHeader({
             <WeatherIcon kind={weatherIconKind(weather.label, weather.windSpeed)} size={24} />
             <View>
               <Text style={styles.homeWeatherValue}>{Math.round(weather.temperature)}°</Text>
-              {!!weather.label && <Text style={styles.homeWeatherLabel}>{weather.label}</Text>}
+              {!!weather.label && !isCompactHeader && <Text style={styles.homeWeatherLabel}>{weather.label}</Text>}
             </View>
           </View>
         )}
