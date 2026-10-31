@@ -101,6 +101,9 @@ const appStyles = StyleSheet.create({
   homeHeroBannerForecastEmpty: { alignItems: 'center', flexDirection: 'row', gap: 8, justifyContent: 'center', minHeight: 64 },
   homeHeroBannerForecastEmptyText: { color: textColors.muted, fontSize: 12, fontWeight: '600' },
   homeHeroBannerForecastScroll: { marginTop: 2 },
+  // 시간별 예보 줄 왼쪽 끝 '‹ 지난 시간'(왼쪽에 지난 시간이 숨어 있을 때만).
+  homeForecastPastHint: { backgroundColor: 'rgba(255,255,255,0.94)', borderRadius: 999, elevation: 2, left: 0, paddingHorizontal: 8, paddingVertical: 3, position: 'absolute', shadowColor: '#0F172A', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.12, shadowRadius: 3, top: 2 },
+  homeForecastPastHintText: { color: bauhausColors.blueText, fontSize: 10, fontWeight: '800' },
   homeForecastDayRow: { flexDirection: 'row', gap: 4 },
   homeForecastDay: { alignItems: 'center', borderRadius: 14, flex: 1, gap: 5, minWidth: 0, paddingHorizontal: 2, paddingVertical: 9 },
   homeForecastDaySelected: { backgroundColor: '#EAF3FF' },
