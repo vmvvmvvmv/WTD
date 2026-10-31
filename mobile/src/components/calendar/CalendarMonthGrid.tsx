@@ -25,6 +25,8 @@ type Props = {
   // 날짜를 길게 누르면 그 날짜로 일정 추가 메뉴를 바로 엽니다.
   onAddForDate?: (date: string) => void;
   onSelectDate: (date: string, options?: { openSheet?: boolean; trackTap?: boolean }) => void;
+  // 비·눈·천둥이 예보된 일정('일정id:날짜'). 일정 선 앞에 작은 우산을 그립니다.
+  rainyEventKeys?: ReadonlySet<string>;
   resetSignal?: number;
   selectedDate: string;
   todayDateLabel: string;
@@ -45,6 +47,7 @@ export function CalendarMonthGrid({
   onGoToday,
   onMoveMonth,
   onSelectDate,
+  rainyEventKeys,
   selectedDate,
   todayDateLabel,
   transitionDirection,
@@ -107,6 +110,7 @@ export function CalendarMonthGrid({
                   onPress={() => onSelectDate(cell.date)}
                   // 캘린더를 처음 열 때 안내 말풍선이 오늘 날짜 칸을 가리킨다(CalendarTip).
                   onRef={cell.date === todayDateLabel ? tutorialTarget('calendarToday') : undefined}
+                  rainyEventKeys={rainyEventKeys}
                   range={null}
                   style={styles.calendarGridDayFill}
                   weatherRisk={weatherRiskByDate?.[cell.date]}

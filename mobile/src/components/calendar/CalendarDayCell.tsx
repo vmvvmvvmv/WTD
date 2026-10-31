@@ -42,6 +42,7 @@ type Props = {
   onLongPress: () => void;
   onPress: () => void;
   onRef?: (ref: View | null) => void;
+  rainyEventKeys?: ReadonlySet<string>;
   range?: CalendarRange | null;
   style?: StyleProp<ViewStyle>;
   weatherRisk?: CalendarWeatherRiskIndicator;
@@ -66,6 +67,7 @@ export function CalendarDayCell({
   onLongPress,
   onPress,
   onRef,
+  rainyEventKeys,
   range,
   style,
   weatherRisk,
@@ -167,6 +169,13 @@ export function CalendarDayCell({
               ]}
             >
               <Text numberOfLines={1} style={styles.calendarEventLineText}>
+                {/* 비·눈·천둥이 예보된 일정은 제목 앞에 작은 우산(예보가 있는 날만). */}
+                {(!isRangeEvent || isStart || startsWeek) && rainyEventKeys?.has(`${event.id}:${date}`) && (
+                  <>
+                    <Ionicons accessibilityLabel="비 예보" color="#FFFFFF" name="umbrella" size={8} />
+                    {' '}
+                  </>
+                )}
                 {(!isRangeEvent || isStart || startsWeek) ? event.title : ''}
               </Text>
             </Reanimated.View>
