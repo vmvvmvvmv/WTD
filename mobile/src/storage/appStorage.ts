@@ -10,6 +10,7 @@ import {
   DEVICE_ID_STORAGE_KEY,
   MEMO_HISTORY_STORAGE_KEY,
   HOME_TODAY_OPEN_STORAGE_KEY,
+  CALENDAR_DEFAULT_LEAD_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
   HOLIDAYS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
@@ -136,6 +137,19 @@ export async function loadHomeTodayOpen() {
 
 export function saveHomeTodayOpen(open: boolean) {
   return saveString(HOME_TODAY_OPEN_STORAGE_KEY, open ? '1' : '0');
+}
+
+// 새 일정 알림 기본값. 저장한 적 없으면 undefined(앱 기본값 1시간 전을 씀).
+export async function loadCalendarDefaultLeadValue(): Promise<number | null | undefined> {
+  const raw = await safeGet(CALENDAR_DEFAULT_LEAD_STORAGE_KEY);
+  if (raw === null || raw === undefined) return undefined;
+  if (raw === 'none') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+export function saveCalendarDefaultLeadValue(value: number | null) {
+  return saveString(CALENDAR_DEFAULT_LEAD_STORAGE_KEY, value === null ? 'none' : String(value));
 }
 
 // 공휴일 {날짜: 이름}. 서버가 안 될 때도 마지막으로 받은 값으로 달력을 칠합니다.

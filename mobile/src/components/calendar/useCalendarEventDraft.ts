@@ -12,6 +12,7 @@ import {
   normalizeEndDate,
   normalizeTime,
 } from './calendarUtils';
+import { calendarDefaultLead } from '../../features/calendar/calendarDefaultLead';
 import { locationCandidateFromEvent, type CalendarLocationCandidate } from './calendarLocation';
 
 type SaveParams = {
@@ -24,7 +25,6 @@ type SaveParams = {
 };
 
 const DEFAULT_DURATION_MINUTES = 60;
-const DEFAULT_NOTIFICATION_HOURS_BEFORE = 1;
 type EditScope = 'single' | 'series';
 
 function nextWholeHourDateTime(selectedDate: string) {
@@ -65,7 +65,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
   const [repeatMode, setRepeatMode] = useState<CalendarRepeatMode>('none');
   const [repeatEndDate, setRepeatEndDate] = useState(nextDefaultRepeatEndDate(initialDate));
   const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>(defaultRepeatWeekdays(initialDate));
-  const [notificationHoursBefore, setNotificationHoursBefore] = useState<number | null>(DEFAULT_NOTIFICATION_HOURS_BEFORE);
+  const [notificationHoursBefore, setNotificationHoursBefore] = useState<number | null>(calendarDefaultLead());
 
   const openEditor = (date: string) => {
     const defaultStart = nextWholeHourDateTime(date);
@@ -87,7 +87,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     setRepeatMode('none');
     setRepeatEndDate(nextDefaultRepeatEndDate(date));
     setRepeatWeekdays(defaultRepeatWeekdays(date));
-    setNotificationHoursBefore(DEFAULT_NOTIFICATION_HOURS_BEFORE);
+    setNotificationHoursBefore(calendarDefaultLead());
     setIsEditorOpen(true);
   };
 

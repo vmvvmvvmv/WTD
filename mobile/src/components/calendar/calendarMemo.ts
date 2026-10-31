@@ -2,10 +2,10 @@ import type { MemoEvent } from '../../api/dustEndpoints';
 import type { CalendarEvent } from '../../types/calendar';
 import { makeCalendarId } from './calendarUtils';
 
-const DEFAULT_NOTIFICATION_HOURS_BEFORE = 1;
 
 // 서버가 메모에서 뽑은 일정을 앱 일정으로 바꿉니다. 장소를 못 찾았으면 이름만 남깁니다(날씨는 기본 지역 기준).
-export function memoEventToCalendarEvent(item: MemoEvent): CalendarEvent {
+// notificationHoursBefore: 새 일정 알림 기본값(설정). 부르는 쪽이 넘깁니다.
+export function memoEventToCalendarEvent(item: MemoEvent, notificationHoursBefore: number | null = 1): CalendarEvent {
   const place = item.place;
   return {
     activityType: item.activity_type,
@@ -19,7 +19,8 @@ export function memoEventToCalendarEvent(item: MemoEvent): CalendarEvent {
     locationLng: place?.lng,
     locationSource: place ? place.source : undefined,
     memo: '',
-    notificationHoursBefore: DEFAULT_NOTIFICATION_HOURS_BEFORE,
+    // AI로 만든 일정도 설정의 알림 기본값을 따릅니다.
+    notificationHoursBefore,
     sensitive: false,
     time: item.time,
     title: item.title,
