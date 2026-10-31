@@ -51,6 +51,8 @@ export const calendarStyles = StyleSheet.create({
   calendarAgendaHeaderText: { color: textColors.primary, fontSize: 14, fontWeight: '800' },
   calendarAgendaHeaderToday: { color: bauhausColors.blueText },
   calendarAgendaTodayTag: { color: bauhausColors.blueText, fontSize: 11, fontWeight: '700' },
+  calendarAgendaAddButton: { alignItems: 'center', flexDirection: 'row', gap: 2, marginLeft: 'auto', minHeight: 32, paddingHorizontal: 4 },
+  calendarAgendaAddText: { fontSize: 13, fontWeight: '700' },
   calendarAgendaItem: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 12, marginBottom: 8, minHeight: 62, paddingHorizontal: 14, paddingVertical: 10 },
   calendarAgendaIcon: { width: 18 },
   calendarAgendaBody: { flex: 1, gap: 3 },

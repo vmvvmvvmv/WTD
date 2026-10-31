@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Alert, Animated, BackHandler, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
 import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
 
@@ -212,6 +213,11 @@ export function CalendarPanel({
     setSelectedDate(nextDate);
     sheet.setIsOpen(options?.openSheet !== false);
   };
+  // 목록의 '+', 달력 날짜 길게 누르기: 그 날짜로 바로 직접·AI 일정 추가 메뉴를 엽니다.
+  const openAddForDate = (date: string) => {
+    selectDate(date, { openSheet: false });
+    setIsAddMenuOpen(true);
+  };
 
   // 홈 '오늘 일정' 카드에서 추가를 눌러 왔으면 화면이 자리 잡은 뒤 오늘 창을 열고, 창이 다 올라오면 직접·AI 등록 메뉴를 펼칩니다.
   // 캘린더 화면은 탭을 열 때마다 새로 만들어지므로 처음 한 번만 봅니다.
@@ -298,7 +304,13 @@ export function CalendarPanel({
         <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
-          <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
+          <CalendarAgendaList
+            events={sortedEvents}
+            getEventTone={eventTone}
+            onAddForDate={openAddForDate}
+            onSelectDate={selectDate}
+            todayDateLabel={todayDateLabel}
+          />
         )}
         {(viewMode === 'day' || viewMode === 'week') && (
           <CalendarTimeline
@@ -306,6 +318,10 @@ export function CalendarPanel({
             events={sortedEvents}
             getEventTone={eventTone}
             onGoToday={goToday}
+            onAddForDate={(date) => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              openAddForDate(date);
+            }}
             onMove={movePeriod}
             onSelectDate={selectDate}
             selectedDate={selectedDate}
@@ -334,6 +350,10 @@ export function CalendarPanel({
             getEventTone={eventTone}
             monthCells={monthCells}
             monthTitle={monthLabel(visibleMonth.year, visibleMonth.month)}
+            onAddForDate={(date) => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              openAddForDate(date);
+            }}
             onGoToday={goToday}
             onMoveMonth={movePeriod}
             onSelectDate={selectDate}

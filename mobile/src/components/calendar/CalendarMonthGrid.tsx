@@ -22,6 +22,8 @@ type Props = {
   // 이번 달이 아닐 때만 넘깁니다. 있으면 제목 옆에 "오늘" 버튼을 보여줍니다.
   onGoToday?: () => void;
   onMoveMonth: (offset: number) => void;
+  // 날짜를 길게 누르면 그 날짜로 일정 추가 메뉴를 바로 엽니다.
+  onAddForDate?: (date: string) => void;
   onSelectDate: (date: string, options?: { openSheet?: boolean; trackTap?: boolean }) => void;
   resetSignal?: number;
   selectedDate: string;
@@ -39,6 +41,7 @@ export function CalendarMonthGrid({
   getEventTone,
   monthCells,
   monthTitle,
+  onAddForDate,
   onGoToday,
   onMoveMonth,
   onSelectDate,
@@ -100,7 +103,7 @@ export function CalendarMonthGrid({
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}
                   key={cell.date}
-                  onLongPress={() => onSelectDate(cell.date)}
+                  onLongPress={() => (onAddForDate ? onAddForDate(cell.date) : onSelectDate(cell.date))}
                   onPress={() => onSelectDate(cell.date)}
                   // 캘린더를 처음 열 때 안내 말풍선이 오늘 날짜 칸을 가리킨다(CalendarTip).
                   onRef={cell.date === todayDateLabel ? tutorialTarget('calendarToday') : undefined}
