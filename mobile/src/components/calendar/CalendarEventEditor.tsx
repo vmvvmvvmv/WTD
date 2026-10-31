@@ -61,6 +61,8 @@ type Props = {
   onChangeTitle: (value: string) => void;
   onClose: () => void;
   onSave: () => void;
+  // 최근 일정에 쓴 장소. 장소 줄 아래에 칩으로 보여 주고 누르면 바로 고릅니다.
+  recentLocations?: CalendarLocationCandidate[];
   repeatEndDate: string;
   repeatMode: CalendarRepeatMode;
   repeatWeekdays: number[];
@@ -94,6 +96,7 @@ export function CalendarEventEditor({
   onChangeTitle,
   onClose,
   onSave,
+  recentLocations = [],
   repeatEndDate,
   repeatMode,
   repeatWeekdays,
@@ -385,6 +388,22 @@ export function CalendarEventEditor({
                 </Pressable>
               )}
             </View>
+            {recentLocations.some((place) => place.label !== location) && (
+              <ScrollView contentContainerStyle={styles.calendarRecentPlaces} horizontal keyboardShouldPersistTaps="handled" showsHorizontalScrollIndicator={false}>
+                <Text style={styles.calendarRecentPlacesLabel}>최근</Text>
+                {recentLocations.filter((place) => place.label !== location).map((place) => (
+                  <Pressable
+                    accessibilityLabel={`최근 장소 ${place.label} 고르기`}
+                    accessibilityRole="button"
+                    key={`${place.label}-${place.lat}-${place.lng}`}
+                    onPress={() => applyPickedLocation(place)}
+                    style={({ pressed }) => [styles.calendarDurationChip, pressed && styles.pressedFeedback]}
+                  >
+                    <Text numberOfLines={1} style={styles.calendarDurationChipText}>{place.label}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
             <View style={styles.calendarSheetDivider} />
             <View style={[styles.calendarSheetRow, styles.calendarMemoRow]}>
               <Ionicons color="#8a94a3" name="document-text-outline" size={20} />

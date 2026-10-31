@@ -12,7 +12,7 @@ import {
   normalizeEndDate,
   normalizeTime,
 } from './calendarUtils';
-import type { CalendarLocationCandidate } from './calendarLocation';
+import { locationCandidateFromEvent, type CalendarLocationCandidate } from './calendarLocation';
 
 type SaveParams = {
   onAddEvent: (event: CalendarEvent) => void;
@@ -44,19 +44,6 @@ function nextWholeHourDateTime(selectedDate: string) {
 
 function defaultRepeatWeekdays(date: string) {
   return [new Date(`${date}T00:00:00`).getDay()];
-}
-
-function locationCandidateFromEvent(event: CalendarEvent): CalendarLocationCandidate | null {
-  if (typeof event.locationLat !== 'number' || typeof event.locationLng !== 'number') return null;
-  return {
-    address: event.locationAddress,
-    city: event.locationCity,
-    label: event.location ?? '지도 선택 위치',
-    lat: event.locationLat,
-    lng: event.locationLng,
-    region: event.locationRegion,
-    source: event.locationSource ?? 'naver_map',
-  };
 }
 
 // Draft state is isolated from CalendarPanel so form fields, repeat rules, and save behavior can evolve independently.

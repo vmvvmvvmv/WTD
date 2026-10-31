@@ -79,7 +79,8 @@ function impactLabel(event: CalendarEvent) {
 function eventLocationMeta(event: CalendarEvent) {
   if (!event.location) return '';
   const resolved = typeof event.locationLat === 'number' && typeof event.locationLng === 'number';
-  const selectedLocationName = event.locationRegion ?? event.locationCity ?? event.location;
+  // 검색으로 고른 가게·건물은 그 이름을, 지도·측정소로 고른 곳은 동네 이름을. 빈 문자열이면 다음 값으로 넘어갑니다.
+  const selectedLocationName = (event.locationSource === 'naver_local' ? event.location : '') || event.locationRegion || event.locationCity || event.location;
   return resolved ? `선택 장소 : ${selectedLocationName} 기준` : `입력 장소 : ${event.location} · 현재 지역 기준`;
 }
 
