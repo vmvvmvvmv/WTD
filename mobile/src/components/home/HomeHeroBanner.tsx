@@ -377,20 +377,15 @@ export function HomeHeroBanner({
 }
 
 // 날짜 칸 대표 아이콘. 대표 날씨(낮 12시 무렵)가 맑거나 흐린데 그날 비·눈이 오는 시간이 있으면
-// 아이콘을 반으로 나눠 왼쪽은 대표 날씨, 오른쪽은 비·눈을 그립니다(맑다가 잠깐 비 오는 날).
+// 대표 날씨 아이콘 오른쪽 아래에 작은 비·눈 아이콘을 겹쳐 그립니다(맑다가 잠깐 비 오는 날).
 function DayWeatherIcon({ main, precipitation, size }: { main: WeatherIconKind; precipitation: WeatherIconKind | null; size: number }) {
   if (!precipitation || main === 'rain' || main === 'snow' || main === 'thunder') return <WeatherIcon kind={main} size={size} />;
-  const half = size / 2;
+  const badge = Math.round(size * 0.62);
   return (
-    <View style={{ flexDirection: 'row', height: size, width: size }}>
-      <View style={{ overflow: 'hidden', width: half }}>
-        <WeatherIcon kind={main} size={size} />
-      </View>
-      <View style={{ backgroundColor: '#C9D6E8', height: size * 0.8, marginTop: size * 0.1, width: 1 }} />
-      <View style={{ overflow: 'hidden', width: half - 1 }}>
-        <View style={{ marginLeft: -(half - 1) }}>
-          <WeatherIcon kind={precipitation} size={size} />
-        </View>
+    <View style={{ height: size, width: size + badge * 0.35 }}>
+      <WeatherIcon kind={main} size={size} />
+      <View style={{ alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: badge, bottom: -badge * 0.18, height: badge + 2, justifyContent: 'center', position: 'absolute', right: 0, width: badge + 2 }}>
+        <WeatherIcon kind={precipitation} size={badge} />
       </View>
     </View>
   );
