@@ -349,8 +349,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                   multiline
                   onChangeText={setText}
                   placeholder="날짜·시간·장소를 적어 주세요
-예) 내일 3시 강남역 친구 만남
-🎤 마이크를 눌러 말해도 돼요"
+예) 내일 3시 강남역 친구 만남"
                   placeholderTextColor={textColors.disabled}
                   ref={inputRef}
                   style={local.input}
