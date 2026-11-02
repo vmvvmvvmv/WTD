@@ -295,9 +295,15 @@ export function AppContent() {
   }, [hasLoadedRegionStore, hasTriedInitialLocation]);
 
   // 현재 탭과 선택 지역에 맞는 데이터를 불러옵니다.
+  // 홈은 지역이 바뀌었거나 아직 데이터가 없을 때만 다시 불러옵니다. 다른 탭에서 돌아올 때마다 다시 불러오면
+  // 같은 값을 새로 그리느라 화면이 떨려서(오래됐으면 useDashboardData가 10분 기준으로 알아서 새로 불러옴).
+  const homeLoadedRegionRef = useRef<typeof selectedRegion | null>(null);
   useEffect(() => {
     if (!selectedRegion) return;
-    if (activeTab === 'home') loadDashboard();
+    if (activeTab === 'home') {
+      if (!currentItem || homeLoadedRegionRef.current !== selectedRegion) loadDashboard();
+      homeLoadedRegionRef.current = selectedRegion;
+    }
     if (activeTab === 'map' && stationItems.length === 0) loadStations();
     if (activeTab === 'calendar' && (!currentItem || !prediction || pastItems.length === 0)) loadDashboard();
   }, [activeTab, selectedRegion]);

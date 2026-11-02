@@ -6,7 +6,7 @@ import type { CurrentDustItem, HourlyDustItem, PastDustItem, PredictionResponse,
 import type { RegionState } from '../../types/region';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 import { isSameRegion } from '../region/regionUtils';
-import { loadDashboardCache, saveDashboardCache } from './dashboardCache';
+import { DASHBOARD_CACHE_FRESH_MS, loadDashboardCache, saveDashboardCache } from './dashboardCache';
 import { hasCompleteDashboardCache } from './dashboardCachePolicy';
 import { fetchDashboardDust, fetchDashboardWeather } from './dashboardService';
 
@@ -107,7 +107,7 @@ export function useDashboardData({
       setWeather(cachedDashboard.weather ?? null);
       setYesterdayWeather(cachedDashboard.yesterdayWeather ?? null);
       onSettledRef.current();
-      if (!force && hasCompleteDashboardCache(cachedDashboard)) {
+      if (!force && hasCompleteDashboardCache(cachedDashboard) && Date.now() - cachedDashboard.savedAt < DASHBOARD_CACHE_FRESH_MS) {
         setWeatherForecastResolved(true);
         return;
       }

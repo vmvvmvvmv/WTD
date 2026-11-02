@@ -5,7 +5,10 @@ import type { RegionState } from '../../types/region';
 import type { WeatherHourlyItem, WeatherMidTermItem, WeatherState } from '../../types/weather';
 
 const CACHE_DIR = `${FileSystem.documentDirectory ?? ''}dashboard-cache`;
-const CACHE_TTL_MS = 5 * 60 * 1000;
+// 5분 안의 저장값은 그대로 쓰고(새로 안 불러옴), 12시간 안의 저장값은 먼저 보여 준 뒤 뒤에서 새로 불러옵니다.
+// 앱을 켜자마자 빈 화면으로 몇 초 기다리지 않게 하려는 것(기준 시각에 'N시간 전'이 함께 보여서 오래된 값인 걸 알 수 있음).
+export const DASHBOARD_CACHE_FRESH_MS = 5 * 60 * 1000;
+const CACHE_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 export type DashboardCacheSnapshot = {
   currentItem: CurrentDustItem | null;
@@ -46,7 +49,7 @@ export async function loadDashboardCache(region: RegionState) {
 
     const snapshot = JSON.parse(await FileSystem.readAsStringAsync(filePath)) as unknown;
     if (!isDashboardCacheSnapshot(snapshot)) return null;
-    if (Date.now() - snapshot.savedAt > CACHE_TTL_MS) return null;
+    if (Date.now() - snapshot.savedAt > CACHE_MAX_AGE_MS) return null;
     return snapshot;
   } catch {
     return null;
