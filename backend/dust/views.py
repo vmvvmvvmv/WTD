@@ -294,7 +294,8 @@ def naver_place_search(request):
     if not _place_search_allowed(request):
         return error_response(429, "검색이 너무 잦아요. 잠시 뒤에 다시 시도해 주세요.")
     # 주소처럼 보이면 주소 검색 결과(최대 2개)를 장소 결과 앞에 둔다. 한쪽이 실패해도 다른 쪽 결과는 보여 준다.
-    address_items = geocode_address(query)
+    # '대신동'처럼 동네 이름만 치면 전국에 같은 이름이 여럿이라 5개까지 받는다(앱이 가까운 순으로 정렬).
+    address_items = geocode_address(query, count=5 if re.fullmatch(r"[가-힣]+(?:동|읍|면|리)", query) else 2)
     place_failed = False
     try:
         place_items = search_naver_places(query, display)
