@@ -17,7 +17,8 @@ function isStationCacheSnapshot(value: unknown): value is StationCacheSnapshot {
   return typeof snapshot.savedAt === 'number' && Array.isArray(snapshot.items);
 }
 
-export async function loadStationCache() {
+// maxAgeMs: 측정값까지 쓰면 6시간, 측정소 위치(좌표)만 쓰면 오래된 것도 괜찮아서 더 길게 줄 수 있습니다.
+export async function loadStationCache(maxAgeMs = CACHE_TTL_MS) {
   if (!FileSystem.documentDirectory) return null;
   try {
     const info = await FileSystem.getInfoAsync(CACHE_FILE);
@@ -25,7 +26,7 @@ export async function loadStationCache() {
 
     const snapshot = JSON.parse(await FileSystem.readAsStringAsync(CACHE_FILE)) as unknown;
     if (!isStationCacheSnapshot(snapshot)) return null;
-    if (Date.now() - snapshot.savedAt > CACHE_TTL_MS) return null;
+    if (Date.now() - snapshot.savedAt > maxAgeMs) return null;
     return snapshot.items;
   } catch {
     return null;
