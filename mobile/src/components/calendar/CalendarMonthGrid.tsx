@@ -21,6 +21,8 @@ type Props = {
   monthTitle: string;
   // 이번 달이 아닐 때만 넘깁니다. 있으면 제목 옆에 "오늘" 버튼을 보여줍니다.
   onGoToday?: () => void;
+  // 머리 제목을 길게 누르면 년 보기로.
+  onOpenYear?: () => void;
   onMoveMonth: (offset: number) => void;
   // 날짜를 길게 누르면 그 날짜로 일정 추가 메뉴를 바로 엽니다.
   onAddForDate?: (date: string) => void;
@@ -45,6 +47,7 @@ export function CalendarMonthGrid({
   monthTitle,
   onAddForDate,
   onGoToday,
+  onOpenYear,
   onMoveMonth,
   onSelectDate,
   rainyEventKeys,
@@ -68,7 +71,7 @@ export function CalendarMonthGrid({
 
   return (
     <View style={styles.calendarMonthCard}>
-      <CalendarPeriodHeader onGoToday={onGoToday} onMove={onMoveMonth} title={monthTitle} unitLabel="달" />
+      <CalendarPeriodHeader onGoToday={onGoToday} onLongPressTitle={onOpenYear} onMove={onMoveMonth} title={monthTitle} unitLabel="달" />
       <View style={styles.calendarWeekRow}>
         {weekDays.map((day, index) => (
           <Text key={day} style={[styles.calendarWeekText, index === 0 && styles.calendarWeekTextSunday, index === 6 && styles.calendarWeekTextSaturday]}>{day}</Text>
