@@ -27,7 +27,11 @@ type Props = {
   events: CalendarEvent[];
   getEventTone: (event: CalendarEvent) => string;
   onGoToday?: () => void;
+  // 머리 제목을 길게 누르면 년 보기로.
+  onOpenYear?: () => void;
   onMove: (offset: number) => void;
+  // 날짜를 길게 누르면 그 날짜로 일정 추가 메뉴를 바로 엽니다.
+  onAddForDate?: (date: string) => void;
   onSelectDate: (date: string) => void;
   selectedDate: string;
   title: string;
@@ -48,7 +52,9 @@ export function CalendarTimeline({
   events,
   getEventTone,
   onGoToday,
+  onOpenYear,
   onMove,
+  onAddForDate,
   onSelectDate,
   selectedDate,
   title,
@@ -91,7 +97,7 @@ export function CalendarTimeline({
 
   return (
     <View style={styles.calendarMonthCard}>
-      <CalendarPeriodHeader onGoToday={onGoToday} onMove={onMove} title={title} unitLabel={isWeek ? '주' : '날'} />
+      <CalendarPeriodHeader onGoToday={onGoToday} onLongPressTitle={onOpenYear} onMove={onMove} title={title} unitLabel={isWeek ? '주' : '날'} />
       <Animated.View style={[styles.calendarTimelineStage, animatedStyle]} {...swipeHandlers}>
         {isWeek ? (
           <>
@@ -116,7 +122,7 @@ export function CalendarTimeline({
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}
                   key={cell.date}
-                  onLongPress={() => onSelectDate(cell.date)}
+                  onLongPress={() => (onAddForDate ? onAddForDate(cell.date) : onSelectDate(cell.date))}
                   onPress={() => onSelectDate(cell.date)}
                   range={null}
                   style={styles.calendarTimelineDayCell}

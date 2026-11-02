@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { useReducedMotion } from 'react-native-reanimated';
@@ -17,6 +18,7 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import { useKeyboardHeight } from '../shared/BottomToast';
 import { WeatherIcon } from '../shared/WeatherIcon';
 import type { CalendarLocationForecast } from './calendarForecast';
+import { calendarDefaultLead } from '../../features/calendar/calendarDefaultLead';
 import { isRepeatMemo, memoEventToCalendarEvent, memoSuggestions, withMemoHistory } from './calendarMemo';
 import type { CalendarRiskResult } from './calendarRiskEvaluator';
 import { dayLabel } from './calendarUtils';
@@ -40,6 +42,13 @@ function errorMessage(error: unknown) {
     if (error.status === 503) return '지금 AI 사용량이 많아요. 잠시 뒤 다시 하거나 직접 일정 등록을 써 주세요.';
   }
   return '일정으로 바꾸지 못했어요. 잠시 뒤 다시 해 주세요.';
+}
+
+function speechErrorMessage(code: string) {
+  if (code === 'not-allowed') return '마이크 권한을 허용해야 말로 입력할 수 있어요.';
+  if (code === 'no-speech' || code === 'speech-timeout') return '말소리가 들리지 않았어요. 다시 눌러 말해 주세요.';
+  if (code === 'aborted') return '';
+  return '지금은 음성 입력을 쓸 수 없어요. 글로 적어 주세요.';
 }
 
 function timeRange(event: CalendarEvent) {
@@ -133,6 +142,21 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [showCautions, setShowCautions] = useState(false);
+  // 음성 입력: 마이크를 누른 때의 글 뒤에 말한 내용을 이어 붙입니다(말하는 중에도 글자가 바로 보임).
+  const [isListening, setIsListening] = useState(false);
+  const speechBaseRef = useRef('');
+  useSpeechRecognitionEvent('start', () => setIsListening(true));
+  useSpeechRecognitionEvent('end', () => setIsListening(false));
+  useSpeechRecognitionEvent('result', (event) => {
+    const spoken = event.results[0]?.transcript.trim();
+    if (!spoken) return;
+    const base = speechBaseRef.current;
+    setText(`${base}${base ? ' ' : ''}${spoken}`.slice(0, MAX_LENGTH));
+  });
+  useSpeechRecognitionEvent('error', (event) => {
+    setIsListening(false);
+    setMessage(speechErrorMessage(event.error));
+  });
   // 전에 적은 메모(이 휴대폰에만 저장). 입력칸 아래 칩으로 보여 주고, 누르면 다시 쓸 수 있습니다.
   const [memoHistory, setMemoHistory] = useState<string[]>([]);
   useEffect(() => {
@@ -152,7 +176,28 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   const previewForecasts = useCalendarLocationForecasts(events ?? [], isOpen && !!events, todayDateLabel);
   const risks = useMemo(() => (events ? riskByEvent(events, previewForecasts) : {}), [events, previewForecasts, riskByEvent]);
 
+  const stopListening = () => {
+    if (isListening) ExpoSpeechRecognitionModule.abort();
+  };
+
+  const toggleListening = async () => {
+    if (isListening) {
+      ExpoSpeechRecognitionModule.stop();
+      return;
+    }
+    const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+    if (!permission.granted) {
+      setMessage(speechErrorMessage('not-allowed'));
+      return;
+    }
+    Keyboard.dismiss();
+    setMessage('');
+    speechBaseRef.current = text.trimEnd();
+    ExpoSpeechRecognitionModule.start({ interimResults: true, lang: 'ko-KR' });
+  };
+
   const close = () => {
+    stopListening();
     requestIdRef.current += 1;
     isConvertingRef.current = false;
     setIsLoading(false);
@@ -175,6 +220,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
   const convert = async () => {
     // 상태(isLoading)는 다음 화면에서야 바뀌므로, 빠른 연속 누름은 ref로 막습니다(사용 횟수를 두 번 쓰지 않게).
     if (!text.trim() || isConvertingRef.current) return;
+    stopListening();
     // 반복 일정은 한 번짜리로 잘못 만들어지므로 보내지 않고 직접 등록으로 안내합니다.
     if (isRepeatMemo(text)) {
       setMessage('반복 일정은 직접 일정 등록에서 반복을 골라 만들어 주세요.');
@@ -187,7 +233,7 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
     try {
       const response = await postMemoEvents({ deviceId: await loadDeviceId(), text: text.trim() });
       if (requestId !== requestIdRef.current) return;
-      const next = (Array.isArray(response.events) ? response.events : []).map(memoEventToCalendarEvent);
+      const next = (Array.isArray(response.events) ? response.events : []).map((item) => memoEventToCalendarEvent(item, calendarDefaultLead()));
       if (next.length === 0) {
         setMessage('메모에서 일정을 찾지 못했어요. 날짜나 시간을 함께 적어 주세요.');
         return;
@@ -375,6 +421,15 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                 </Pressable>
               </>
             ) : (
+              <>
+              <Pressable
+                accessibilityLabel={isListening ? '음성 입력 멈추기' : '말로 입력하기'}
+                disabled={isLoading}
+                onPress={toggleListening}
+                style={({ pressed }) => [local.mic, isListening && local.micOn, pressed && appStyles.pressedFeedback]}
+              >
+                <Ionicons color={isListening ? '#ffffff' : accentTone} name={isListening ? 'stop' : 'mic'} size={22} />
+              </Pressable>
               <Pressable
                 disabled={!canConvert}
                 onPress={convert}
@@ -383,10 +438,11 @@ export function CalendarMemoSheet({ calendarEvents, isOpen, onAdd, onClose, onEd
                 {isLoading ? <ThinkingLabel /> : (
                   <View style={local.buttonRow}>
                     <Ionicons color="#ffffff" name="sparkles" size={16} />
-                    <Text style={local.primaryText}>AI로 일정 만들기</Text>
+                    <Text style={local.primaryText}>{isListening ? '듣는 중…' : 'AI로 일정 만들기'}</Text>
                   </View>
                 )}
               </Pressable>
+              </>
             )}
           </View>
         </View>
@@ -427,6 +483,8 @@ const local = StyleSheet.create({
   message: { color: semanticColors.weather.caution.tone, fontSize: 13, fontWeight: '700', marginTop: 8 },
   cautionRow: { flexDirection: 'row', gap: 5, marginTop: 4, paddingLeft: 18 },
   cautionText: { color: textColors.muted, flex: 1, fontSize: 12, fontWeight: '600', lineHeight: 17 },
+  mic: { alignItems: 'center', backgroundColor: bauhausColors.blueSoft, borderRadius: 999, height: 52, justifyContent: 'center', width: 52 },
+  micOn: { backgroundColor: '#E05263' },
   notice: { alignItems: 'center', flexDirection: 'row', gap: 5 },
   noticeBullet: { color: textColors.muted, fontSize: 12, fontWeight: '800', lineHeight: 17 },
   noticeStrong: { color: CAUTION_TONE, fontWeight: '600' },

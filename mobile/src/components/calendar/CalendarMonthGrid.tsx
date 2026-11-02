@@ -21,8 +21,14 @@ type Props = {
   monthTitle: string;
   // 이번 달이 아닐 때만 넘깁니다. 있으면 제목 옆에 "오늘" 버튼을 보여줍니다.
   onGoToday?: () => void;
+  // 머리 제목을 길게 누르면 년 보기로.
+  onOpenYear?: () => void;
   onMoveMonth: (offset: number) => void;
+  // 날짜를 길게 누르면 그 날짜로 일정 추가 메뉴를 바로 엽니다.
+  onAddForDate?: (date: string) => void;
   onSelectDate: (date: string, options?: { openSheet?: boolean; trackTap?: boolean }) => void;
+  // 비·눈·천둥이 예보된 일정('일정id:날짜'). 일정 선 앞에 작은 우산을 그립니다.
+  rainyEventKeys?: ReadonlySet<string>;
   resetSignal?: number;
   selectedDate: string;
   todayDateLabel: string;
@@ -39,9 +45,12 @@ export function CalendarMonthGrid({
   getEventTone,
   monthCells,
   monthTitle,
+  onAddForDate,
   onGoToday,
+  onOpenYear,
   onMoveMonth,
   onSelectDate,
+  rainyEventKeys,
   selectedDate,
   todayDateLabel,
   transitionDirection,
@@ -62,7 +71,7 @@ export function CalendarMonthGrid({
 
   return (
     <View style={styles.calendarMonthCard}>
-      <CalendarPeriodHeader onGoToday={onGoToday} onMove={onMoveMonth} title={monthTitle} unitLabel="달" />
+      <CalendarPeriodHeader onGoToday={onGoToday} onLongPressTitle={onOpenYear} onMove={onMoveMonth} title={monthTitle} unitLabel="달" />
       <View style={styles.calendarWeekRow}>
         {weekDays.map((day, index) => (
           <Text key={day} style={[styles.calendarWeekText, index === 0 && styles.calendarWeekTextSunday, index === 6 && styles.calendarWeekTextSaturday]}>{day}</Text>
@@ -100,10 +109,11 @@ export function CalendarMonthGrid({
                   isSelected={cell.date === selectedDate}
                   isToday={cell.date === todayDateLabel}
                   key={cell.date}
-                  onLongPress={() => onSelectDate(cell.date)}
+                  onLongPress={() => (onAddForDate ? onAddForDate(cell.date) : onSelectDate(cell.date))}
                   onPress={() => onSelectDate(cell.date)}
                   // 캘린더를 처음 열 때 안내 말풍선이 오늘 날짜 칸을 가리킨다(CalendarTip).
                   onRef={cell.date === todayDateLabel ? tutorialTarget('calendarToday') : undefined}
+                  rainyEventKeys={rainyEventKeys}
                   range={null}
                   style={styles.calendarGridDayFill}
                   weatherRisk={weatherRiskByDate?.[cell.date]}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Reanimated, {
   Extrapolation,
@@ -6,11 +6,13 @@ import Reanimated, {
   interpolate,
   ReduceMotion,
   type SharedValue,
+  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { styles } from '../../styles/appStyles';
 import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
@@ -52,6 +54,17 @@ export function HomeForecastHourStrip({ dayKey, items, onSelect, selectedIndex, 
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollX.value = event.contentOffset.x;
   });
+  // 왼쪽에 지난 시간이 숨어 있으면 왼쪽 끝에 '‹ 지난 시간'을 띄웁니다. 누르면 00시로 갑니다.
+  const scrollRef = useRef<Reanimated.ScrollView>(null);
+  const hasPast = items[0]?.isPast ?? false;
+  const [pastHidden, setPastHidden] = useState(false);
+  useAnimatedReaction(
+    () => hasPast && scrollX.value > cellWidth * 0.5,
+    (hidden, previous) => {
+      if (hidden !== previous) scheduleOnRN(setPastHidden, hidden);
+    },
+    [hasPast, cellWidth],
+  );
 
   return (
     <Reanimated.View
@@ -65,6 +78,7 @@ export function HomeForecastHourStrip({ dayKey, items, onSelect, selectedIndex, 
     >
       {cellWidth > 0 && (
         <Reanimated.ScrollView
+          ref={scrollRef}
           contentOffset={{ x: startX, y: 0 }}
           decelerationRate="fast"
           horizontal
@@ -88,6 +102,17 @@ export function HomeForecastHourStrip({ dayKey, items, onSelect, selectedIndex, 
             />
           ))}
         </Reanimated.ScrollView>
+      )}
+      {pastHidden && (
+        <Pressable
+          accessibilityLabel="지난 시간 보기"
+          accessibilityRole="button"
+          hitSlop={8}
+          onPress={() => scrollRef.current?.scrollTo({ animated: !reduceMotion, x: 0 })}
+          style={({ pressed }) => [styles.homeForecastPastHint, pressed && styles.pressedFeedback]}
+        >
+          <Text style={styles.homeForecastPastHintText}>‹ 지난 시간</Text>
+        </Pressable>
       )}
     </Reanimated.View>
   );

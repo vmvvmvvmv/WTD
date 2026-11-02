@@ -80,3 +80,27 @@ test('이름이 검색어와 똑같은 먼 장소는 주변의 비슷한 이름�
   assert.deepEqual(sortByDistanceFrom([callVan, coex], busan, '코엑스').map((item) => item.label), ['코엑스', '부산코엑스콜밴']);
   assert.deepEqual(sortByDistanceFrom([coex, callVan], busan, '스타벅스').map((item) => item.label), ['부산코엑스콜밴', '코엑스']);
 });
+
+test('지역 검색은 가게·ATM은 빼고 랜드마크·주소만 남긴다', async () => {
+  const { isLandmarkPlace } = await import('./regionPlaceSearch.ts');
+  assert.equal(isLandmarkPlace({ category: '생활,편의>편의점' }), false);
+  assert.equal(isLandmarkPlace({ category: '금융,보험>현금인출기' }), false);
+  assert.equal(isLandmarkPlace({ category: '음식점>한식' }), false);
+  assert.equal(isLandmarkPlace({ category: '교통,수송>지하철,전철' }), true);
+  assert.equal(isLandmarkPlace({ category: '여행,명소>공원' }), true);
+  assert.equal(isLandmarkPlace({ category: '쇼핑,유통>백화점' }), true);
+  assert.equal(isLandmarkPlace({ category: '의료>종합병원' }), true);
+  assert.equal(isLandmarkPlace({ category: '주소', source: 'naver_geocode' }), true);
+});
+
+test('서울역처럼 콕 집어 찾으면 멀어도 그 장소가 맨 앞에 오고 다시 찾지 않는다', () => {
+  const busan = { lat: 35.11, lng: 129.02 };
+  const places = [
+    { label: '부산역', lat: 35.115, lng: 129.04 },
+    { label: '서울역 1호선', lat: 37.555, lng: 126.972 },
+    { label: '서울역', lat: 37.554, lng: 126.97 },
+  ];
+  assert.deepEqual(sortByDistanceFrom(places, busan, '서울역').map((p) => p.label), ['서울역', '서울역 1호선', '부산역']);
+  assert.equal(needsLocalSearch(places.slice(1), busan, '서울역'), false);
+  assert.equal(needsLocalSearch(places.slice(1), busan, 'cgv'), true);
+});

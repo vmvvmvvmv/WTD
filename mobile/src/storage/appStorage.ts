@@ -10,6 +10,7 @@ import {
   DEVICE_ID_STORAGE_KEY,
   MEMO_HISTORY_STORAGE_KEY,
   HOME_TODAY_OPEN_STORAGE_KEY,
+  CALENDAR_DEFAULT_LEAD_STORAGE_KEY,
   FAVORITE_REGIONS_STORAGE_KEY,
   HOLIDAYS_STORAGE_KEY,
   GPS_REGION_STORAGE_KEY,
@@ -66,6 +67,9 @@ async function writeFileAtomic(path: string, value: string) {
 // 같은 키를 빠르게 여러 번 저장해도 마지막 값이 남도록 키마다 순서대로 씁니다.
 const writeQueues = new Map<string, Promise<void>>();
 
+// 읽기에 실패한 키. '없음'과 '못 읽음'을 구분해서, 못 읽은 값을 빈 값으로 덮어쓰지 않게 합니다.
+const unreadableKeys = new Set<string>();
+
 async function safeGet(key: string) {
   if (SECURE_KEYS.has(key) || !FileSystem.documentDirectory) return SecureStore.getItemAsync(key).catch(() => null);
   const path = storageFilePath(key);
@@ -75,6 +79,7 @@ async function safeGet(key: string) {
     if ((await FileSystem.getInfoAsync(`${path}.tmp`)).exists) return await FileSystem.readAsStringAsync(`${path}.tmp`);
   } catch (caught) {
     console.warn(`저장된 값을 읽지 못했습니다: ${key}`, caught);
+    unreadableKeys.add(key);
     return null;
   }
   // 예전 버전은 모든 값을 SecureStore에 저장했습니다. 처음 한 번 파일로 옮기고, 옮긴 뒤에만 지웁니다.
@@ -136,6 +141,19 @@ export async function loadHomeTodayOpen() {
 
 export function saveHomeTodayOpen(open: boolean) {
   return saveString(HOME_TODAY_OPEN_STORAGE_KEY, open ? '1' : '0');
+}
+
+// 새 일정 알림 기본값. 저장한 적 없으면 undefined(앱 기본값 1시간 전을 씀).
+export async function loadCalendarDefaultLeadValue(): Promise<number | null | undefined> {
+  const raw = await safeGet(CALENDAR_DEFAULT_LEAD_STORAGE_KEY);
+  if (raw === null || raw === undefined) return undefined;
+  if (raw === 'none') return null;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : undefined;
+}
+
+export function saveCalendarDefaultLeadValue(value: number | null) {
+  return saveString(CALENDAR_DEFAULT_LEAD_STORAGE_KEY, value === null ? 'none' : String(value));
 }
 
 // 공휴일 {날짜: 이름}. 서버가 안 될 때도 마지막으로 받은 값으로 달력을 칠합니다.
@@ -246,6 +264,9 @@ export function saveNotificationToken(token: string) {
 }
 
 export function saveCalendarEvents(events: CalendarEvent[]) {
+  // 앱을 켤 때 일정 파일을 못 읽었으면 화면에는 0개로 보이지만 파일에는 일정이 남아 있을 수 있습니다.
+  // 그때 빈 목록으로 덮어쓰면 일정이 모두 사라지므로, 이번 실행에서는 빈 목록 저장을 건너뜁니다(새 일정을 넣으면 저장).
+  if (unreadableKeys.has(CALENDAR_EVENTS_STORAGE_KEY) && events.length === 0) return Promise.resolve();
   return saveJson(CALENDAR_EVENTS_STORAGE_KEY, events);
 }
 

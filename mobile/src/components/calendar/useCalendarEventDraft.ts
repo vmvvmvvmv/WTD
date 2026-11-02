@@ -12,7 +12,8 @@ import {
   normalizeEndDate,
   normalizeTime,
 } from './calendarUtils';
-import type { CalendarLocationCandidate } from './calendarLocation';
+import { calendarDefaultLead } from '../../features/calendar/calendarDefaultLead';
+import { locationCandidateFromEvent, type CalendarLocationCandidate } from './calendarLocation';
 
 type SaveParams = {
   onAddEvent: (event: CalendarEvent) => void;
@@ -24,7 +25,6 @@ type SaveParams = {
 };
 
 const DEFAULT_DURATION_MINUTES = 60;
-const DEFAULT_NOTIFICATION_HOURS_BEFORE = 1;
 type EditScope = 'single' | 'series';
 
 function nextWholeHourDateTime(selectedDate: string) {
@@ -46,19 +46,6 @@ function defaultRepeatWeekdays(date: string) {
   return [new Date(`${date}T00:00:00`).getDay()];
 }
 
-function locationCandidateFromEvent(event: CalendarEvent): CalendarLocationCandidate | null {
-  if (typeof event.locationLat !== 'number' || typeof event.locationLng !== 'number') return null;
-  return {
-    address: event.locationAddress,
-    city: event.locationCity,
-    label: event.location ?? '지도 선택 위치',
-    lat: event.locationLat,
-    lng: event.locationLng,
-    region: event.locationRegion,
-    source: event.locationSource ?? 'naver_map',
-  };
-}
-
 // Draft state is isolated from CalendarPanel so form fields, repeat rules, and save behavior can evolve independently.
 export function useCalendarEventDraft(initialDate: string, defaultLocation?: CalendarLocationCandidate | null) {
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -78,7 +65,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
   const [repeatMode, setRepeatMode] = useState<CalendarRepeatMode>('none');
   const [repeatEndDate, setRepeatEndDate] = useState(nextDefaultRepeatEndDate(initialDate));
   const [repeatWeekdays, setRepeatWeekdays] = useState<number[]>(defaultRepeatWeekdays(initialDate));
-  const [notificationHoursBefore, setNotificationHoursBefore] = useState<number | null>(DEFAULT_NOTIFICATION_HOURS_BEFORE);
+  const [notificationHoursBefore, setNotificationHoursBefore] = useState<number | null>(calendarDefaultLead());
 
   const openEditor = (date: string) => {
     const defaultStart = nextWholeHourDateTime(date);
@@ -100,7 +87,7 @@ export function useCalendarEventDraft(initialDate: string, defaultLocation?: Cal
     setRepeatMode('none');
     setRepeatEndDate(nextDefaultRepeatEndDate(date));
     setRepeatWeekdays(defaultRepeatWeekdays(date));
-    setNotificationHoursBefore(DEFAULT_NOTIFICATION_HOURS_BEFORE);
+    setNotificationHoursBefore(calendarDefaultLead());
     setIsEditorOpen(true);
   };
 

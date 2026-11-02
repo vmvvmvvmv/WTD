@@ -9,7 +9,7 @@ export async function searchPlacesNear(query: string, near?: SearchNear | null):
   const first = parseNaverPlaceItems((await searchNaverPlaces({ query, size: 5 }))?.items);
   if (!near) return first;
   let places = first;
-  if (needsLocalSearch(first, near)) {
+  if (needsLocalSearch(first, near, query)) {
     for (const area of localAreaNames(near.areaName)) {
       try {
         const local = parseNaverPlaceItems((await searchNaverPlaces({ query: `${area} ${query}`, size: 5 }))?.items);
