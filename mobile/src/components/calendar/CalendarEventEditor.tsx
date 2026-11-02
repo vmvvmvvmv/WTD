@@ -75,6 +75,15 @@ type Props = {
   title: string;
 };
 
+// 장소 이름이 친 글자와 같거나 '서울역 (고속철도)'·'서울역 4호선'처럼 친 글자 뒤에 한글이 바로 이어지지 않으면(띄어쓰기·대소문자 무시) 같은 곳으로 봅니다.
+// '서우' → '서우부동산중개'처럼 글자가 더 이어지면 아직 치는 중일 수 있어 같은 곳으로 보지 않습니다.
+function isCloseNameMatch(label: string, query: string) {
+  const name = label.replace(/\s/g, '').toLowerCase();
+  const typed = query.replace(/\s/g, '').toLowerCase();
+  if (typed.length < 2 || !name.startsWith(typed)) return false;
+  return !/^[가-힣]/.test(name.slice(typed.length));
+}
+
 export function CalendarEventEditor({
   activityInput,
   endDate,
@@ -160,6 +169,7 @@ export function CalendarEventEditor({
     let cancelled = false;
     setMapPickerSearchResults([]);
     setMapPickerSearchMessage('검색 중입니다.');
+    let autoTimer: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(async () => {
       let results: CalendarLocationCandidate[] = [];
       try {
@@ -170,6 +180,11 @@ export function CalendarEventEditor({
         if (cancelled) return;
         setMapPickerSearchResults(results);
         setMapPickerSearchMessage(results.length === 0 ? '찾는 장소가 없습니다. 다른 이름이나 주소로 찾아보세요.' : '');
+        // 맨 위 결과가 친 이름과 같거나 그 이름으로 시작하면('서울역' → '서울역 (고속철도)') 목록에서 고르지 않아도
+        // 바로 그 장소로 지도를 옮기고 아래에 정보를 띄웁니다('이 위치로 설정'은 그대로 눌러서 확정).
+        // 치는 도중 키보드가 닫히지 않게 손을 멈추고 잠깐 뒤에 옮깁니다.
+        const top = results[0];
+        if (top && isCloseNameMatch(top.label, query)) autoTimer = setTimeout(() => focusMapPickerPlace(top), 700);
       } catch {
         if (!cancelled) {
           setMapPickerSearchResults(results);
@@ -181,6 +196,7 @@ export function CalendarEventEditor({
     return () => {
       cancelled = true;
       clearTimeout(timer);
+      clearTimeout(autoTimer);
     };
   }, [isMapPickerOpen, isMapPickerSearchOpen, mapPickerSearchText]);
 
@@ -487,6 +503,11 @@ export function CalendarEventEditor({
                   }}
                   onBlur={() => setTimeout(() => setIsMapPickerSearchOpen(false), 120)}
                   onSubmitEditing={() => {
+                    // 검색 버튼을 누르면 맨 위 결과로 바로 갑니다.
+                    if (mapPickerSearchResults[0]) {
+                      focusMapPickerPlace(mapPickerSearchResults[0]);
+                      return;
+                    }
                     setIsMapPickerSearchOpen(false);
                     Keyboard.dismiss();
                   }}
