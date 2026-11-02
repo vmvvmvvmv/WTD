@@ -227,6 +227,12 @@ export function CalendarPanel({
   };
   // 목록의 '+', 날짜 창의 '+ 일정 추가', 달력 날짜 길게 누르기: 그 날짜로 일정 입력 창을 바로 엽니다.
   // AI로 넣고 싶으면 입력 창 맨 위 'AI로 입력'을 누릅니다(입력 창을 닫고 AI 입력창을 엶).
+  // 머리 제목(년·월, 주, 날)을 길게 누르면 년 보기로 올라갑니다.
+  const openYearView = () => {
+    Haptics.selectionAsync().catch(() => {});
+    sheet.setIsOpen(false);
+    changeViewMode('year');
+  };
   const openAddForDate = (date: string) => {
     setSelectedDate(date);
     draft.openEditor(date);
@@ -354,6 +360,7 @@ export function CalendarPanel({
             events={sortedEvents}
             getEventTone={eventTone}
             onGoToday={goToday}
+            onOpenYear={openYearView}
             onAddForDate={(date) => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
               openAddForDate(date);
@@ -391,6 +398,7 @@ export function CalendarPanel({
               openAddForDate(date);
             }}
             onGoToday={goToday}
+            onOpenYear={openYearView}
             onMoveMonth={movePeriod}
             onSelectDate={selectDate}
             selectedDate={selectedDate}
