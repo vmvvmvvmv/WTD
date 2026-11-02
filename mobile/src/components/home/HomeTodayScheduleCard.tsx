@@ -11,6 +11,7 @@ import { AppActionIcon } from '../shared/AppActionIcon';
 import { tutorialTarget } from '../shared/TutorialTour';
 
 const LINE_HEIGHT = 44;
+let rememberedOpen: boolean | null = null;
 const ROTATE_MS = 5000;
 const EASING = Easing.out(Easing.cubic);
 const fadeIn = FadeIn.duration(300).reduceMotion(ReduceMotion.System);
@@ -50,11 +51,14 @@ export function HomeTodayScheduleCard({
   onOpenCalendar?: () => void;
 }) {
   const reduceMotion = useReducedMotion();
-  const [open, setOpen] = useState(false);
-  const progress = useSharedValue(0);
+  // 홈은 탭을 바꿀 때마다 새로 그려지므로, 열림 상태를 메모리에 두고 처음부터 그 상태로 그립니다(다시 불러오며 줄이 튀지 않게).
+  const [open, setOpen] = useState(rememberedOpen ?? false);
+  const progress = useSharedValue(rememberedOpen ? 1 : 0);
   useEffect(() => {
+    if (rememberedOpen !== null) return;
     let cancelled = false;
     loadHomeTodayOpen().then((value) => {
+      rememberedOpen = value;
       if (cancelled) return;
       setOpen(value);
       progress.value = value ? 1 : 0; // 처음 불러올 때는 애니메이션 없이 제자리.
@@ -63,6 +67,7 @@ export function HomeTodayScheduleCard({
   }, [progress]);
   const toggle = () => {
     const next = !open;
+    rememberedOpen = next;
     setOpen(next);
     saveHomeTodayOpen(next);
     progress.value = reduceMotion ? (next ? 1 : 0) : withTiming(next ? 1 : 0, { duration: 240, easing: EASING });

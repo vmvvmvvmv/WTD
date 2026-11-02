@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Alert, Animated, BackHandler, InteractionManager, Pressable, Text, useWindowDimensions, View } from 'react-native';
-import Reanimated, { FadeIn, FadeInDown, FadeOut, FadeOutDown, ReduceMotion } from 'react-native-reanimated';
+import Reanimated, { FadeInDown, FadeOut, ReduceMotion } from 'react-native-reanimated';
 
 import { styles } from '../../styles/appStyles';
 import type { CalendarEvent } from '../../types/calendar';
@@ -21,11 +21,12 @@ import { buildCalendarEventCounts, buildCalendarEventLanes } from './calendarLay
 import type { CalendarLocationCandidate } from './calendarLocation';
 import { addDays, buildMonthCells, buildWeekCells, dayLabel, eventTone, isDateInEventRange, monthLabel, parseDateParts, weekLabel } from './calendarUtils';
 import { dailyPrecipitationIndicator, dailyWeatherByDate as buildDailyWeatherByDate, topWeatherRiskForDate, weatherRiskIndicators, type CalendarWeatherRiskIndicator } from './calendarWeatherRisk';
+import { withoutFollowingOccurrences } from './calendarRepeat';
+import { recentLocationCandidates } from './calendarLocation';
 import { confirmCalendarEventRemoval } from './confirmCalendarEventRemoval';
 import { useCalendarDaySheet } from './useCalendarDaySheet';
 import { useCalendarEventDraft } from './useCalendarEventDraft';
 import { useCalendarNavigation, VIEW_MODES } from './useCalendarNavigation';
-import { accentTone } from '../../theme/appTheme';
 
 export function CalendarPanel({
   currentPm10,
@@ -82,20 +83,25 @@ export function CalendarPanel({
   const [panelHeight, setPanelHeight] = useState(windowSize.height);
   const sheet = useCalendarDaySheet(panelHeight);
   const [isMemoOpen, setIsMemoOpen] = useState(false);
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  // Android 뒤로가기: 펼친 일정 추가 버튼 → 날짜 시트 순서로 닫고, 둘 다 닫혀 있으면 앱 쪽 처리(홈으로)로 넘깁니다.
+  // Android 뒤로가기: 날짜 시트가 열려 있으면 닫고, 닫혀 있으면 앱 쪽 처리(홈으로)로 넘깁니다.
   useEffect(() => {
-    if (!isAddMenuOpen && !sheet.isOpen) return;
+    if (!sheet.isOpen) return;
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (isAddMenuOpen) setIsAddMenuOpen(false);
-      else sheet.setIsOpen(false);
+      sheet.setIsOpen(false);
       return true;
     });
     return () => subscription.remove();
-  }, [isAddMenuOpen, sheet.isOpen, sheet.setIsOpen]);
+  }, [sheet.isOpen, sheet.setIsOpen]);
 
   // AI 일정 등록으로 추가한 뒤 잠깐 띄우는 알림. '되돌리기'를 누르면 방금 넣은 일정을 모두 뺍니다.
   const [addedNotice, setAddedNotice] = useState<{ ids: string[]; key: number } | null>(null);
+  // 일정을 지운 뒤 5초 동안 띄우는 알림. '되돌리기'를 누르면 지운 일정을 그대로 되살립니다.
+  const [removedNotice, setRemovedNotice] = useState<{ events: CalendarEvent[]; key: number } | null>(null);
+  useEffect(() => {
+    if (!removedNotice) return;
+    const timer = setTimeout(() => setRemovedNotice(null), 5000);
+    return () => clearTimeout(timer);
+  }, [removedNotice]);
   useEffect(() => {
     if (!addedNotice) return;
     const timer = setTimeout(() => setAddedNotice(null), 5000);
@@ -171,9 +177,11 @@ export function CalendarPanel({
     const task = InteractionManager.runAfterInteractions(() => setIsTransitionDone(true));
     return () => task.cancel();
   }, []);
-  const weatherRiskByDate = useMemo(() => {
+  // 달력 칸 구석 날씨 배지와, 비·눈·천둥이 예보된 일정('일정id:날짜') 목록. 일정 선 앞에 우산을 그립니다.
+  const { rainyEventKeys, weatherRiskByDate } = useMemo(() => {
     const next: Record<string, CalendarWeatherRiskIndicator> = {};
-    if (!isTransitionDone) return next;
+    const rainy = new Set<string>();
+    if (!isTransitionDone) return { rainyEventKeys: rainy, weatherRiskByDate: next };
     monthCells.forEach((cell) => {
       if (!cell) return;
       const dayEvents = sortedEvents
@@ -189,8 +197,13 @@ export function CalendarPanel({
       const dayRiskByEvent = buildCalendarRiskByEvent(dayEvents, forecastContext);
       const risk = topWeatherRiskForDate(cell.date, dayEvents, dayRiskByEvent);
       if (risk) next[cell.date] = risk;
+      dayEvents.forEach((event) => {
+        if (weatherRiskIndicators(dayRiskByEvent[event.id]).some((indicator) => indicator.imageKind === 'rain' || indicator.imageKind === 'snow' || indicator.imageKind === 'thunder')) {
+          rainy.add(event.id);
+        }
+      });
     });
-    return next;
+    return { rainyEventKeys: rainy, weatherRiskByDate: next };
   }, [forecastContext, isTransitionDone, monthCells, sortedEvents]);
   const dailyWeatherByDate = useMemo(
     () => buildDailyWeatherByDate({ todayDateLabel, weatherHourlyItems, weatherMidTermItems }),
@@ -212,14 +225,31 @@ export function CalendarPanel({
     setSelectedDate(nextDate);
     sheet.setIsOpen(options?.openSheet !== false);
   };
+  // 목록의 '+', 날짜 창의 '+ 일정 추가', 달력 날짜 길게 누르기: 그 날짜로 일정 입력 창을 바로 엽니다.
+  // AI로 넣고 싶으면 입력 창 맨 위 'AI로 입력'을 누릅니다(입력 창을 닫고 AI 입력창을 엶).
+  // 머리 제목(년·월, 주, 날)을 길게 누르면 년 보기로 올라갑니다.
+  const openYearView = () => {
+    Haptics.selectionAsync().catch(() => {});
+    sheet.setIsOpen(false);
+    changeViewMode('year');
+  };
+  const openAddForDate = (date: string) => {
+    setSelectedDate(date);
+    draft.openEditor(date);
+  };
+  const openAiFromEditor = () => {
+    draft.closeEditor();
+    // 두 창(Modal)이 동시에 바뀌면 안드로이드에서 새 창이 안 뜰 수 있어 닫힌 뒤에 엽니다.
+    setTimeout(() => setIsMemoOpen(true), 300);
+  };
 
-  // 홈 '오늘 일정' 카드에서 추가를 눌러 왔으면 화면이 자리 잡은 뒤 오늘 창을 열고, 창이 다 올라오면 직접·AI 등록 메뉴를 펼칩니다.
+  // 홈 '오늘 일정'에서 추가를 눌러 왔으면 화면이 자리 잡은 뒤 오늘 창을 열고, 이어서 오늘 날짜로 일정 입력 창을 엽니다.
   // 캘린더 화면은 탭을 열 때마다 새로 만들어지므로 처음 한 번만 봅니다.
   useEffect(() => {
     if (!openAddForToday) return;
     onOpenedAddForToday?.();
     const openSheet = setTimeout(() => selectDate(todayDateLabel), 450);
-    const openMenu = setTimeout(() => setIsAddMenuOpen(true), 750);
+    const openMenu = setTimeout(() => draft.openEditor(todayDateLabel), 750);
     return () => {
       clearTimeout(openSheet);
       clearTimeout(openMenu);
@@ -273,10 +303,28 @@ export function CalendarPanel({
     weatherMidTermItems,
   });
 
+  // 한 번만 있는 일정은 묻지 않고 바로 지우고 '되돌리기'를 띄웁니다. 반복 일정은 '이 일정만 / 이후 모두'를 먼저 고릅니다.
+  const recentLocations = useMemo(() => recentLocationCandidates(events), [events]);
+
   const removeEvent = (event: CalendarEvent) => {
+    const removeOne = () => {
+      onRemoveEvent(event.id);
+      setAddedNotice(null);
+      setRemovedNotice({ events: [event], key: Date.now() });
+    };
+    if (!event.repeatGroupId) {
+      removeOne();
+      return;
+    }
     confirmCalendarEventRemoval(event, {
-      removeFollowing: () => onRemoveFollowingEvents(event),
-      removeOne: () => onRemoveEvent(event.id),
+      removeFollowing: () => {
+        const kept = new Set(withoutFollowingOccurrences(events, event));
+        const removed = events.filter((item) => !kept.has(item));
+        onRemoveFollowingEvents(event);
+        setAddedNotice(null);
+        setRemovedNotice({ events: removed, key: Date.now() });
+      },
+      removeOne,
     });
   };
 
@@ -298,7 +346,13 @@ export function CalendarPanel({
         <CalendarViewTabs onChange={changeViewMode} tabs={VIEW_MODES} value={viewMode} />
         <Animated.View style={[styles.calendarViewStage, viewAnimatedStyle]}>
         {viewMode === 'list' && (
-          <CalendarAgendaList events={sortedEvents} getEventTone={eventTone} onSelectDate={selectDate} todayDateLabel={todayDateLabel} />
+          <CalendarAgendaList
+            events={sortedEvents}
+            getEventTone={eventTone}
+            onAddForDate={openAddForDate}
+            onSelectDate={selectDate}
+            todayDateLabel={todayDateLabel}
+          />
         )}
         {(viewMode === 'day' || viewMode === 'week') && (
           <CalendarTimeline
@@ -306,6 +360,11 @@ export function CalendarPanel({
             events={sortedEvents}
             getEventTone={eventTone}
             onGoToday={goToday}
+            onOpenYear={openYearView}
+            onAddForDate={(date) => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              openAddForDate(date);
+            }}
             onMove={movePeriod}
             onSelectDate={selectDate}
             selectedDate={selectedDate}
@@ -334,13 +393,19 @@ export function CalendarPanel({
             getEventTone={eventTone}
             monthCells={monthCells}
             monthTitle={monthLabel(visibleMonth.year, visibleMonth.month)}
+            onAddForDate={(date) => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+              openAddForDate(date);
+            }}
             onGoToday={goToday}
+            onOpenYear={openYearView}
             onMoveMonth={movePeriod}
             onSelectDate={selectDate}
             selectedDate={selectedDate}
             todayDateLabel={todayDateLabel}
             transitionDirection={transitionDirection}
             dailyWeatherByDate={dailyWeatherByDate}
+            rainyEventKeys={rainyEventKeys}
             weatherRiskByDate={weatherRiskByDate}
           />
         )}
@@ -350,9 +415,11 @@ export function CalendarPanel({
       {sheet.shouldRender && (
         <CalendarDaySheet
           events={selectedEvents}
-          onAddEvent={() => setIsAddMenuOpen(true)}
+          onAddEvent={() => openAddForDate(selectedDate)}
           isExpanded={sheet.isExpanded}
           onDismiss={() => sheet.setIsOpen(false)}
+          // 복사: 같은 내용으로 새 일정 입력을 엽니다. 반복은 빼고, 날짜만 바꿔 저장하면 됩니다.
+          onCopyEvent={(event) => draft.openEditorWithValues({ ...event, repeatGroupId: undefined, repeatMode: 'none' })}
           onEditEvent={editEvent}
           onExpandStateChange={sheet.setExpanded}
           onRemoveEvent={removeEvent}
@@ -371,45 +438,6 @@ export function CalendarPanel({
         />
       )}
 
-      {/* 일정 추가 버튼은 날짜 시트와 같은 값으로 움직여, 시트가 열리고 커질 때 함께 올라갑니다(닫힘 20 → 열림 시트 높이+16). */}
-      {/* +를 누르면 버튼 위로 두 갈래(직접 일정 등록 · AI 일정 등록)가 펼쳐집니다. 바깥을 누르면 접힙니다. */}
-      {isAddMenuOpen && (
-        <Reanimated.View entering={FadeIn.duration(140).reduceMotion(ReduceMotion.System)} exiting={FadeOut.duration(120).reduceMotion(ReduceMotion.System)} style={styles.calendarAddDialBackdrop}>
-          <Pressable accessibilityLabel="일정 추가 접기" onPress={() => setIsAddMenuOpen(false)} style={{ flex: 1 }} />
-        </Reanimated.View>
-      )}
-      {isAddMenuOpen && (
-        <Reanimated.View pointerEvents="box-none" style={styles.calendarAddDial}>
-          {[
-            { icon: 'calendar-outline' as const, label: '직접 일정 등록', onPress: () => draft.openEditor(selectedDate), primary: false },
-            { icon: 'sparkles' as const, label: 'AI 일정 등록', onPress: () => setIsMemoOpen(true), primary: true },
-          ].map((option, index) => (
-            <Reanimated.View
-              entering={FadeInDown.delay((1 - index) * 40).duration(180).reduceMotion(ReduceMotion.System)}
-              exiting={FadeOutDown.duration(120).reduceMotion(ReduceMotion.System)}
-              key={option.label}
-            >
-              <Pressable
-                accessibilityLabel={option.label}
-                accessibilityRole="button"
-                onPress={() => {
-                  setIsAddMenuOpen(false);
-                  option.onPress();
-                }}
-                style={({ pressed }) => [
-                  styles.calendarAddDialOption,
-                  option.primary ? { backgroundColor: accentTone, borderColor: accentTone } : { borderColor: accentTone },
-                  { shadowColor: accentTone },
-                  pressed && styles.pressedFeedback,
-                ]}
-              >
-                <Ionicons color={option.primary ? '#ffffff' : accentTone} name={option.icon} size={18} />
-                <Text style={[styles.calendarAddDialText, { color: option.primary ? '#ffffff' : accentTone }]}>{option.label}</Text>
-              </Pressable>
-            </Reanimated.View>
-          ))}
-        </Reanimated.View>
-      )}
       <CalendarMemoSheet
         calendarEvents={events}
         isOpen={isMemoOpen}
@@ -440,6 +468,30 @@ export function CalendarPanel({
           </Pressable>
         </Reanimated.View>
       )}
+      {removedNotice && !addedNotice && (
+        <Reanimated.View
+          entering={FadeInDown.duration(180).reduceMotion(ReduceMotion.System)}
+          exiting={FadeOut.duration(150).reduceMotion(ReduceMotion.System)}
+          key={removedNotice.key}
+          style={styles.calendarUndoToast}
+        >
+          <Text numberOfLines={1} style={[styles.calendarUndoText, { flexShrink: 1 }]}>
+            {removedNotice.events.length > 1 ? `일정 ${removedNotice.events.length}개를 지웠어요` : `'${removedNotice.events[0]?.title ?? ''}' 지웠어요`}
+          </Text>
+          <Pressable
+            accessibilityLabel="지운 일정 되돌리기"
+            accessibilityRole="button"
+            hitSlop={10}
+            onPress={() => {
+              if (onAddEvents) onAddEvents(removedNotice.events);
+              else removedNotice.events.forEach(onAddEvent);
+              setRemovedNotice(null);
+            }}
+          >
+            <Text style={styles.calendarUndoAction}>되돌리기</Text>
+          </Pressable>
+        </Reanimated.View>
+      )}
 
       <CalendarEventEditor
         activityInput={draft.activityInput}
@@ -464,7 +516,9 @@ export function CalendarPanel({
         onChangeStartTime={draft.setStartTime}
         onChangeTitle={draft.setTitle}
         onClose={closeEditor}
+        onOpenAi={draft.editingEventId ? undefined : openAiFromEditor}
         onSave={saveEvent}
+        recentLocations={recentLocations}
         repeatEndDate={draft.repeatEndDate}
         repeatMode={draft.repeatMode}
         repeatWeekdays={draft.repeatWeekdays}

@@ -51,6 +51,8 @@ export const calendarStyles = StyleSheet.create({
   calendarAgendaHeaderText: { color: textColors.primary, fontSize: 14, fontWeight: '800' },
   calendarAgendaHeaderToday: { color: bauhausColors.blueText },
   calendarAgendaTodayTag: { color: bauhausColors.blueText, fontSize: 11, fontWeight: '700' },
+  calendarAgendaAddButton: { alignItems: 'center', flexDirection: 'row', gap: 2, marginLeft: 'auto', minHeight: 32, paddingHorizontal: 4 },
+  calendarAgendaAddText: { fontSize: 13, fontWeight: '700' },
   calendarAgendaItem: { alignItems: 'center', borderRadius: 12, flexDirection: 'row', gap: 12, marginBottom: 8, minHeight: 62, paddingHorizontal: 14, paddingVertical: 10 },
   calendarAgendaIcon: { width: 18 },
   calendarAgendaBody: { flex: 1, gap: 3 },
@@ -92,6 +94,9 @@ export const calendarStyles = StyleSheet.create({
   calendarSheetScrollContent: { flexGrow: 1, paddingBottom: 24, paddingHorizontal: 18, paddingTop: 6 },
   calendarSheet: { alignSelf: 'stretch', backgroundColor: '#ffffff', borderRadius: 0, borderWidth: 0, elevation: 0, paddingHorizontal: 0, paddingTop: 0, shadowColor: '#141821', shadowOffset: { width: 0, height: 0 }, shadowOpacity: 0, shadowRadius: 0 },
   calendarSheetTitleRow: { alignItems: 'center', flexDirection: 'row', gap: 12, minHeight: 68 },
+  // 새 일정 입력 창 제목 옆 'AI로 입력'.
+  calendarEditorAiButton: { alignItems: 'center', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 4, paddingHorizontal: 10, paddingVertical: 6 },
+  calendarEditorAiText: { fontSize: 12, fontWeight: '800' },
   calendarSheetTitleInput: { color: textColors.primary, flex: 1, fontSize: 22, fontWeight: '900', paddingVertical: 0 },
   calendarColorDot: { borderRadius: 999, height: 14, width: 14 },
   calendarSheetDivider: { backgroundColor: '#eef1f5', height: 1 },
@@ -103,6 +108,9 @@ export const calendarStyles = StyleSheet.create({
   calendarDurationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   calendarDurationChip: { alignItems: 'center', borderColor: '#DCE5F0', borderRadius: 999, borderWidth: 1, justifyContent: 'center', minHeight: 34, paddingHorizontal: 12 },
   calendarDurationChipText: { color: textColors.secondary, fontSize: 12, fontWeight: '700' },
+  // 일정 입력 장소 줄 아래 '최근' 장소 칩 줄.
+  calendarRecentPlaces: { alignItems: 'center', gap: 6, paddingBottom: 10, paddingLeft: 36 },
+  calendarRecentPlacesLabel: { color: textColors.muted, fontSize: 12, fontWeight: '700', marginRight: 2 },
   // 캘린더의 모든 선택 칩(반복·활동·알림·요일·길이)은 고르면 강조색으로 채우고 이 흰 글자를 씁니다.
   calendarChipTextSelected: { color: '#ffffff' },
   calendarDatePicker: { paddingBottom: 4, paddingTop: 2 },
@@ -227,11 +235,6 @@ export const calendarStyles = StyleSheet.create({
   calendarSelectionEmptyBar: { borderRadius: 999, height: 32, opacity: 0.75, width: 4 },
   calendarSelectionEmptyTitle: { color: textColors.secondary, fontSize: 15, fontWeight: '700' },
   // 펼친 두 버튼은 + 버튼(58) 위로 쌓입니다. bottom은 + 버튼과 같은 값(시트를 따라 움직임)을 받습니다.
-  // 일정 추가 메뉴: 날짜 창의 '+ 일정 추가'를 누르면 오른쪽 아래에 펼칩니다. 바깥을 누르면 닫힙니다.
-  calendarAddDial: { alignItems: 'flex-end', bottom: 20, gap: 10, position: 'absolute', right: 14, zIndex: 7 },
-  calendarAddDialBackdrop: { backgroundColor: 'rgba(255, 255, 255, 0.72)', bottom: 0, left: 0, position: 'absolute', right: 0, top: 0, zIndex: 5 },
-  calendarAddDialOption: { alignItems: 'center', backgroundColor: '#ffffff', borderRadius: 999, borderWidth: 1, flexDirection: 'row', gap: 6, height: 46, paddingHorizontal: 18, ...bauhausMediumShadow },
-  calendarAddDialText: { fontSize: 14, fontWeight: '800' },
   calendarUndoAction: { color: '#9CC3FF', fontSize: 14, fontWeight: '800' },
   calendarUndoText: { color: '#ffffff', fontSize: 14, fontWeight: '700' },
   calendarUndoToast: { alignItems: 'center', alignSelf: 'center', backgroundColor: 'rgba(20, 24, 33, 0.86)', borderRadius: 12, bottom: 24, flexDirection: 'row', gap: 16, left: 24, paddingHorizontal: 16, paddingVertical: 12, position: 'absolute', right: 24, justifyContent: 'space-between', zIndex: 30 },

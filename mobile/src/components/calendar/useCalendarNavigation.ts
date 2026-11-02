@@ -78,7 +78,8 @@ export function useCalendarNavigation(todayDateLabel: string, onPeriodChange: ()
       // 보던 달 밖의 날짜가 골라져 있으면, 보던 달(이번 달이면 오늘)의 주로 엽니다.
       setSelectedDate(isViewingTodayMonth ? todayDateLabel : formatDate(visibleMonth.year, visibleMonth.month, 1));
     }
-    if (mode === 'month' && isTimeline) {
+    // 주·일 보기에서 월·년으로 올라갈 때는 보던 날짜의 달·해로 엽니다.
+    if ((mode === 'month' || mode === 'year') && isTimeline) {
       const parts = parseDateParts(selectedDate);
       setVisibleMonth({ month: parts.month, year: parts.year });
     }

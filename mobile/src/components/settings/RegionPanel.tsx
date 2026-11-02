@@ -11,6 +11,7 @@ import type { OutfitSettings } from '../../types/outfit';
 import type { RegionState } from '../../types/region';
 import type { NotificationSettings } from '../../types/settings';
 import { isSameRegion } from '../../features/region/regionUtils';
+import { CALENDAR_DEFAULT_LEAD_OPTIONS, calendarDefaultLead, setCalendarDefaultLead } from '../../features/calendar/calendarDefaultLead';
 import { NotificationToggleRow } from '../shared/DustWidgets';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { accentTone } from '../../theme/appTheme';
@@ -171,6 +172,7 @@ export function RegionPanel({
           value={notificationSettings.calendarReminders}
           onValueChange={(value) => onToggleNotificationSetting('calendarReminders', value)}
         />
+        {notificationSettings.enabled && notificationSettings.calendarReminders && <CalendarDefaultLeadOptions />}
         <NotificationToggleRow
           disabled={isSavingNotificationSettings || notificationsUnavailable || !notificationSettings.enabled}
           description="매일 아침 7시에 오늘 날씨를 알려 줘요"
@@ -303,3 +305,31 @@ export function RegionPanel({
   );
 }
 
+// 새 일정의 알림 기본값(체감 성향과 같은 모양). 이미 만든 일정은 바뀌지 않습니다.
+function CalendarDefaultLeadOptions() {
+  const [value, setValue] = useState<number | null>(calendarDefaultLead());
+  return (
+    <View style={styles.outfitSensitivitySection}>
+      <Text style={styles.outfitSensitivityLabel}>새 일정 알림 기본값</Text>
+      <View style={styles.outfitSensitivityOptions}>
+        {CALENDAR_DEFAULT_LEAD_OPTIONS.map((option) => {
+          const selected = value === option.value;
+          return (
+            <Pressable
+              accessibilityLabel={`새 일정 알림 기본값 ${option.label}`}
+              accessibilityState={{ selected }}
+              key={option.label}
+              onPress={() => {
+                setValue(option.value);
+                setCalendarDefaultLead(option.value);
+              }}
+              style={({ pressed }) => [styles.outfitSensitivityButton, selected && styles.outfitSensitivityButtonSelected, selected && { borderBottomColor: accentTone }, pressed && styles.pressedFeedback]}
+            >
+              <Text style={[styles.outfitSensitivityButtonText, selected && { color: accentTone }]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}

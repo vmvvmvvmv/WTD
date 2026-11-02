@@ -48,6 +48,8 @@ type Props = {
   events: CalendarEvent[];
   isExpanded?: boolean;
   onDismiss: () => void;
+  // 같은 내용으로 새 일정을 만듭니다(날짜만 바꿔 저장하면 복사).
+  onCopyEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
   onExpandStateChange?: (expanded: boolean) => void;
   onRemoveEvent: (event: CalendarEvent) => void;
@@ -79,7 +81,8 @@ function impactLabel(event: CalendarEvent) {
 function eventLocationMeta(event: CalendarEvent) {
   if (!event.location) return '';
   const resolved = typeof event.locationLat === 'number' && typeof event.locationLng === 'number';
-  const selectedLocationName = event.locationRegion ?? event.locationCity ?? event.location;
+  // 검색으로 고른 가게·건물은 그 이름을, 지도·측정소로 고른 곳은 동네 이름을. 빈 문자열이면 다음 값으로 넘어갑니다.
+  const selectedLocationName = (event.locationSource === 'naver_local' ? event.location : '') || event.locationRegion || event.locationCity || event.location;
   return resolved ? `선택 장소 : ${selectedLocationName} 기준` : `입력 장소 : ${event.location} · 현재 지역 기준`;
 }
 
@@ -154,6 +157,7 @@ export function CalendarDaySheet({
   isExpanded = false,
   onAddEvent,
   onDismiss,
+  onCopyEvent,
   onEditEvent,
   onExpandStateChange,
   onRemoveEvent,
@@ -294,6 +298,15 @@ export function CalendarDaySheet({
                   >
                     <AppActionIcon name="edit" size={24} />
                   </Pressable>
+                  {!!onCopyEvent && (
+                    <Pressable
+                      accessibilityLabel={`${event.title} 일정 복사`}
+                      onPress={() => onCopyEvent(event)}
+                      style={({ pressed }) => [styles.calendarIconButton, pressed && styles.pressedFeedback]}
+                    >
+                      <Ionicons color="#5B6B80" name="copy-outline" size={21} />
+                    </Pressable>
+                  )}
                   <Pressable
                     accessibilityLabel={`${event.title} 일정 삭제`}
                     onPress={() => onRemoveEvent(event)}

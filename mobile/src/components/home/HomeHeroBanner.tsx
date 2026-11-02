@@ -15,7 +15,7 @@ import { buildHomeMetricSlides } from '../../features/dashboard/homeMetricPresen
 import { getWeatherVisualKind } from '../../utils/weather';
 import { AppActionIcon } from '../shared/AppActionIcon';
 import { tutorialTarget } from '../shared/TutorialTour';
-import { WeatherIcon, weatherIconKind } from '../shared/WeatherIcon';
+import { WeatherIcon, weatherIconKind, type WeatherIconKind } from '../shared/WeatherIcon';
 import { HomeForecastHourStrip } from './HomeForecastHourStrip';
 import { HomeBannerSkeleton } from './HomeBannerSkeleton';
 import { getHomeWeatherMotionKind, HOME_METRIC_BACKGROUND_COLORS, HomeBannerScene } from './HomeWeatherScene';
@@ -117,8 +117,12 @@ export function HomeHeroBanner({
     const items = bannerForecastItems.filter((item) => item.date === date);
     const summary = items.reduce((best, item) => Math.abs(Number(item.hour.slice(0, 2)) - 12) < Math.abs(Number(best.hour.slice(0, 2)) - 12) ? item : best, items[0]);
     const temperatures = items.map((item) => item.temperature).filter((value): value is number => value !== undefined);
+    // 그날 한 시간이라도 비·눈이 오면 무엇인지(대표 날씨가 맑음이어도 아이콘 절반으로 보여 주려고).
+    const precipitation: WeatherIconKind | null = items.some((item) => getWeatherVisualKind(item.label) === 'snow')
+      ? 'snow'
+      : items.some((item) => item.isRainy) ? 'rain' : null;
     // 오늘만 '오늘', 나머지는 날짜로 적습니다(예: 31일(토)).
-    return { date, items, label: index === 0 ? '오늘' : `${day.getDate()}일(${weekdayLabels[day.getDay()]})`, summary, temperatures };
+    return { date, items, label: index === 0 ? '오늘' : `${day.getDate()}일(${weekdayLabels[day.getDay()]})`, precipitation, summary, temperatures };
   });
   // 시간별 예보 줄에서 고른 시간. null이면 "지금"입니다. 고른 시간이 지나가 목록에서 빠지면 저절로 "지금"으로 돌아갑니다.
   const [selectedForecastKey, setSelectedForecastKey] = useState<string | null>(null);
@@ -301,7 +305,7 @@ export function HomeHeroBanner({
                     const maximum = day.temperatures.length ? Math.round(Math.max(...day.temperatures)) : null;
                     return (
                       <Pressable
-                        accessibilityLabel={`${day.label}, ${day.date}, ${day.summary?.label ?? '예보 없음'}`}
+                        accessibilityLabel={`${day.label}, ${day.date}, ${day.summary?.label ?? '예보 없음'}${day.precipitation ? `, ${day.precipitation === 'snow' ? '눈' : '비'} 오는 시간 있음` : ''}`}
                         accessibilityRole="button"
                         accessibilityState={{ expanded }}
                         key={day.date}
@@ -313,7 +317,9 @@ export function HomeHeroBanner({
                         style={[styles.homeForecastDay, expanded && styles.homeForecastDaySelected]}
                       >
                         <Text numberOfLines={1} style={[styles.homeForecastDayTitle, expanded && styles.homeHeroBannerForecastTimeCurrent]}>{day.label}</Text>
-                        {day.summary ? <WeatherIcon kind={weatherIconKind(day.summary.label)} size={23} /> : <Ionicons color="#7890AE" name="time-outline" size={23} />}
+                        {day.summary
+                          ? <DayWeatherIcon main={weatherIconKind(day.summary.label)} precipitation={day.precipitation} size={23} />
+                          : <Ionicons color="#7890AE" name="time-outline" size={23} />}
                         <Text numberOfLines={1} style={styles.homeForecastDayTemp}>{minimum === null ? '예보 없음' : `${minimum}° / ${maximum}°`}</Text>
                       </Pressable>
                     );
@@ -322,7 +328,8 @@ export function HomeHeroBanner({
                 {selectedForecastDate && (() => {
                   const dayItems = bannerForecastItems
                     .map((item, index) => ({ ...item, index }))
-                    .filter((item) => item.date === selectedForecastDate);
+                    // 지난 시간은 시간별 줄에서 뺍니다(오늘 최저·최고 기온 계산에는 그대로 씀).
+                    .filter((item) => item.date === selectedForecastDate && !item.isPast);
                   if (!dayItems.length) return <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>;
                   return (
                     <HomeForecastHourStrip
@@ -366,5 +373,20 @@ export function HomeHeroBanner({
         </View>
       </View>
     </Animated.View>
+  );
+}
+
+// 날짜 칸 대표 아이콘. 대표 날씨(낮 12시 무렵)가 맑거나 흐린데 그날 비·눈이 오는 시간이 있으면
+// 대표 날씨 아이콘 오른쪽 아래에 작은 비·눈 아이콘을 겹쳐 그립니다(맑다가 잠깐 비 오는 날).
+function DayWeatherIcon({ main, precipitation, size }: { main: WeatherIconKind; precipitation: WeatherIconKind | null; size: number }) {
+  if (!precipitation || main === 'rain' || main === 'snow' || main === 'thunder') return <WeatherIcon kind={main} size={size} />;
+  const badge = Math.round(size * 0.62);
+  return (
+    <View style={{ height: size, width: size + badge * 0.35 }}>
+      <WeatherIcon kind={main} size={size} />
+      <View style={{ alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: badge, bottom: -badge * 0.18, height: badge + 2, justifyContent: 'center', position: 'absolute', right: 0, width: badge + 2 }}>
+        <WeatherIcon kind={precipitation} size={badge} />
+      </View>
+    </View>
   );
 }

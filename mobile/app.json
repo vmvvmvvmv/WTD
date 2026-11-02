@@ -30,7 +30,6 @@
       ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO",
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
@@ -40,6 +39,13 @@
       "favicon": "./assets/weather-todo-favicon.png"
     },
     "plugins": [
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "말로 일정을 입력할 때 마이크를 사용합니다.",
+          "speechRecognitionPermission": "말한 내용을 글자로 바꿔 일정을 입력하는 데 사용합니다."
+        }
+      ],
       "expo-secure-store",
       "expo-font",
       "expo-notifications",
