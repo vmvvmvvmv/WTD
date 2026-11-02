@@ -31,20 +31,25 @@ export function parseNaverPlaceItems(items: unknown): NaverPlace[] {
 
 const compactName = (value: string) => value.replace(/\s/g, '').toLowerCase();
 
-// 기준 좌표에서 가까운 순으로. 주소 검색 결과가 맨 앞, 그다음 이름이 검색어와 똑같은 장소('코엑스'로 찾은 '코엑스'),
-// 나머지는 가까운 순, 좌표가 없는 항목은 맨 뒤, 거리가 같으면 원래 순서.
+// 순서: 주소 검색 결과 → 이름이 검색어와 똑같은 장소('코엑스'로 찾은 '코엑스') → 이름이 검색어로 시작하는 장소
+// ('서울역'으로 찾은 '서울역 1호선') → 나머지. 같은 묶음 안에서는 가까운 순, 좌표가 없는 항목은 맨 뒤, 거리가 같으면 원래 순서.
 // 이름이 똑같은 장소를 앞에 두는 건, 먼 곳의 유명한 장소가 주변에서 다시 찾은 비슷한 이름(예: '부산코엑스콜밴')에 밀리지 않게 하려고.
 export function sortByDistanceFrom<T extends { label?: string; lat?: number; lng?: number; source?: string }>(items: T[], origin?: { lat: number; lng: number } | null, query?: string): T[] {
   if (!origin) return items;
   const exact = query ? compactName(query) : '';
-  const rank = (item: T) => {
-    if (item.source === 'naver_geocode') return -2;
-    if (exact && item.label && compactName(item.label) === exact) return -1;
-    return typeof item.lat === 'number' && typeof item.lng === 'number' ? haversineKm(origin.lat, origin.lng, item.lat, item.lng) : Infinity;
+  const tier = (item: T) => {
+    if (item.source === 'naver_geocode') return 0;
+    const name = item.label ? compactName(item.label) : '';
+    if (exact && name === exact) return 1;
+    if (exact && name.startsWith(exact)) return 2;
+    return 3;
   };
+  const distance = (item: T) => (
+    typeof item.lat === 'number' && typeof item.lng === 'number' ? haversineKm(origin.lat, origin.lng, item.lat, item.lng) : Infinity
+  );
   return items
-    .map((item, index) => ({ index, item, rank: rank(item) }))
-    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((item, index) => ({ distance: distance(item), index, item, tier: tier(item) }))
+    .sort((a, b) => a.tier - b.tier || a.distance - b.distance || a.index - b.index)
     .map(({ item }) => item);
 }
 
@@ -55,8 +60,11 @@ export type SearchNear = { areaName?: string; lat: number; lng: number };
 export const LOCAL_SEARCH_FAR_KM = 30;
 
 // 주소 결과를 뺀 장소가 하나도 없거나 모두 멀면, 지역 이름을 붙여 다시 찾아야 합니다.
-export function needsLocalSearch(places: NaverPlace[], near: { lat: number; lng: number }) {
+// 다만 이름이 검색어로 시작하는 장소가 있으면('서울역'처럼 콕 집어 찾은 곳) 멀어도 그게 찾던 곳이라 다시 찾지 않습니다.
+export function needsLocalSearch(places: NaverPlace[], near: { lat: number; lng: number }, query?: string) {
   const spots = places.filter((place) => place.source !== 'naver_geocode');
+  const wanted = query ? compactName(query) : '';
+  if (wanted && spots.some((place) => compactName(place.label).startsWith(wanted))) return false;
   return spots.every((place) => haversineKm(near.lat, near.lng, place.lat, place.lng) > LOCAL_SEARCH_FAR_KM);
 }
 

@@ -7,6 +7,7 @@ import type { WebView as WebViewType } from 'react-native-webview';
 
 import type { SearchNear } from '../../features/places/naverPlaces';
 import { searchPlacesNear } from '../../features/places/placeSearch';
+import { isLandmarkPlace } from '../../features/region/regionPlaceSearch';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
 import { textColors } from '../../theme/bauhaus';
@@ -162,7 +163,9 @@ export function CalendarEventEditor({
     const timer = setTimeout(async () => {
       let results: CalendarLocationCandidate[] = [];
       try {
+        // 지역 검색과 같게 랜드마크·주소만(가게·ATM 등은 뺌).
         results = (await searchPlacesNear(query, mapPickerCenterRef.current))
+          .filter(isLandmarkPlace)
           .map((place) => ({ ...place, source: 'naver_local' } satisfies CalendarLocationCandidate));
         if (cancelled) return;
         setMapPickerSearchResults(results);

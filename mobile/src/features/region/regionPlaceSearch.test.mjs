@@ -92,3 +92,15 @@ test('지역 검색은 가게·ATM은 빼고 랜드마크·주소만 남긴다',
   assert.equal(isLandmarkPlace({ category: '의료>종합병원' }), true);
   assert.equal(isLandmarkPlace({ category: '주소', source: 'naver_geocode' }), true);
 });
+
+test('서울역처럼 콕 집어 찾으면 멀어도 그 장소가 맨 앞에 오고 다시 찾지 않는다', () => {
+  const busan = { lat: 35.11, lng: 129.02 };
+  const places = [
+    { label: '부산역', lat: 35.115, lng: 129.04 },
+    { label: '서울역 1호선', lat: 37.555, lng: 126.972 },
+    { label: '서울역', lat: 37.554, lng: 126.97 },
+  ];
+  assert.deepEqual(sortByDistanceFrom(places, busan, '서울역').map((p) => p.label), ['서울역', '서울역 1호선', '부산역']);
+  assert.equal(needsLocalSearch(places.slice(1), busan, '서울역'), false);
+  assert.equal(needsLocalSearch(places.slice(1), busan, 'cgv'), true);
+});
