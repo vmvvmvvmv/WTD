@@ -35,6 +35,13 @@ export function useRegionPlaceSearch(searchText: string, stations: StationDustIt
         // 서버·네이버가 안 되면 아래 측정소 이름 검색으로 대신합니다.
       }
       if (!next.length) next = stationResults(findStationSuggestions(stations, query, 6));
+      // '대신동'·'삼남읍'처럼 동네 이름을 치면 그 이름의 측정소(=그 동네)를 맨 앞에 둡니다.
+      // 주소 검색은 법정동만 찾아서(예: 부산 '대신동'은 동대신동·서대신동) 동네 자체가 안 나올 수 있어서.
+      else if (/^[가-힣]+(동|읍|면|리)$/.test(query.trim())) {
+        // 이름이 정확히 같은 측정소만('대신동'으로 '대신면'이 끼지 않게).
+        const areaStations = stationResults(findStationSuggestions(stations, query, 6).filter((station) => station.name === query.trim()));
+        next = [...areaStations, ...next];
+      }
       if (cancelled) return;
       setResults(next);
       setIsSearching(false);
