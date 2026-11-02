@@ -322,7 +322,8 @@ export function HomeHeroBanner({
                 {selectedForecastDate && (() => {
                   const dayItems = bannerForecastItems
                     .map((item, index) => ({ ...item, index }))
-                    .filter((item) => item.date === selectedForecastDate);
+                    // 지난 시간은 시간별 줄에서 뺍니다(오늘 최저·최고 기온 계산에는 그대로 씀).
+                    .filter((item) => item.date === selectedForecastDate && !item.isPast);
                   if (!dayItems.length) return <Text style={styles.homeHeroBannerForecastEmptyText}>이 날짜의 시간별 예보가 아직 없어요.</Text>;
                   return (
                     <HomeForecastHourStrip
