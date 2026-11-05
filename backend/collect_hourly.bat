@@ -69,6 +69,12 @@ echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
 "%PYTHON_EXE%" manage.py send_early_event_weather_notifications >> "%LOG_FILE%" 2>&1
 if errorlevel 1 call :mark_failed
 
+REM Push when rain, snow or strong wind is forecast to start within about 2 hours.
+set "CURRENT_STEP=send_weather_soon_notifications"
+echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
+"%PYTHON_EXE%" manage.py send_weather_soon_notifications >> "%LOG_FILE%" 2>&1
+if errorlevel 1 call :mark_failed
+
 REM Push when a KMA weather warning is in effect for a device's region (checked every 30 minutes; once per 24h per warning).
 set "CURRENT_STEP=send_weather_warning_notifications"
 echo [%date% %time%] %CURRENT_STEP% start >> "%LOG_FILE%"
