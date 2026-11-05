@@ -397,3 +397,100 @@ def send_early_event_weather_notifications(now: datetime | None = None, dry_run:
             )
             sent += 1
     return WeatherMorningResult(sent=sent, failed=failed, skipped=skipped)
+
+
+SOON_NOTIFICATION_TYPE = "weather_soon"
+SOON_QUIET_HOURS = (22, 7)  # 밤 10시~아침 7시는 보내지 않는다(기상특보 알림과 같음).
+SOON_KINDS = (
+    ("snow", _is_snow, "눈이 올 수도 있어요"),
+    ("rain", lambda point: _is_rain(point) and not _is_snow(point), "비가 올 수도 있어요"),
+    ("wind", _is_windy, "바람이 강하게 불 수도 있어요"),
+)
+
+
+def soon_weather_changes(points: list[WeatherHourlyMeasurement], now: datetime) -> list[tuple[int, str, str]]:
+    """앞으로 2시간(지금 다음 시·그다음 시) 안에 새로 시작하는 비·눈·강풍. [(시, 종류, 문구)].
+    날씨 수집(매시 45분) 직후 돌므로, 다음다음 시는 약 1시간 전에 알리고 다음 시는 예보가 새로 바뀐 경우 바로 알린다.
+    바로 앞 시간에도 같은 날씨면 이미 오는 중이라 알리지 않는다."""
+    local_now = timezone.localtime(now).replace(minute=0, second=0, microsecond=0)
+    by_hour = {timezone.localtime(point.measured_at).replace(minute=0, second=0, microsecond=0): point for point in points}
+    changes = []
+    for kind, matches, phrase in SOON_KINDS:
+        for offset in (1, 2):
+            at = local_now + timedelta(hours=offset)
+            point, before = by_hour.get(at), by_hour.get(at - timedelta(hours=1))
+            if point is not None and matches(point) and not (before is not None and matches(before)):
+                changes.append((at.hour, kind, phrase))
+                break
+    return changes
+
+
+def send_weather_soon_notifications(now: datetime | None = None, dry_run: bool = False, force: bool = False, write: Callable[[str], None] | None = None) -> WeatherMorningResult:
+    """알림 지역에 곧 비·눈·강풍이 시작될 것 같으면 알린다. 기상특보 알림을 켠 기기에 보낸다."""
+    write = write or (lambda _message: None)
+    now = now or timezone.now()
+    local_now = timezone.localtime(now)
+    if not force and (local_now.hour >= SOON_QUIET_HOURS[0] or local_now.hour < SOON_QUIET_HOURS[1]):
+        write("Quiet hours; weather soon notifications skipped.")
+        return WeatherMorningResult()
+    sent = skipped = failed = 0
+    points_cache: dict[tuple[str, str], list[WeatherHourlyMeasurement]] = {}
+    for device in NotificationDevice.objects.filter(enabled=True, weather_warning_alerts=True):
+        city, region = device.city, device.region
+        if not city or not region:
+            skipped += 1
+            continue
+        if (city, region) not in points_cache:
+            # 자정을 넘는 2시간도 보도록 오늘·내일 예보를 합친다.
+            points_cache[(city, region)] = [
+                point
+                for day in (local_now.date(), local_now.date() + timedelta(days=1))
+                for point in (weather_points_for_region(city, region, day) or [])
+            ]
+        changes = soon_weather_changes(points_cache[(city, region)], now)
+        # 같은 날 같은 시에 시작하는 같은 날씨는 한 번만(다음 수집에서 다시 걸려도 보내지 않음).
+        fresh = [
+            change for change in changes
+            if force or not DustNotificationLog.objects.filter(
+                device=device, notification_type=SOON_NOTIFICATION_TYPE, city=city, region=region,
+                basis_key=f"{local_now:%Y%m%d}{change[0]:02d}{change[1]}",
+            ).exists()
+        ]
+        if not fresh:
+            skipped += 1
+            continue
+        first_hour = fresh[0][0]
+        title = f"{region} 날씨 알림"
+        body = " · ".join(f"{hour}시쯤 {phrase}" for hour, _kind, phrase in sorted(fresh))
+        if any(kind in {"rain", "snow"} for _hour_value, kind, _phrase in fresh):
+            body += ". 우산을 챙기세요."
+        else:
+            body += "."
+        if dry_run:
+            write(f"[dry-run] {title} - {body}")
+            sent += 1
+            continue
+        try:
+            send_expo_push(device.expo_push_token, title, body, {
+                "type": SOON_NOTIFICATION_TYPE, "city": city, "region": region, "hour": first_hour,
+            })
+        except ExpoDeviceNotRegistered:
+            failed += 1
+            device.enabled = False
+            device.calendar_events = []
+            device.save(update_fields=["enabled", "calendar_events", "updated_at"])
+            write(f"Expo device is no longer registered; disabled device for {city} {region}.")
+            continue
+        except Exception as exc:
+            failed += 1
+            write(f"Expo push request failed for {city} {region}: {exc}")
+            continue
+        for hour, kind, _phrase in fresh:
+            DustNotificationLog.objects.update_or_create(
+                device=device, notification_type=SOON_NOTIFICATION_TYPE, city=city, region=region,
+                basis_key=f"{local_now:%Y%m%d}{hour:02d}{kind}", defaults={"pm10_value": None},
+            )
+        device.last_sent_at = timezone.now()
+        device.save(update_fields=["last_sent_at", "updated_at"])
+        sent += 1
+    return WeatherMorningResult(sent=sent, failed=failed, skipped=skipped)

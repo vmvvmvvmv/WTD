@@ -1011,3 +1011,42 @@ class DustBackfillQuotaTests(TestCase):
         self.assertEqual((filled, created), (0, 0))
         self.assertEqual(len(called), 1)  # 한도에 걸리면 바로 멈춘다.
         self.assertTrue(called[0].startswith('정상'))
+
+
+class WeatherSoonNotificationTests(TestCase):
+    """곧(2시간 안) 비·눈·강풍이 새로 시작하면 한 번 알리고, 이미 오는 중이거나 밤이면 보내지 않는다."""
+
+    def setUp(self):
+        from dust.models import NotificationDevice
+        NotificationDevice.objects.create(expo_push_token='ExponentPushToken[soon]', city='부산', region='대신동', enabled=True, weather_warning_alerts=True)
+
+    def _run(self, hour, rainy_hours):
+        from datetime import datetime
+        from django.utils import timezone as dj_timezone
+        from dust import weather_morning_notifications as module
+        from dust.models import WeatherHourlyMeasurement
+        tz = dj_timezone.get_current_timezone()
+        points = [
+            WeatherHourlyMeasurement(
+                measured_at=dj_timezone.make_aware(datetime(2026, 10, 25, h), tz), temperature=15,
+                rain_mm=2 if h in rainy_hours else 0, rain_probability=80 if h in rainy_hours else 10,
+                label='비' if h in rainy_hours else '맑음', precipitation_type='1' if h in rainy_hours else '0', wind_speed=2,
+            )
+            for h in range(24)
+        ]
+        messages = []
+        with patch.object(module, 'weather_points_for_region', side_effect=lambda city, region, day: points if day.day == 25 else []), \
+                patch.object(module, 'send_expo_push', side_effect=lambda token, title, body, data: messages.append(body)):
+            result = module.send_weather_soon_notifications(now=dj_timezone.make_aware(datetime(2026, 10, 25, hour, 45), tz), write=lambda _m: None)
+        return result, messages
+
+    def test_alerts_once_about_an_hour_before(self):
+        result, messages = self._run(14, {16, 17})
+        self.assertEqual(result.sent, 1)
+        self.assertIn('16시쯤 비가 올 수도 있어요', messages[0])
+        result, _ = self._run(15, {16, 17})
+        self.assertEqual(result.sent, 0)  # 같은 비는 한 번만
+
+    def test_no_alert_when_already_raining_or_quiet_hours(self):
+        self.assertEqual(self._run(14, {14, 15, 16})[0].sent, 0)
+        self.assertEqual(self._run(22, {23})[0].sent, 0)
