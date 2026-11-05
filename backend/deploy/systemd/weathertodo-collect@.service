@@ -5,3 +5,7 @@ Description=WeatherToDo %i collection
 Type=oneshot
 User=ubuntu
 ExecStart=/home/ubuntu/WTD/backend/deploy/collect_hourly.sh %i
+# 기상청·에어코리아 응답이 끝없이 늦어져도 잠금을 쥔 채 멈춰 다음 수집을 모두 막지 않게 50분에서 끊는다.
+TimeoutStartSec=50min
+# 수집하는 동안에도 앱 요청(gunicorn)이 먼저 CPU를 쓰게 우선순위를 낮춘다.
+Nice=10

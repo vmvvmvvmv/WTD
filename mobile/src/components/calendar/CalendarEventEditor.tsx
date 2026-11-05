@@ -125,6 +125,8 @@ export function CalendarEventEditor({
   const [mapPickerSearchMessage, setMapPickerSearchMessage] = useState('');
   const [mapPickerSearchResults, setMapPickerSearchResults] = useState<CalendarLocationCandidate[]>([]);
   const [mapPickerSearchText, setMapPickerSearchText] = useState('');
+  // 찾는 중에 검색 버튼을 누르면 결과가 오자마자 맨 위 결과로 갑니다.
+  const mapPickerSubmitPendingRef = useRef(false);
   const [pendingLocation, setPendingLocation] = useState<CalendarLocationCandidate | null>(null);
   // 지도를 움직이는 동안 가운데 핀을 살짝 띄웁니다. 멈추면 내려앉고 그 자리 주소가 아래 카드에 뜹니다.
   const [isMapMoving, setIsMapMoving] = useState(false);
@@ -184,7 +186,9 @@ export function CalendarEventEditor({
         // 바로 그 장소로 지도를 옮기고 아래에 정보를 띄웁니다('이 위치로 설정'은 그대로 눌러서 확정).
         // 치는 도중 키보드가 닫히지 않게 손을 멈추고 잠깐 뒤에 옮깁니다.
         const top = results[0];
-        if (top && isCloseNameMatch(top.label, query)) autoTimer = setTimeout(() => focusMapPickerPlace(top), 700);
+        if (top && mapPickerSubmitPendingRef.current) focusMapPickerPlace(top);
+        else if (top && isCloseNameMatch(top.label, query)) autoTimer = setTimeout(() => focusMapPickerPlace(top), 700);
+        mapPickerSubmitPendingRef.current = false;
       } catch {
         if (!cancelled) {
           setMapPickerSearchResults(results);
@@ -498,14 +502,19 @@ export function CalendarEventEditor({
                 <AppActionIcon name="search" size={23} />
                 <TextInput
                   onChangeText={(text) => {
+                    mapPickerSubmitPendingRef.current = false;
                     setMapPickerSearchText(text);
                     setIsMapPickerSearchOpen(!!text.trim());
                   }}
                   onBlur={() => setTimeout(() => setIsMapPickerSearchOpen(false), 120)}
                   onSubmitEditing={() => {
-                    // 검색 버튼을 누르면 맨 위 결과로 바로 갑니다.
+                    // 검색 버튼을 누르면 맨 위 결과로 바로 갑니다. 아직 찾는 중이면 결과가 오자마자 갑니다.
                     if (mapPickerSearchResults[0]) {
                       focusMapPickerPlace(mapPickerSearchResults[0]);
+                      return;
+                    }
+                    if (mapPickerSearchMessage === '검색 중입니다.') {
+                      mapPickerSubmitPendingRef.current = true;
                       return;
                     }
                     setIsMapPickerSearchOpen(false);

@@ -51,7 +51,7 @@ export function useNotificationSettings(
     } else if (key === 'dustSpikeAlerts') {
       notify(value ? '미세먼지 나쁨 알림을 켰어요.' : '미세먼지 나쁨 알림을 껐어요.');
     } else if (key === 'weatherWarningAlerts') {
-      notify(value ? '기상특보 알림을 켰어요.' : '기상특보 알림을 껐어요.');
+      notify(value ? '비·눈·특보 알림을 켰어요.' : '비·눈·특보 알림을 껐어요.');
     } else {
       notify(value ? '알림을 켰어요.' : '알림을 껐어요.');
     }

@@ -345,8 +345,12 @@ const appStyles = StyleSheet.create({
   stationMetricValue: { color: textColors.primary, fontSize: 18, fontWeight: '900', marginTop: 3, textAlign: 'center' },
   stationMetricUnit: { color: textColors.muted, fontSize: 11, marginTop: 1, textAlign: 'center' },
   stationMetricGrade: { fontSize: 11, fontWeight: '700', marginTop: 4, textAlign: 'center' },
-  tabBar: { backgroundColor: '#FFFFFF', borderTopColor: '#E7EDF5', borderTopWidth: 1, flexDirection: 'row', paddingBottom: 8 },
-  tabItem: { alignItems: 'center', borderTopColor: 'transparent', borderTopWidth: 2, flex: 1, gap: 4, justifyContent: 'center', minHeight: 60 },
+  tabBar: { backgroundColor: 'transparent', flexDirection: 'row', paddingBottom: 8, zIndex: 10 },
+  tabBarSurface: { backgroundColor: '#FFFFFF', borderTopWidth: 1, bottom: 0, left: 0, position: 'absolute', right: 0, top: 24 },
+  tabItem: { alignItems: 'center', borderTopColor: 'transparent', borderTopWidth: 2, flex: 1, gap: 4, justifyContent: 'center', marginTop: 24, minHeight: 60 },
+  calendarTabItem: { borderTopWidth: 0, gap: 4, justifyContent: 'flex-start', marginTop: 0, minHeight: 84 },
+  calendarTabCircle: { alignItems: 'center', backgroundColor: bauhausColors.blue, borderColor: '#FFFFFF', borderRadius: 30, borderWidth: 3, height: 60, justifyContent: 'center', width: 60, ...bauhausSmallShadow },
+  calendarTabCircleIdle: { backgroundColor: '#FFFFFF', borderColor: bauhausColors.border, borderWidth: 1 },
   tabText: { color: '#64748B', fontSize: 11, fontWeight: '900' },
 });
 

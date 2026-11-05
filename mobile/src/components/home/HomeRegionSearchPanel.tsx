@@ -7,6 +7,7 @@ import type { StationDustItem } from '../../types/dust';
 import type { RegionState } from '../../types/region';
 import { formatDistanceKm, stationLabel, type RegionSearchResult } from '../../features/region/regionPlaceSearch';
 import { isSameRegion } from '../../features/region/regionUtils';
+import { useSubmitTopResult } from '../../features/region/useSubmitTopResult';
 import { accentTone } from '../../theme/appTheme';
 
 type Props = {
@@ -40,6 +41,7 @@ export function HomeRegionSearchPanel({
   suggestions,
 }: Props) {
   const isGpsSelected = !!gpsRegion && isSameRegion(gpsRegion, selectedRegion);
+  const submitSearch = useSubmitTopResult(suggestions, isSearching, searchText, onSelectResult);
   return (
     <Animated.View style={[styles.homeRegionSearchPanel, { opacity: panelAnimation.opacity, transform: [{ translateY: panelAnimation.translateY }] }]}>
       <Text style={styles.favoritePickerTitle}>지역 검색</Text>
@@ -50,6 +52,7 @@ export function HomeRegionSearchPanel({
           onChangeText={onChangeText}
           placeholder="장소, 주소, 지역 이름"
           placeholderTextColor="#8a94a3"
+          onSubmitEditing={submitSearch}
           returnKeyType="search"
           style={styles.homeRegionSearchInput}
         />
