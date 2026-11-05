@@ -27,6 +27,8 @@ if [ "$part" = weather ] || [ "$part" = all ]; then
   run send_weather_soon_notifications
   run send_weather_warning_notifications
 fi
+# 바깥 API 한도 초과 오류나 평소보다 훨씬 많은 사용이 보이면 관리자에게 알림(ADMIN_EXPO_PUSH_TOKENS).
+run check_api_usage
 # 15분 넘게 지난 푸시의 전달 영수증 확인. 앱이 지워진 기기는 끄고, 전달 실패가 있으면 실패로 끝낸다.
 run check_push_receipts
 exit $status

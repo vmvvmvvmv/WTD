@@ -23,6 +23,7 @@ from dust.models import LlmDailyUsage
 from dust.services.memo_privacy import mask_memo, unmask
 from dust.services.memo_quick import quick_parse
 from dust.services.places import PlaceSearchFailed, PlaceSearchUnavailable, search_naver_places
+from dust.api_usage import record_api_call
 
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,7 @@ def _ask_gemini(config: dict, now: datetime, text: str) -> dict:
                 json=body,
                 timeout=remaining,
             )
+            record_api_call(GEMINI_URL.format(model=model), response)
             if response.status_code in (404, 429):
                 last_error = requests.HTTPError(f"Gemini model {model} returned {response.status_code}")
                 hit_rate_limit = hit_rate_limit or response.status_code == 429

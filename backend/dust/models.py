@@ -263,3 +263,21 @@ class PublicHoliday(models.Model):
 
     class Meta:
         db_table = 'public_holiday'
+
+
+# 바깥 API를 하루에 몇 번 불렀는지(api = 주소 앞부분, 예: 'apis.data.go.kr/B552584/ArpltnInforInqireSvc/...').
+# 한도 초과 오류가 나거나 평소보다 훨씬 많이 쓰면 관리자에게 알린다(check_api_usage). 같은 날 같은 알림은 한 번만.
+class ExternalApiUsage(models.Model):
+    day = models.DateField()
+    api = models.CharField(max_length=120)
+    calls = models.PositiveIntegerField(default=0)
+    limit_errors = models.PositiveIntegerField(default=0)
+    limit_alerted = models.BooleanField(default=False)
+    spike_alerted = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'external_api_usage'
+        unique_together = ('day', 'api')
+
+    def __str__(self):
+        return f'{self.day} {self.api} {self.calls}'
