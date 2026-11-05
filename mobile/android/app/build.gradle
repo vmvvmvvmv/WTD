@@ -104,15 +104,24 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        // 출시 키: ~/.gradle/gradle.properties(저장소 밖)에 WTD_UPLOAD_* 값을 두면 release를 이 키로 서명한다.
+        // EAS 빌드는 EAS에 맡긴 출시 키로 따로 서명한다.
+        if (findProperty('WTD_UPLOAD_STORE_FILE')) {
+            release {
+                storeFile file(findProperty('WTD_UPLOAD_STORE_FILE'))
+                storePassword findProperty('WTD_UPLOAD_STORE_PASSWORD')
+                keyAlias findProperty('WTD_UPLOAD_KEY_ALIAS')
+                keyPassword findProperty('WTD_UPLOAD_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // 출시 키가 없으면(내 PC 시험용) 디버그 키로 서명한다. 이 APK는 스토어에 올리지 않는다.
+            signingConfig findProperty('WTD_UPLOAD_STORE_FILE') ? signingConfigs.release : signingConfigs.debug
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds

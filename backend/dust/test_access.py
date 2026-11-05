@@ -12,6 +12,7 @@ TOKEN_QUERY_PARAM = "app_test_token"
 
 class AppTestTokenMiddleware:
     """Limit temporary app APIs to preview builds that know the shared test token."""
+    # 이 토큰은 앱(APK) 안에 들어 있어 누구나 꺼낼 수 있다. 막는 문턱일 뿐이라 보안 판단의 근거로 쓰지 않는다.
 
     def __init__(self, get_response):
         self.get_response = get_response

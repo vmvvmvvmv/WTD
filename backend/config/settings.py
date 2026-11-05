@@ -46,7 +46,7 @@ def env_list(name, default=None):
     return [item.strip() for item in value.split(',') if item.strip()]
 
 DB_USER = env_value('DB_USER', 'root')
-DB_PASS = env_value('DB_PASS', 'mysql')
+DB_PASS = env_value('DB_PASS')
 DB_HOST = env_value('DB_HOST', '127.0.0.1')
 DB_PORT = env_value('DB_PORT', '3306')
 
@@ -67,6 +67,11 @@ PRIVACY_CONTACT = env_value('PRIVACY_CONTACT', '')
 
 if not SECRET_KEY and not DEBUG:
     raise RuntimeError('DJANGO_SECRET_KEY must be set when DJANGO_DEBUG=False')
+# 내 PC 개발용 MySQL만 기본 비밀번호를 쓴다. 서버에서 비어 있으면 뻔한 비밀번호로 붙지 않고 바로 멈춘다.
+if not DB_PASS:
+    if not DEBUG:
+        raise RuntimeError('DB_PASS must be set when DJANGO_DEBUG=False')
+    DB_PASS = 'mysql'
 
 DEFAULT_ALLOWED_HOSTS = [
     'localhost',
