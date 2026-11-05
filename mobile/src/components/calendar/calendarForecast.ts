@@ -99,15 +99,24 @@ export function buildCalendarRiskByEvent(events: CalendarEvent[], context: Calen
         : event.location
           ? '현재 지역 기준'
           : undefined;
+      // 선택 장소 예보가 있으면 그 장소 값만 씁니다. 빈 값을 홈 지역 값으로 채우면 '선택 장소 기준'이라 적고 다른 지역 수치로 판단하게 됩니다.
+      const source = locationForecast ?? {
+        currentPm10: context.currentPm10,
+        dustItems: context.hourlyItems,
+        prediction: context.prediction,
+        weather: context.weather,
+        weatherHourlyItems: context.weatherHourlyItems,
+        weatherMidTermItems: context.weatherMidTermItems,
+      };
       return evaluateCalendarEventRisk(context.sensitiveMode ? { ...event, sensitive: true } : event, {
-        currentPm10: locationForecast?.currentPm10 ?? context.currentPm10,
-        dustItems: locationForecast?.dustItems ?? context.hourlyItems,
+        currentPm10: source.currentPm10,
+        dustItems: source.dustItems,
         locationBasis,
-        prediction: locationForecast?.prediction ?? context.prediction,
+        prediction: source.prediction,
         todayDateLabel: context.todayDateLabel,
-        weather: locationForecast?.weather ?? context.weather,
-        weatherItems: locationForecast?.weatherHourlyItems ?? context.weatherHourlyItems,
-        weatherMidTermItems: locationForecast?.weatherMidTermItems ?? context.weatherMidTermItems,
+        weather: source.weather,
+        weatherItems: source.weatherHourlyItems,
+        weatherMidTermItems: source.weatherMidTermItems,
       });
     })(),
   ]));
