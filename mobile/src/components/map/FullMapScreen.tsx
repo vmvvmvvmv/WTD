@@ -16,6 +16,7 @@ import { isSameRegion } from '../../features/region/regionUtils';
 import { uniqueStations } from '../../features/stations/stationUtils';
 import { StationBottomSheet } from './StationBottomSheet';
 import { accentBorderTone, accentTone } from '../../theme/appTheme';
+import { useSubmitTopResult } from '../../features/region/useSubmitTopResult';
 
 type FullMapScreenProps = {
   bottomToast: ReactNode;
@@ -100,6 +101,7 @@ export function FullMapScreen({
     if (result) focusMapStation(result.station, result.distanceKm === null ? undefined : result.title);
   };
   const [mapLoadError, setMapLoadError] = useState('');
+  const submitSearch = useSubmitTopResult(searchSuggestions, isMapSearching, mapSearchText, focusResult);
 
   return (
     <View style={styles.fullMapContainer}>
@@ -152,7 +154,7 @@ export function FullMapScreen({
             setIsMapSearchFocused(true);
             setShowSearchSuggestions(false);
           }}
-          onSubmitEditing={() => focusResult(searchSuggestions[0])}
+          onSubmitEditing={submitSearch}
           placeholder="장소, 주소, 지역 검색"
           placeholderTextColor={textColors.muted}
           returnKeyType="search"
@@ -215,7 +217,7 @@ export function FullMapScreen({
                 setMapSearchText(text);
                 setMapSearchMessage('');
               }}
-              onSubmitEditing={() => focusResult(searchSuggestions[0])}
+              onSubmitEditing={submitSearch}
               placeholder="장소, 주소, 지역 검색"
               placeholderTextColor={textColors.muted}
               returnKeyType="search"
