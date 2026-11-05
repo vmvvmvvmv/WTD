@@ -27,4 +27,12 @@ BATCH_TIMEOUT = 15
 
 
 def public_api_get(url, params=None, *, timeout=BATCH_TIMEOUT, headers=None):
-    return requests.get(url, params=params, headers=headers or PUBLIC_API_HEADERS, timeout=timeout)
+    from dust.api_usage import record_api_call
+
+    response = None
+    try:
+        response = requests.get(url, params=params, headers=headers or PUBLIC_API_HEADERS, timeout=timeout)
+        return response
+    finally:
+        # 실패한 요청도 한도에 잡힐 수 있어 함께 센다(관리자 알림용, check_api_usage).
+        record_api_call(url, response)

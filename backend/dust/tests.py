@@ -1050,3 +1050,40 @@ class WeatherSoonNotificationTests(TestCase):
     def test_no_alert_when_already_raining_or_quiet_hours(self):
         self.assertEqual(self._run(14, {14, 15, 16})[0].sent, 0)
         self.assertEqual(self._run(22, {23})[0].sent, 0)
+
+
+class ApiUsageAlertTests(TestCase):
+    """바깥 API 호출을 세고, 한도 초과 오류나 평소의 1.5배 넘는 사용은 하루 한 번만 알린다."""
+
+    URL = 'https://apis.data.go.kr/B552584/ArpltnInforInqireSvc/getCtprvnRltmMesureDnsty'
+
+    def _response(self, status=200, body=b'{"ok": true}'):
+        from types import SimpleNamespace
+        return SimpleNamespace(status_code=status, content=body)
+
+    def test_counts_calls_and_limit_errors(self):
+        from dust.api_usage import record_api_call
+        from dust.models import ExternalApiUsage
+        record_api_call(self.URL, self._response())
+        record_api_call(self.URL, self._response(200, b'<resultCode>22</resultCode><resultMsg>LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS_ERROR</resultMsg>'))
+        record_api_call(self.URL, None)
+        row = ExternalApiUsage.objects.get()
+        self.assertEqual((row.calls, row.limit_errors), (3, 1))
+
+    def test_alerts_once_for_limit_and_spike(self):
+        from datetime import datetime, timedelta
+        from django.utils import timezone as dj_timezone
+        from dust.api_usage import api_label, send_api_usage_alerts
+        from dust.models import ExternalApiUsage
+        tz = dj_timezone.get_current_timezone()
+        now = dj_timezone.make_aware(datetime(2026, 11, 5, 12, 0), tz)  # 하루의 절반
+        api = api_label(self.URL)
+        for days in range(1, 4):
+            ExternalApiUsage.objects.create(day=now.date() - timedelta(days=days), api=api, calls=400)
+        ExternalApiUsage.objects.create(day=now.date(), api=api, calls=350)  # 하루면 약 700번, 평소 400번
+        messages = []
+        self.assertEqual(send_api_usage_alerts(now=now, write=messages.append), 1)
+        self.assertIn('에어코리아', messages[0])
+        self.assertEqual(send_api_usage_alerts(now=now), 0)  # 같은 날 다시 안 보냄
+        ExternalApiUsage.objects.filter(day=now.date()).update(limit_errors=1)
+        self.assertEqual(send_api_usage_alerts(now=now), 1)
