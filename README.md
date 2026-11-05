@@ -12,7 +12,7 @@
   <img src="https://img.shields.io/badge/Google_Play-출시_준비_중-34A853?logo=googleplay&logoColor=white" alt="Google Play" height="36" />
 </a>
 
-안드로이드 7.0 이상 · 문의 contact@vmv-lab.com
+안드로이드 7.0 이상
 
 ## 핵심 기능
 
