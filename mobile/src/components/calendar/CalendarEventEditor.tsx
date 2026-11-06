@@ -7,6 +7,7 @@ import type { WebView as WebViewType } from 'react-native-webview';
 
 import type { SearchNear } from '../../features/places/naverPlaces';
 import { searchPlacesNear } from '../../features/places/placeSearch';
+import { correctPlaceQuery } from '../../features/places/typoCorrect';
 import { isLandmarkPlace } from '../../features/region/regionPlaceSearch';
 import { AppActionIcon, type AppActionIconName } from '../shared/AppActionIcon';
 import { styles } from '../../styles/appStyles';
@@ -77,10 +78,13 @@ type Props = {
 
 // 장소 이름이 친 글자와 같거나 '서울역 (고속철도)'·'서울역 4호선'처럼 친 글자 뒤에 한글이 바로 이어지지 않으면(띄어쓰기·대소문자 무시) 같은 곳으로 봅니다.
 // '서우' → '서우부동산중개'처럼 글자가 더 이어지면 아직 치는 중일 수 있어 같은 곳으로 보지 않습니다.
+// '부산녁'처럼 자음·모음 한두 개만 틀려도(오타 고치기로 찾은 '부산역 1호선') 같은 곳으로 봅니다.
 function isCloseNameMatch(label: string, query: string) {
   const name = label.replace(/\s/g, '').toLowerCase();
   const typed = query.replace(/\s/g, '').toLowerCase();
-  if (typed.length < 2 || !name.startsWith(typed)) return false;
+  if (typed.length < 2) return false;
+  const head = name.slice(0, typed.length);
+  if (head !== typed && correctPlaceQuery(typed, [head]) !== head) return false;
   return !/^[가-힣]/.test(name.slice(typed.length));
 }
 
