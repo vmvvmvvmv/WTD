@@ -9,7 +9,7 @@ from dust.external_api import public_api_get
 from dust.models import AirQualityStation
 from dust.config import AIRKOREA_HEADERS, KMA_API_KEY, KMA_ULTRA_SHORT_FORECAST_URL
 from dust.services.common import _dfs_grid_from_lat_lng
-from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_current_observation, _store_weather_hourly_measurement
+from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_current_observation, _store_forecast_rain_probability, _store_weather_hourly_measurement
 
 
 def env_int(name, default):
@@ -175,7 +175,10 @@ def _collect_grid_weather(
             date_text = str(item.get("date") or "").replace("-", "")
             hour_text = str(item.get("hour") or "").replace(":", "")
             selected_key = f"{date_text}{hour_text[:4]}"
-            if not selected_key or selected_key in saved_keys:
+            if not selected_key:
+                continue
+            if selected_key in saved_keys:
+                _store_forecast_rain_probability(grid, selected_key, item.get("rain_probability"))
                 continue
             selected = {
                 "T1H": item.get("temperature"),

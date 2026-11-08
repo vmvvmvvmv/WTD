@@ -179,6 +179,19 @@ def _store_weather_hourly_measurement(grid, selected_key, selected):
     return measurement
 
 
+def _store_forecast_rain_probability(grid, selected_key, value):
+    """초단기예보에는 강수확률이 없어서, 그 시각 행에 단기예보의 강수확률만 넣는다(다음 몇 시간의 비 알림·화면에 쓰임)."""
+    probability = _kma_float(value)
+    measured_at = _weather_measured_at_from_key(selected_key)
+    if probability is None or not measured_at:
+        return
+    row = WeatherHourlyMeasurement.objects.filter(nx=grid["nx"], ny=grid["ny"], measured_at=measured_at).first()
+    if row:
+        row.rain_probability = probability
+        row.raw_data = {**(row.raw_data if isinstance(row.raw_data, dict) else {}), "POP": value}
+        row.save(update_fields=["rain_probability", "raw_data", "updated_at"])
+
+
 def _store_current_observation(grid, now=None):
     """지금 시각 한 행을 기상청 초단기실황(실측)으로 덮는다. 예보 값은 실측과 평균 1° 가까이 달랐다(2026-10-23 대조).
 
