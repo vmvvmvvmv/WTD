@@ -1087,3 +1087,33 @@ class ApiUsageAlertTests(TestCase):
         self.assertEqual(send_api_usage_alerts(now=now), 0)  # 같은 날 다시 안 보냄
         ExternalApiUsage.objects.filter(day=now.date()).update(limit_errors=1)
         self.assertEqual(send_api_usage_alerts(now=now), 1)
+
+
+class NearHourRainProbabilityTests(TestCase):
+    """초단기예보로 저장한 가까운 시간에도 단기예보의 강수확률이 남아, 곧 비 알림이 그 값을 볼 수 있다."""
+
+    def test_near_hour_keeps_village_rain_probability_and_triggers_soon_alert(self):
+        from datetime import datetime
+        from types import SimpleNamespace
+        from django.utils import timezone as dj_timezone
+        from dust.management.commands import collect_realtime_weather as module
+        from dust.models import WeatherHourlyMeasurement
+        from dust.weather_morning_notifications import soon_weather_changes
+        grid = {'nx': 98, 'ny': 76}
+        rows = [
+            {'category': category, 'fcstDate': '20261109', 'fcstTime': time, 'fcstValue': value}
+            for time in ('1500', '1600') for category, value in (('T1H', '12'), ('PTY', '0'), ('SKY', '4'), ('RN1', '강수없음'), ('WSD', '2'))
+        ]
+        response = SimpleNamespace(status_code=200, json=lambda: {'response': {'header': {'resultCode': '00'}, 'body': {'items': {'item': rows}}}})
+        village = [{'date': '2026-11-09', 'hour': '16:00', 'rain_probability': 70, 'temperature': 12, 'precipitation_type': '0', 'sky': '4'}]
+        with patch.object(module, '_kma_ultra_short_base_datetime_candidates', return_value=[('20261109', '1430', '1500')]), \
+                patch.object(module, 'public_api_get', return_value=response), \
+                patch.object(module, '_fetch_kma_hourly_weather_forecast_by_grid', return_value=village), \
+                patch.object(module, '_store_current_observation'):
+            module._collect_grid_weather(grid, forecast_hours=96)
+        points = list(WeatherHourlyMeasurement.objects.filter(nx=98, ny=76).order_by('measured_at'))
+        self.assertEqual([point.rain_probability for point in points], [None, 70])
+        self.assertEqual(points[1].precipitation_type, '0')  # 초단기예보 값은 그대로
+        tz = dj_timezone.get_current_timezone()
+        changes = soon_weather_changes(points, dj_timezone.make_aware(datetime(2026, 11, 9, 14, 45), tz))
+        self.assertEqual([(hour, kind) for hour, kind, _phrase in changes], [(16, 'rain')])
