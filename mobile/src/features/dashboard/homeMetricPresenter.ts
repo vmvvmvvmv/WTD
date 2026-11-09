@@ -35,6 +35,13 @@ function rangeStatus(value: number | undefined, good: (value: number) => boolean
   return { status: '심각', tone: semanticColors.weather.danger.tone };
 }
 
+// 습도는 높거나 낮아도 위험한 값이 아니라서 '심각' 대신 습함·건조로 보여 줍니다.
+function humidityStatus(value: number | undefined) {
+  if (typeof value === 'number' && value > 70) return { status: '습함', tone: semanticColors.weather.caution.tone };
+  if (typeof value === 'number' && value < 30) return { status: '건조', tone: semanticColors.weather.caution.tone };
+  return rangeStatus(value, (v) => v >= 40 && v <= 60, () => true, () => true);
+}
+
 function gaugeProgress(value: number | undefined, max: number) {
   return typeof value === 'number' ? Math.max(0.04, Math.min(1, Math.abs(value) / max)) : 0.04;
 }
@@ -61,7 +68,7 @@ export function buildHomeMetricSlides({ currentO3, currentPm10, currentPm25, gau
   const yesterdayPm25 = toNumber(yesterdayDust?.pm25Value);
   const yesterdayO3 = toNumber(yesterdayDust?.o3Value);
   const temperature = rangeStatus(weather?.temperature, (v) => v >= 10 && v <= 25, (v) => v >= 5 && v <= 30, (v) => v >= 0 && v <= 35);
-  const humidity = rangeStatus(weather?.humidity, (v) => v >= 40 && v <= 60, (v) => v >= 30 && v <= 70, (v) => v >= 20 && v <= 80);
+  const humidity = humidityStatus(weather?.humidity);
   const wind = rangeStatus(weather?.windSpeed, (v) => v < 4, (v) => v < 8, (v) => v < 13);
   const rain = rangeStatus(weather?.rainMm, (v) => v === 0, (v) => v < 1, (v) => v < 5);
   const pm10 = getAirQualityMeta('pm10', currentPm10);
