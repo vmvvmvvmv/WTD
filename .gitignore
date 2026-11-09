@@ -57,7 +57,7 @@ Thumbs.db
 
 # Local assistant files
 .claude/
-WEATHERTODO_HANDOFF.md
+*HANDOFF*.md
 
 # AI 도구 설정·메모와 문서 폴더(올리지 않음)
 .claude/

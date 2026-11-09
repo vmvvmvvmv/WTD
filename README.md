@@ -16,10 +16,10 @@
 
 ## 핵심 기능
 
-| 홈 | 배너 |
-| :---: | :---: |
-| <img src="assets/readme/home_tabs.gif" width="240" /> | <img src="assets/readme/home_banner.gif" width="240" /> |
-| 활동 가이드 · 옷차림 · 날씨 지도 | 날씨 · 미세먼지 · 시간별 예보 |
+| 홈 | 캘린더 | 예보 · 지도 |
+| :---: | :---: | :---: |
+| <img src="assets/readme/home_tour.gif" width="240" /> | <img src="assets/readme/calendar_views.gif" width="240" /> | <img src="assets/readme/forecast_map.gif" width="240" /> |
+| 배너 · 활동 가이드 · 옷차림 | 월 · 년 · 주 · 일 · 목록 | 시간별 예보 · 전국 날씨 · 미세먼지 |
 
 - **일정별 날씨** — 일정마다 그 시간·장소의 날씨, 미세먼지, 비 소식을 함께 표시
 - **AI 일정 등록** — "내일 3시 강남역 친구 만남"처럼 적거나 말하면 일정으로 정리
