@@ -7,7 +7,7 @@ from dust.config import ASOS_STATIONS, KMA_API_KEY, KMA_MID_TERM_LAND_URL, KMA_M
 from dust.external_api import public_api_get
 from dust.midterm_weather import current_midterm_announce_candidates, MIDTERM_REGIONS
 from dust.models import WeatherHourlyMeasurement, WeatherMidTermForecast
-from dust.services.common import _dfs_grid_from_lat_lng, _haversine_km, _to_float
+from dust.services.common import _dfs_grid_from_lat_lng, _haversine_km, _to_float, bulk_upsert
 from dust.services.stations import _current_station_location
 
 
@@ -155,41 +155,44 @@ def _weather_measurement_to_response(measurement, source="stored_weather_hourly"
     }
 
 
+WEATHER_UPDATE_FIELDS = ["temperature", "humidity", "wind_speed", "wind_direction", "rain_mm", "rain_probability", "sky", "precipitation_type", "label", "raw_data", "updated_at"]
+
+
+def _weather_fields(selected):
+    return {
+        "temperature": _kma_float(selected.get("T1H")),
+        "humidity": _kma_float(selected.get("REH")),
+        "wind_speed": _kma_float(selected.get("WSD")),
+        "wind_direction": _kma_float(selected.get("VEC")),
+        "rain_mm": _kma_float(selected.get("RN1")) or _parse_kma_precipitation(selected.get("PCP")),
+        "rain_probability": _kma_float(selected.get("POP")),
+        "sky": str(selected.get("SKY") or ""),
+        "precipitation_type": str(selected.get("PTY") or ""),
+        "label": _kma_current_weather_label(selected.get("PTY"), selected.get("SKY"), selected.get("LGT")),
+        "raw_data": selected,
+    }
+
+
 def _store_weather_hourly_measurement(grid, selected_key, selected):
     measured_at = _weather_measured_at_from_key(selected_key)
     if not measured_at:
         return None
     measurement, _ = WeatherHourlyMeasurement.objects.update_or_create(
-        nx=grid["nx"],
-        ny=grid["ny"],
-        measured_at=measured_at,
-        defaults={
-            "temperature": _kma_float(selected.get("T1H")),
-            "humidity": _kma_float(selected.get("REH")),
-            "wind_speed": _kma_float(selected.get("WSD")),
-            "wind_direction": _kma_float(selected.get("VEC")),
-            "rain_mm": _kma_float(selected.get("RN1")) or _parse_kma_precipitation(selected.get("PCP")),
-            "rain_probability": _kma_float(selected.get("POP")),
-            "sky": str(selected.get("SKY") or ""),
-            "precipitation_type": str(selected.get("PTY") or ""),
-            "label": _kma_current_weather_label(selected.get("PTY"), selected.get("SKY"), selected.get("LGT")),
-            "raw_data": selected,
-        },
+        nx=grid["nx"], ny=grid["ny"], measured_at=measured_at, defaults=_weather_fields(selected),
     )
     return measurement
 
 
-def _store_forecast_rain_probability(grid, selected_key, value):
-    """초단기예보에는 강수확률이 없어서, 그 시각 행에 단기예보의 강수확률만 넣는다(다음 몇 시간의 비 알림·화면에 쓰임)."""
-    probability = _kma_float(value)
-    measured_at = _weather_measured_at_from_key(selected_key)
-    if probability is None or not measured_at:
-        return
-    row = WeatherHourlyMeasurement.objects.filter(nx=grid["nx"], ny=grid["ny"], measured_at=measured_at).first()
-    if row:
-        row.rain_probability = probability
-        row.raw_data = {**(row.raw_data if isinstance(row.raw_data, dict) else {}), "POP": value}
-        row.save(update_fields=["rain_probability", "raw_data", "updated_at"])
+def _store_weather_hourly_measurements(grid, selected_by_key):
+    """한 격자의 시간별 예보({키: 값})를 한 번에 저장한다. 저장한 행 수를 돌려준다."""
+    rows = [
+        WeatherHourlyMeasurement(nx=grid["nx"], ny=grid["ny"], measured_at=measured_at, **_weather_fields(selected))
+        for key, selected in selected_by_key.items()
+        for measured_at in [_weather_measured_at_from_key(key)] if measured_at
+    ]
+    if rows:
+        bulk_upsert(WeatherHourlyMeasurement, rows, unique_fields=["nx", "ny", "measured_at"], update_fields=WEATHER_UPDATE_FIELDS)
+    return len(rows)
 
 
 def _store_current_observation(grid, now=None):

@@ -9,7 +9,7 @@ from dust.external_api import public_api_get
 from dust.models import AirQualityStation
 from dust.config import AIRKOREA_HEADERS, KMA_API_KEY, KMA_ULTRA_SHORT_FORECAST_URL
 from dust.services.common import _dfs_grid_from_lat_lng
-from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_current_observation, _store_forecast_rain_probability, _store_weather_hourly_measurement
+from dust.services.weather import _fetch_kma_hourly_weather_forecast_by_grid, _kma_ultra_short_base_datetime_candidates, _store_current_observation, _store_weather_hourly_measurements, _weather_measured_at_from_key
 
 
 def env_int(name, default):
@@ -113,8 +113,8 @@ def _collect_grid_weather(
     use_village_fallback=True,
 ):
     attempts = []
-    saved_keys = set()
-    saved = 0
+    # 한 격자의 예보를 모아 두었다가 마지막에 한 번에 저장한다(한 줄씩 저장하면 격자마다 DB를 수백 번 오감).
+    pending = {}
     if use_ultra_short:
         for base_date, base_time, current_time in _kma_ultra_short_base_datetime_candidates(limit=ultra_short_candidate_limit):
             params = {
@@ -159,26 +159,24 @@ def _collect_grid_weather(
                 attempts.append(f"{base_date}{base_time}: no usable forecast item")
                 continue
 
-            for selected_key in forecast_keys:
-                selected = grouped.get(selected_key) or {}
-                if _store_weather_hourly_measurement(grid, selected_key, selected):
-                    saved_keys.add(selected_key)
-                    saved += 1
-
-            if saved:
+            rows = {key: grouped.get(key) or {} for key in forecast_keys if _weather_measured_at_from_key(key)}
+            if rows:
+                pending.update(rows)
                 break
 
             attempts.append(f"{base_date}{base_time}: store skipped")
 
-    if use_village_fallback and saved < forecast_hours:
+    if use_village_fallback and len(pending) < forecast_hours:
         for item in _fetch_kma_hourly_weather_forecast_by_grid(grid, limit=forecast_hours):
             date_text = str(item.get("date") or "").replace("-", "")
             hour_text = str(item.get("hour") or "").replace(":", "")
             selected_key = f"{date_text}{hour_text[:4]}"
             if not selected_key:
                 continue
-            if selected_key in saved_keys:
-                _store_forecast_rain_probability(grid, selected_key, item.get("rain_probability"))
+            if selected_key in pending:
+                # 초단기예보에는 강수확률이 없어서 단기예보 값을 넣는다(다음 몇 시간의 비 알림·화면에 쓰임).
+                if item.get("rain_probability") is not None:
+                    pending[selected_key] = {**pending[selected_key], "POP": item.get("rain_probability")}
                 continue
             selected = {
                 "T1H": item.get("temperature"),
@@ -190,11 +188,12 @@ def _collect_grid_weather(
                 "SKY": item.get("sky"),
                 "PTY": item.get("precipitation_type"),
             }
-            if _store_weather_hourly_measurement(grid, selected_key, selected):
-                saved_keys.add(selected_key)
-                saved += 1
-            if saved >= forecast_hours:
+            if _weather_measured_at_from_key(selected_key):
+                pending[selected_key] = selected
+            if len(pending) >= forecast_hours:
                 break
+
+    saved = _store_weather_hourly_measurements(grid, pending)
 
     # 예보를 다 저장한 뒤 지금 시각 한 행만 실측으로 덮는다(먼저 덮으면 예보가 다시 덮어쓴다).
     if use_ultra_short:

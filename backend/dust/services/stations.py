@@ -9,7 +9,7 @@ from dust.config import AIRKOREA_REQUEST_WORKERS, SIDO_NAMES, STATION_MAPPING
 from dust.current_dust_service import canonical_sido_name, has_usable_realtime_values as _has_usable_realtime_values
 from dust.models import AirQualityStation, DustMeasurement, RealtimeDustMeasurement
 from dust.services.airkorea_client import _clean_station_name, _fetch_realtime_station_values_for_sido, _fetch_station_locations_for_sido, _parse_airkorea_datetime
-from dust.services.common import _haversine_km, _to_float
+from dust.services.common import _haversine_km, _to_float, bulk_upsert
 from dust.services.dust_quality import (
     NEIGHBOR_SPIKE_RULES,
     _is_single_sample_spike,
@@ -285,9 +285,24 @@ def _find_air_quality_station(sido, station_name):
     return None
 
 
+def _active_station_index():
+    """측정소 이름으로 찾기 위한 사전. 값마다 DB를 조회하지 않게(N+1) 한 번에 읽는다.
+    _find_air_quality_station과 같은 순서: 이름이 정확히 같은 곳, 없으면 이름을 다듬어 같은 곳."""
+    exact, loose = {}, {}
+    for station in AirQualityStation.objects.filter(is_active=True):
+        exact.setdefault((station.sido, station.name), station)
+        loose.setdefault((station.sido, _station_lookup_name(station.name)), station)
+    return exact, loose
+
+
 def _store_realtime_values_to_db(values):
-    saved = 0
-    resolved = [(value, station) for value in values.values() for station in [_find_station_for_realtime_value(value)] if station]
+    exact, loose = _active_station_index()
+    resolved = []
+    for value in values.values():
+        sido, name = value.get("sido"), _clean_station_name(value.get("name"))
+        station = (exact.get((sido, name)) or loose.get((sido, _station_lookup_name(name)))) if sido and name else None
+        if station:
+            resolved.append((value, station))
     # 같은 수집 회차의 주변 측정소보다 혼자 튄 값은 비워서 저장한다. 원래 값은 raw_data에 남는다.
     for (value, station), fields in zip(resolved, _neighbor_spike_fields([(station.lat, station.lng, value) for value, station in resolved])):
         is_high = any((_to_float(value.get(field)) or 0) >= rule["min_value"] for field, rule in NEIGHBOR_SPIKE_RULES.items())
@@ -303,23 +318,32 @@ def _store_realtime_values_to_db(values):
             value["rawAQI"] = value.get("aqi")
             value["aqi"] = None
         _restore_cleared_previous(previous, value)
+    rows = {}
     for value, station in resolved:
         measured_at = _parse_airkorea_datetime(value.get("time")) or timezone.now().replace(minute=0, second=0, microsecond=0)
-        _, created = RealtimeDustMeasurement.objects.update_or_create(
+        # 같은 측정소·시각이 두 번 오면 나중 값이 이긴다(예전 한 줄씩 저장과 같음).
+        rows[(station.id, measured_at)] = RealtimeDustMeasurement(
             station=station,
             measured_at=measured_at,
-            defaults={
-                "pm10_value": _to_float(value.get("pm10")),
-                "pm25_value": _to_float(value.get("pm25")),
-                "o3_value": _to_float(value.get("o3")),
-                "no2_value": _to_float(value.get("no2")),
-                "aqi_value": _to_float(value.get("aqi")),
-                "raw_data": value,
-            },
+            pm10_value=_to_float(value.get("pm10")),
+            pm25_value=_to_float(value.get("pm25")),
+            o3_value=_to_float(value.get("o3")),
+            no2_value=_to_float(value.get("no2")),
+            aqi_value=_to_float(value.get("aqi")),
+            raw_data=value,
         )
-        if created:
-            saved += 1
-    return saved
+    if not rows:
+        return 0
+    existing = set(
+        RealtimeDustMeasurement.objects
+        .filter(station_id__in={station_id for station_id, _ in rows}, measured_at__in={measured_at for _, measured_at in rows})
+        .values_list("station_id", "measured_at")
+    )
+    bulk_upsert(
+        RealtimeDustMeasurement, list(rows.values()), unique_fields=["station", "measured_at"],
+        update_fields=["pm10_value", "pm25_value", "o3_value", "no2_value", "aqi_value", "raw_data"],
+    )
+    return sum(1 for key in rows if key not in existing)
 
 
 def _load_latest_daily_station_values():

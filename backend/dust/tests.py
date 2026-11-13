@@ -1117,3 +1117,20 @@ class NearHourRainProbabilityTests(TestCase):
         tz = dj_timezone.get_current_timezone()
         changes = soon_weather_changes(points, dj_timezone.make_aware(datetime(2026, 11, 9, 14, 45), tz))
         self.assertEqual([(hour, kind) for hour, kind, _phrase in changes], [(16, 'rain')])
+
+
+class BulkSaveQueryCountTests(TestCase):
+    """수집 저장이 행마다 DB를 오가지 않는다(N+1·한 줄씩 저장으로 돌아가면 실패)."""
+
+    def test_realtime_dust_saves_in_few_queries_and_counts_new_rows(self):
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+        from dust.models import AirQualityStation, RealtimeDustMeasurement
+        from dust.services.stations import _store_realtime_values_to_db
+        AirQualityStation.objects.bulk_create([AirQualityStation(sido='부산', name=f'측정{i}', lat=35 + i * 0.1, lng=129 + i * 0.1) for i in range(50)])
+        values = lambda pm10: {f'부산:측정{i}': {'sido': '부산', 'name': f'측정{i}', 'time': '2026-11-13 10:00', 'pm10': pm10} for i in range(50)}
+        with CaptureQueriesContext(connection) as queries:
+            self.assertEqual(_store_realtime_values_to_db(values('30')), 50)
+        self.assertLess(len(queries), 10)
+        self.assertEqual(_store_realtime_values_to_db(values('40')), 0)  # 두 번째는 새 행 없이 값만 바뀜
+        self.assertEqual(set(RealtimeDustMeasurement.objects.values_list('pm10_value', flat=True)), {40.0})

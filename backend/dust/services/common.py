@@ -3,6 +3,18 @@ import math
 import re
 from datetime import datetime
 
+from django.db import connection
+
+
+def bulk_upsert(model, objects, unique_fields, update_fields, batch_size=500):
+    """여러 행을 한 번에 넣고, 이미 있으면(unique_fields가 같으면) update_fields만 고친다.
+    한 줄씩 update_or_create(행마다 조회·저장)하면 DB를 수천 번 오가서 묶어 보낸다."""
+    options = {"update_conflicts": True, "update_fields": update_fields, "batch_size": batch_size}
+    # MySQL은 충돌 기준 칸을 따로 받지 않는다(모든 unique 키로 판단).
+    if connection.features.supports_update_conflicts_with_target:
+        options["unique_fields"] = unique_fields
+    model.objects.bulk_create(objects, **options)
+
 
 def _first_valid_value(*values):
     for value in values:
