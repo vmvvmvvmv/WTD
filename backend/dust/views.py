@@ -265,16 +265,22 @@ PLACE_SEARCH_QUERY_MAX = 60
 
 
 def _place_search_allowed(request):
+    from django.db import transaction
+    from django.db.models import F
     from dust.memo_views import _client_ip
+    from dust.models import LlmDailyUsage
+    from dust.services.memo_events import _digest
 
-    # IP 원문은 캐시 키에도 남기지 않는다(해시만).
-    ip_key = hashlib.sha256(_client_ip(request).encode("utf-8")).hexdigest()[:24]
-    key = f"place_search_ip_{ip_key}_{int(timezone.now().timestamp() // PLACE_SEARCH_CACHE_SECONDS)}"
-    cache.add(key, 0, PLACE_SEARCH_CACHE_SECONDS)
-    try:
-        return cache.incr(key) <= PLACE_SEARCH_IP_LIMIT
-    except ValueError:
-        return True
+    # 횟수는 DB에서 한 번에 +1 한다. 캐시 incr는 파일 캐시에서 '읽고 더해 쓰기'라 동시 요청이 서로 덮어쓰고,
+    # 메모리 캐시면 gunicorn 워커마다 따로 세서 한도가 새었다(test_concurrency). AI 하루 한도와 같은 표·방식을 쓰고,
+    # 열쇠에 10분 창 번호를 넣어 창마다 따로 센다. IP 원문은 남기지 않는다(비밀키를 섞은 해시만).
+    window = int(timezone.now().timestamp() // PLACE_SEARCH_CACHE_SECONDS)
+    day, digest = timezone.localdate(), _digest("place", f"{_client_ip(request)}:{window}")
+    LlmDailyUsage.objects.get_or_create(day=day, client_digest=digest)
+    rows = LlmDailyUsage.objects.filter(day=day, client_digest=digest)
+    with transaction.atomic():
+        rows.update(count=F("count") + 1)
+        return rows.values_list("count", flat=True).get() <= PLACE_SEARCH_IP_LIMIT
 
 
 @api_view(['GET'])

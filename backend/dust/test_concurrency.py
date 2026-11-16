@@ -3,7 +3,6 @@
 SQLite는 쓰기를 한 줄로 세워서 겹침이 재현되지 않으므로 MySQL에서만 돈다.
     TEST_DB=mysql venv/Scripts/python.exe manage.py test dust.test_concurrency
 """
-import tempfile
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
@@ -12,7 +11,7 @@ from unittest import skipUnless
 from unittest.mock import patch
 
 from django.db import connection
-from django.test import RequestFactory, TransactionTestCase, override_settings
+from django.test import RequestFactory, TransactionTestCase
 from django.utils import timezone
 
 
@@ -86,10 +85,8 @@ class ConcurrencyTests(TransactionTestCase):
         self.assertEqual(len(sent), 1, sent)
 
     def test_place_search_ip_limit_holds_under_parallel_requests(self):
-        """한 IP에서 장소 검색 200번이 동시에 와도 네이버로 가는 건 120번(IP 한도)까지다. 서버가 Redis 없이 쓰는 파일 캐시 기준."""
+        """한 IP에서 장소 검색 200번이 동시에 와도 네이버로 가는 건 120번(IP 한도)까지다."""
         from dust.views import PLACE_SEARCH_IP_LIMIT, _place_search_allowed
-        file_cache = {"default": {"BACKEND": "django.core.cache.backends.filebased.FileBasedCache", "LOCATION": tempfile.mkdtemp()}}
-        with override_settings(CACHES=file_cache):
-            request = RequestFactory().get("/dust/places/search/", REMOTE_ADDR="10.0.0.2")
-            results = race(lambda i: _place_search_allowed(request), 200)
+        request = RequestFactory().get("/dust/places/search/", REMOTE_ADDR="10.0.0.2")
+        results = race(lambda i: _place_search_allowed(request), 200)
         self.assertEqual(sum(1 for r in results if r == ("ok", True)), PLACE_SEARCH_IP_LIMIT)

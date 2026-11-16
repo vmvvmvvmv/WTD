@@ -366,7 +366,7 @@ class PastDustRequestTimeoutTests(SimpleTestCase):
 
 
 @patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
-class ErrorResponseShapeTests(SimpleTestCase):
+class ErrorResponseShapeTests(TestCase):
     """오류는 상태 코드와 상관없이 {"error", "code"} 모양이고, 바깥 API 원문은 응답에 넣지 않는다."""
 
     def test_missing_parameter_returns_error_and_code(self):
