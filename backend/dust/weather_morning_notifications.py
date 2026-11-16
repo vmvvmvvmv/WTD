@@ -399,6 +399,12 @@ def send_early_event_weather_notifications(now: datetime | None = None, dry_run:
     return WeatherMorningResult(sent=sent, failed=failed, skipped=skipped)
 
 
+def claim_notification(**key) -> bool:
+    """보내기 전에 보낸 기록을 먼저 만든다. 고유 키(기기·종류·지역·기준) 덕분에 작업 두 개가 겹쳐도 한쪽만 True를 받는다.
+    '기록 확인 → 보내기 → 기록'이면 둘 다 '기록 없음'을 보고 같은 알림이 두 번 갔다(test_concurrency)."""
+    return DustNotificationLog.objects.get_or_create(**key, defaults={"pm10_value": None})[1]
+
+
 SOON_NOTIFICATION_TYPE = "weather_soon"
 SOON_QUIET_HOURS = (22, 7)  # 밤 10시~아침 7시는 보내지 않는다(기상특보 알림과 같음).
 SOON_KINDS = (
@@ -459,6 +465,15 @@ def send_weather_soon_notifications(now: datetime | None = None, dry_run: bool =
         if not fresh:
             skipped += 1
             continue
+        soon_key = lambda change: {"device": device, "notification_type": SOON_NOTIFICATION_TYPE, "city": city, "region": region, "basis_key": f"{local_now:%Y%m%d}{change[0]:02d}{change[1]}"}
+        if not dry_run and not force:
+            # 겹쳐 도는 다른 작업이 먼저 잡은 알림은 빼고 보낸다.
+            fresh = [change for change in fresh if claim_notification(**soon_key(change))]
+            if not fresh:
+                skipped += 1
+                continue
+        # 보내지 못하면 잡아 둔 기록을 풀어서 다음 수집 때 다시 보낸다.
+        release = lambda: None if force else [DustNotificationLog.objects.filter(**soon_key(change)).delete() for change in fresh]
         first_hour = fresh[0][0]
         title = f"{region} 날씨 알림"
         body = " · ".join(f"{hour}시쯤 {phrase}" for hour, _kind, phrase in sorted(fresh))
@@ -483,6 +498,7 @@ def send_weather_soon_notifications(now: datetime | None = None, dry_run: bool =
             continue
         except Exception as exc:
             failed += 1
+            release()
             write(f"Expo push request failed for {city} {region}: {exc}")
             continue
         for hour, kind, _phrase in fresh:
