@@ -188,7 +188,8 @@ else:
     }
 
 # 테스트는 MySQL 계정에 테스트 DB를 만들 권한이 없어도 돌도록 메모리 SQLite를 쓴다.
-if len(sys.argv) > 1 and sys.argv[1] == 'test':
+# 동시 요청 테스트(test_concurrency)는 SQLite가 쓰기를 한 줄로 세워 재현이 안 돼서 TEST_DB=mysql로 MySQL에서 돌린다.
+if len(sys.argv) > 1 and sys.argv[1] == 'test' and env_value('TEST_DB') != 'mysql':
     DATABASES = {'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
 
 
