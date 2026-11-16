@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from dust.current_dust_service import canonical_sido_name
 from dust.models import DustNotificationLog, NotificationDevice
-from dust.weather_morning_notifications import ExpoDeviceNotRegistered, _station_for_region, send_expo_push
+from dust.weather_morning_notifications import ExpoDeviceNotRegistered, _station_for_region, claim_notification, send_expo_push
 
 logger = logging.getLogger(__name__)
 
@@ -199,6 +199,11 @@ def send_weather_warning_notifications(
                 write(f"[dry-run] {title} - {body}")
                 sent += 1
                 break
+            # 보내기 전에 기록부터 잡는다. 겹쳐 도는 작업은 같은 시(時)의 열쇠를 다퉈 한쪽만 보낸다.
+            # shortcut: 두 작업이 정각을 사이에 두고 겹치면 열쇠가 달라 막지 못한다. 그럴 일이 생기면 24시간 창 번호로 바꾼다.
+            log_key = {"device": device, "notification_type": NOTIFICATION_TYPE, "city": city, "region": region, "basis_key": f"{prefix}{now:%Y%m%d%H}"}
+            if not force and not claim_notification(**log_key):
+                continue
             try:
                 send_expo_push(device.expo_push_token, title, body, {"type": NOTIFICATION_TYPE, "city": city, "region": region})
             except ExpoDeviceNotRegistered:
@@ -209,12 +214,11 @@ def send_weather_warning_notifications(
                 break
             except Exception as exc:
                 failed += 1
+                if not force:
+                    DustNotificationLog.objects.filter(**log_key).delete()  # 다음에 다시 보내게 잡은 기록을 푼다.
                 write(f"Expo push request failed for {city} {region}: {exc}")
                 break
-            DustNotificationLog.objects.get_or_create(
-                device=device, notification_type=NOTIFICATION_TYPE, city=city, region=region,
-                basis_key=f"{prefix}{now:%Y%m%d%H%M}",
-            )
+            DustNotificationLog.objects.get_or_create(**log_key)
             device.last_sent_at = timezone.now()
             device.save(update_fields=["last_sent_at", "updated_at"])
             sent += 1

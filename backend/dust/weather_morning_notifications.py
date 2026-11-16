@@ -291,6 +291,11 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
             write(f"[dry-run] {title} - {body}")
             sent += 1
             continue
+        # 보내기 전에 기록부터 잡는다(claim_notification). 겹쳐 도는 다른 작업이 먼저 잡았으면 보내지 않는다.
+        log_key = {"device": device, "notification_type": NOTIFICATION_TYPE, "city": city, "region": region, "basis_key": basis_key}
+        if not force and not claim_notification(**log_key):
+            skipped += 1
+            continue
 
         try:
             send_expo_push(device.expo_push_token, title, body, {
@@ -310,6 +315,8 @@ def send_weather_morning_notifications(target_date: date, dry_run: bool = False,
             continue
         except Exception as exc:
             failed += 1
+            if not force:
+                DustNotificationLog.objects.filter(**log_key).delete()  # 다음에 다시 보내게 잡은 기록을 푼다.
             write(f"Expo push request failed for {city} {region}: {exc}")
             continue
 
@@ -376,6 +383,10 @@ def send_early_event_weather_notifications(now: datetime | None = None, dry_run:
                 write(f"[dry-run] {title} - {body}")
                 sent += 1
                 continue
+            log_key = {"device": device, "notification_type": EARLY_EVENT_NOTIFICATION_TYPE, "city": device.city, "region": device.region, "basis_key": basis_key}
+            if not force and not claim_notification(**log_key):  # 겹쳐 도는 다른 작업이 먼저 잡았으면 보내지 않는다.
+                skipped += 1
+                continue
             try:
                 send_expo_push(device.expo_push_token, title, body, {
                     "type": EARLY_EVENT_NOTIFICATION_TYPE, "city": device.city, "region": device.region, "date": local_start.date().isoformat(),
@@ -389,6 +400,8 @@ def send_early_event_weather_notifications(now: datetime | None = None, dry_run:
                 break
             except Exception as exc:
                 failed += 1
+                if not force:
+                    DustNotificationLog.objects.filter(**log_key).delete()
                 write(f"Expo push request failed for {device.city} {device.region}: {exc}")
                 continue
             DustNotificationLog.objects.update_or_create(

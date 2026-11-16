@@ -122,6 +122,7 @@ class ExpoDeviceNotRegisteredTests(SimpleTestCase):
         with patch(f'{module}.NotificationDevice.objects.filter', return_value=[device]), \
                 patch(f'{module}.weather_points_for_region', return_value=[object()]), \
                 patch(f'{module}.DustNotificationLog.objects.filter') as logs, \
+                patch(f'{module}.claim_notification', return_value=True), \
                 patch(f'{module}.events_for_date', return_value=[]), \
                 patch(f'{module}.build_weather_morning_message', return_value=('title', 'body')), \
                 patch(f'{module}.send_expo_push', side_effect=ExpoDeviceNotRegistered('gone')):

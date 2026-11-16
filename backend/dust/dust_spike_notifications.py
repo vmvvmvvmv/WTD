@@ -9,7 +9,7 @@ from django.utils import timezone
 from dust.airkorea_forecast import forecast_for
 from dust.current_dust_service import canonical_sido_name
 from dust.models import DustNotificationLog, NotificationDevice, RealtimeDustMeasurement
-from dust.weather_morning_notifications import ExpoDeviceNotRegistered, _station_for_region, send_expo_push
+from dust.weather_morning_notifications import ExpoDeviceNotRegistered, _station_for_region, claim_notification, send_expo_push
 
 
 NOTIFICATION_TYPE = "dust_spike"
@@ -119,6 +119,11 @@ def send_dust_spike_notifications(now: datetime | None = None, dry_run: bool = F
             write(f"[dry-run] {title} - {body}")
             sent += 1
             continue
+        # 보내기 전에 기록부터 잡는다(claim_notification). 겹쳐 도는 다른 작업이 먼저 잡았으면 보내지 않는다.
+        log_key = {"device": device, "notification_type": NOTIFICATION_TYPE, "city": city, "region": region, "basis_key": basis_key}
+        if not force and not claim_notification(**log_key):
+            skipped += 1
+            continue
 
         try:
             send_expo_push(device.expo_push_token, title, body, {"type": NOTIFICATION_TYPE, "city": city, "region": region})
@@ -131,6 +136,8 @@ def send_dust_spike_notifications(now: datetime | None = None, dry_run: bool = F
             continue
         except Exception as exc:
             failed += 1
+            if not force:
+                DustNotificationLog.objects.filter(**log_key).delete()  # 다음에 다시 보내게 잡은 기록을 푼다.
             write(f"Expo push request failed for {city} {region}: {exc}")
             continue
 

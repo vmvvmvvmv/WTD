@@ -90,3 +90,32 @@ class ConcurrencyTests(TransactionTestCase):
         request = RequestFactory().get("/dust/places/search/", REMOTE_ADDR="10.0.0.2")
         results = race(lambda i: _place_search_allowed(request), 200)
         self.assertEqual(sum(1 for r in results if r == ("ok", True)), PLACE_SEARCH_IP_LIMIT)
+
+    def _overlap_sends(self, module, run):
+        """알림 함수 run()을 두 작업이 동시에 돌린 뒤 실제로 보낸 알림 목록을 돌려준다."""
+        sent = []
+
+        def slow_push(token, title, body, data):
+            threading.Event().wait(0.2)
+            sent.append(body)
+
+        with patch.object(module, "send_expo_push", side_effect=slow_push):
+            race(lambda i: run(), 2)
+        return sent
+
+    def test_morning_and_spike_alerts_sent_once_when_runs_overlap(self):
+        """아침 날씨·미세먼지 급등 알림도 두 작업이 겹쳐 돌면 한 번만 간다."""
+        from datetime import date, timedelta
+        from dust import dust_spike_notifications as spike
+        from dust import weather_morning_notifications as morning
+        from dust.models import NotificationDevice
+        NotificationDevice.objects.create(expo_push_token="ExponentPushToken[m]", city="부산", region="대신동", enabled=True,
+                                          weather_morning_alerts=True, dust_spike_alerts=True)
+        tomorrow = date.today() + timedelta(days=1)  # 오늘이면 10시 이후 실행을 막는 규칙에 걸린다.
+        with patch.object(morning, "weather_points_for_region", return_value=[object()]), \
+                patch.object(morning, "build_weather_morning_message", return_value=("아침 날씨", "맑아요")):
+            self.assertEqual(len(self._overlap_sends(morning, lambda: morning.send_weather_morning_notifications(tomorrow))), 1)
+        noon = timezone.make_aware(datetime(2026, 11, 9, 12, 25), timezone.get_current_timezone())
+        with patch.object(spike, "_station_for_region", return_value=None), \
+                patch.object(spike, "build_dust_spike_message", return_value=("미세먼지 나쁨", "마스크를 챙기세요")):
+            self.assertEqual(len(self._overlap_sends(spike, lambda: spike.send_dust_spike_notifications(now=noon))), 1)
