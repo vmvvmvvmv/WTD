@@ -1,11 +1,11 @@
 from unittest.mock import Mock, patch
 
-from django.test import SimpleTestCase
+from django.test import TestCase
 
 from dust.services import places
 
 
-class NaverPlaceSearchTests(SimpleTestCase):
+class NaverPlaceSearchTests(TestCase):
     def setUp(self):
         from django.core.cache import cache
         cache.clear()

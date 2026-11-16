@@ -122,6 +122,7 @@ class ExpoDeviceNotRegisteredTests(SimpleTestCase):
         with patch(f'{module}.NotificationDevice.objects.filter', return_value=[device]), \
                 patch(f'{module}.weather_points_for_region', return_value=[object()]), \
                 patch(f'{module}.DustNotificationLog.objects.filter') as logs, \
+                patch(f'{module}.claim_notification', return_value=True), \
                 patch(f'{module}.events_for_date', return_value=[]), \
                 patch(f'{module}.build_weather_morning_message', return_value=('title', 'body')), \
                 patch(f'{module}.send_expo_push', side_effect=ExpoDeviceNotRegistered('gone')):
@@ -366,7 +367,7 @@ class PastDustRequestTimeoutTests(SimpleTestCase):
 
 
 @patch.dict('os.environ', {'APP_TEST_TOKEN': ''})
-class ErrorResponseShapeTests(SimpleTestCase):
+class ErrorResponseShapeTests(TestCase):
     """오류는 상태 코드와 상관없이 {"error", "code"} 모양이고, 바깥 API 원문은 응답에 넣지 않는다."""
 
     def test_missing_parameter_returns_error_and_code(self):
@@ -1020,7 +1021,7 @@ class WeatherSoonNotificationTests(TestCase):
         from dust.models import NotificationDevice
         NotificationDevice.objects.create(expo_push_token='ExponentPushToken[soon]', city='부산', region='대신동', enabled=True, weather_warning_alerts=True)
 
-    def _run(self, hour, rainy_hours):
+    def _run(self, hour, rainy_hours, push=None):
         from datetime import datetime
         from django.utils import timezone as dj_timezone
         from dust import weather_morning_notifications as module
@@ -1036,7 +1037,7 @@ class WeatherSoonNotificationTests(TestCase):
         ]
         messages = []
         with patch.object(module, 'weather_points_for_region', side_effect=lambda city, region, day: points if day.day == 25 else []), \
-                patch.object(module, 'send_expo_push', side_effect=lambda token, title, body, data: messages.append(body)):
+                patch.object(module, 'send_expo_push', side_effect=push or (lambda token, title, body, data: messages.append(body))):
             result = module.send_weather_soon_notifications(now=dj_timezone.make_aware(datetime(2026, 10, 25, hour, 45), tz), write=lambda _m: None)
         return result, messages
 
@@ -1046,6 +1047,10 @@ class WeatherSoonNotificationTests(TestCase):
         self.assertIn('16시쯤 비가 올 수도 있어요', messages[0])
         result, _ = self._run(15, {16, 17})
         self.assertEqual(result.sent, 0)  # 같은 비는 한 번만
+
+    def test_failed_push_is_retried_next_run(self):
+        self.assertEqual(self._run(14, {16, 17}, push=RuntimeError('network'))[0].failed, 1)
+        self.assertEqual(self._run(14, {16, 17})[0].sent, 1)  # 보내기 전에 잡은 기록을 풀어서 다음에 다시 간다
 
     def test_no_alert_when_already_raining_or_quiet_hours(self):
         self.assertEqual(self._run(14, {14, 15, 16})[0].sent, 0)
