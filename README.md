@@ -49,7 +49,7 @@
 | --- | --- |
 | **App** | React Native (Expo), TypeScript, Kotlin |
 | **Backend** | Django, Django REST Framework, MySQL, Redis, Gemini |
-| **Infra** | Google Cloud VM, nginx, gunicorn, systemd timer |
+| **Infra** | Google Cloud VM, nginx, gunicorn|
 
 ## 서비스 구성
 
