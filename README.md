@@ -25,7 +25,7 @@
 
 <br>
 
-| 홈 | 캘린더 | 예보 · 지도 |
+| 홈 화면 | 캘린더 기능 화면 | 단기 예보(3일치) · 전국 날씨 지도 |
 | :---: | :---: | :---: |
 | <img src="assets/readme/home_tour.gif" width="240" alt="홈 화면의 날씨 배너, 활동 가이드, 옷차림을 둘러보는 모습" /> | <img src="assets/readme/calendar_views.gif" width="240" alt="월, 년, 주, 일, 목록 캘린더를 전환하는 모습" /> | <img src="assets/readme/forecast_map.gif" width="240" alt="시간별 예보와 전국 날씨 지도를 보는 모습" /> |
 | 배너 · 활동 가이드 · 옷차림 | 월 · 년 · 주 · 일 · 목록 | 시간별 예보 · 전국 날씨 · 미세먼지 |
