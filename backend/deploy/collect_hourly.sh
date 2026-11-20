@@ -14,6 +14,8 @@ PY=venv/bin/python
 part="${1:-all}"
 status=0
 run() { "$PY" manage.py "$@" || { echo "failed: $*"; status=1; }; }
+# 디스크가 80% 넘으면 관리자 알림, 90% 넘으면 앱 캐시·binlog를 지운다. 수집이 쓰기 전에 먼저 돌린다.
+run check_disk_usage
 if [ "$part" = dust ] || [ "$part" = all ]; then
   run collect_realtime_dust --spike-retry-delay 60
   run send_dust_spike_notifications

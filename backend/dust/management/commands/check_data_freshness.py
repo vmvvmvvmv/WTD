@@ -38,7 +38,7 @@ class Command(BaseCommand):
                 )
 
         if not result["ok"]:
-            # 수집이 멈추면 관리자 폰으로 알린다(ADMIN_PUSH_TOKENS가 있을 때, 같은 문제는 3시간에 한 번).
+            # 수집이 멈추면 관리자 폰으로 알린다(ADMIN_EXPO_PUSH_TOKENS가 있을 때, 같은 문제는 3시간에 한 번).
             problems = ", ".join(result["problems"])
             alert_admins(f"freshness:{problems}", "[WTD] 데이터 수집이 멈췄어요", f"오래된 데이터: {problems}")
         if not result["ok"] and not options["allow_stale"]:
