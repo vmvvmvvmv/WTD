@@ -3,6 +3,7 @@
 // 급할 때 우회: git commit --no-verify (권장하지 않음)
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const staged = git('diff', '--cached', '--name-only', '--diff-filter=ACMR').split('\n').filter(Boolean);
@@ -56,12 +57,60 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
-// 3) 모바일 TypeScript 변경 시 타입 검사
-if (staged.some((file) => /^mobile\/.*\.(ts|tsx)$/.test(file))) {
+// 3) 모바일 TypeScript / 테스트 변경 시 타입 검사 · 린트 · 유닛 테스트
+const stagedMobileTs = staged.filter((file) => /^mobile\/.*\.(ts|tsx)$/.test(file));
+const stagedMobileCode = staged.some((file) => /^mobile\/src\/.*\.(ts|tsx|mjs|js)$/.test(file));
+
+if (stagedMobileTs.length > 0) {
   console.error('[pre-commit] 모바일 타입 검사(tsc) 실행 중...');
-  const result = spawnSync('npx tsc --noEmit -p tsconfig.json', { cwd: 'mobile', shell: true, stdio: 'inherit' });
-  if (result.status !== 0) {
+  const tscResult = spawnSync('npx', ['tsc', '--noEmit', '-p', 'tsconfig.json'], { cwd: 'mobile', shell: true, stdio: 'inherit' });
+  if (tscResult.status !== 0) {
     console.error('\n[pre-commit] 타입 오류가 있어 커밋을 막았습니다. 위 오류를 고친 뒤 다시 커밋하세요.\n');
+    process.exit(1);
+  }
+
+  const lintTargets = stagedMobileTs.map((f) => f.replace(/^mobile\//, ''));
+  console.error('[pre-commit] 변경된 모바일 파일 ESLint 검사 중...');
+  const lintResult = spawnSync('npx', ['eslint', '--quiet', ...lintTargets], { cwd: 'mobile', shell: true, stdio: 'inherit' });
+  if (lintResult.status !== 0) {
+    console.error('\n[pre-commit] ESLint 오류가 있어 커밋을 막았습니다. 위 오류를 고친 뒤 다시 커밋하세요.\n');
+    process.exit(1);
+  }
+}
+
+if (stagedMobileCode) {
+  console.error('[pre-commit] 모바일 유닛 테스트(npm test) 실행 중...');
+  const testResult = spawnSync('npm', ['test'], { cwd: 'mobile', shell: true, stdio: 'inherit' });
+  if (testResult.status !== 0) {
+    console.error('\n[pre-commit] 모바일 유닛 테스트가 실패해 커밋을 막았습니다.\n');
+    process.exit(1);
+  }
+}
+
+// 4) 백엔드 Python 변경 시 Django 시스템 체크
+if (staged.some((file) => /^backend\/.*\.py$/.test(file))) {
+  const pyCandidates = process.platform === 'win32'
+    ? ['backend/venv/Scripts/python.exe', 'python', 'py']
+    : ['backend/venv/bin/python', 'python3', 'python'];
+  let py = null;
+  for (const candidate of pyCandidates) {
+    if (candidate.includes('/') && !existsSync(candidate)) continue;
+    const probe = spawnSync(candidate, candidate === 'py' ? ['-3', '--version'] : ['--version'], { stdio: 'pipe' });
+    if (probe.status === 0) {
+      py = candidate === 'py' ? { cmd: 'py', args: ['-3'] } : { cmd: candidate, args: [] };
+      break;
+    }
+  }
+  if (!py) {
+    console.error('\n[pre-commit] 백엔드(.py)가 변경되었으나 실행 가능한 Python을 찾지 못했습니다.');
+    console.error('  backend/venv 환경을 확인하거나 급한 경우 git commit --no-verify 를 사용하세요.\n');
+    process.exit(1);
+  }
+  console.error('[pre-commit] 백엔드 Django 시스템 체크(manage.py check) 실행 중...');
+  const checkCmd = py.cmd.startsWith('backend/') ? path.resolve(py.cmd) : py.cmd;
+  const checkResult = spawnSync(checkCmd, [...py.args, 'manage.py', 'check'], { cwd: 'backend', shell: process.platform === 'win32', stdio: 'inherit' });
+  if (checkResult.status !== 0) {
+    console.error('\n[pre-commit] Django 시스템 체크가 실패해 커밋을 막았습니다.\n');
     process.exit(1);
   }
 }
