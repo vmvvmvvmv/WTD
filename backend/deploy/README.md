@@ -78,7 +78,14 @@ sudo mysql
 CREATE DATABASE weathertodo CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER 'weathertodo_user'@'localhost' IDENTIFIED BY '여기에-긴-비밀번호';
 GRANT ALL PRIVILEGES ON weathertodo.* TO 'weathertodo_user'@'localhost';
+-- 디스크가 90% 넘으면 check_disk_usage가 binlog를 지울 수 있게
+GRANT BINLOG_ADMIN ON *.* TO 'weathertodo_user'@'localhost';
 FLUSH PRIVILEGES;
+```
+
+binlog(변경 기록)는 기본 30일 보관이라 19GB 디스크를 채운다(2026-11-20 장애). 3일만 남긴다.
+```bash
+echo -e "[mysqld]\nbinlog_expire_logs_seconds=259200" | sudo tee /etc/mysql/mysql.conf.d/zz-binlog.cnf && sudo systemctl restart mysql
 ```
 
 ## 5. 코드와 환경변수

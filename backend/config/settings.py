@@ -181,7 +181,7 @@ elif len(sys.argv) > 1 and sys.argv[1] == 'test':
 else:
     CACHES = {
         'default': {
-            'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
+            'BACKEND': 'dust.cache_backend.SafeFileBasedCache',
             'LOCATION': BASE_DIR / '.cache' / 'django',
             'OPTIONS': {'MAX_ENTRIES': 5000},
         },
